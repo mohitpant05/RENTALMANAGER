@@ -15,6 +15,9 @@ class Settings(BaseSettings):
     minio_root_user: str = "minioadmin"
     minio_root_password: str = "minioadmin_dev"
     secret_key: str = "dev-secret-key-change-in-production"
+    access_token_expire_minutes: int = 15
+    refresh_token_expire_days: int = 7
+    jwt_algorithm: str = "HS256"
 
     debug: bool = True
 
