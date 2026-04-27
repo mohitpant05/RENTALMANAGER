@@ -5,6 +5,7 @@ from sqlalchemy import text
 from sqlmodel import SQLModel
 
 from app.config import get_settings
+from app.core.tenancy.context import get_current_tenant
 
 settings = get_settings()
 
@@ -43,3 +44,17 @@ async def create_tenant_schema(session: AsyncSession, tenant_id: str) -> None:
 async def init_db() -> None:
     async with engine.begin() as conn:
         await conn.run_sync(SQLModel.metadata.create_all)
+
+
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
+    tenant_ctx = get_current_tenant()
+    if tenant_ctx is None:
+        async with async_session_factory() as session:
+            yield session
+        return
+    async with async_session_factory() as session:
+        await session.execute(
+            text(f"SET search_path TO {tenant_ctx.schema_name}, public")
+        )
+        yield session
+        await session.execute(text("SET search_path TO public"))

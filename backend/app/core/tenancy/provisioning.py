@@ -1,0 +1,27 @@
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
+from sqlmodel import SQLModel
+
+from app.core.auth.models import TENANT_AUTH_TABLES  # noqa: F401 — registers models
+
+TENANT_TABLE_REGISTRY: set[str] = set()
+TENANT_TABLE_REGISTRY.update(TENANT_AUTH_TABLES)
+
+
+async def create_tenant_tables(engine: AsyncEngine, schema_name: str) -> None:
+    tables = [
+        t for t in SQLModel.metadata.sorted_tables if t.name in TENANT_TABLE_REGISTRY
+    ]
+    async with engine.begin() as conn:
+        await conn.execute(text(f"SET search_path TO {schema_name}, public"))
+        for table in tables:
+            await conn.run_sync(lambda sync_conn, t=table: t.create(sync_conn, checkfirst=True))
+        await conn.execute(text("SET search_path TO public"))
+
+
+async def provision_tenant_schema(engine: AsyncEngine, session: AsyncSession, tenant_id: str) -> str:
+    schema_name = f"tenant_{tenant_id.replace('-', '_')}"
+    await session.execute(text(f"CREATE SCHEMA IF NOT EXISTS {schema_name}"))
+    await session.commit()
+    await create_tenant_tables(engine, schema_name)
+    return schema_name
