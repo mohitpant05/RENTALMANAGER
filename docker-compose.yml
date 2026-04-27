@@ -1,0 +1,199 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: rm-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-rentmanager}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rentmanager_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-rentmanager}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-rentmanager}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - rentmanager
+
+  redis:
+    image: redis:7-alpine
+    container_name: rm-redis
+    command: redis-server --appendonly yes
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - rentmanager
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.12
+    container_name: rm-meilisearch
+    environment:
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-masterkey_dev}
+      MEILI_ENV: development
+    ports:
+      - "${MEILI_PORT:-7700}:7700"
+    volumes:
+      - meilisearch_data:/meili_data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7700/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - rentmanager
+
+  minio:
+    image: minio/minio:latest
+    container_name: rm-minio
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin_dev}
+    command: server /data --console-address ":9001"
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - rentmanager
+
+  traefik:
+    image: traefik:v3.2
+    container_name: rm-traefik
+    ports:
+      - "80:80"
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik:/etc/traefik:ro
+    depends_on:
+      backend:
+        condition: service_started
+      frontend:
+        condition: service_started
+    networks:
+      - rentmanager
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: rm-backend
+    environment:
+      DATABASE_URL: "postgresql+asyncpg://${POSTGRES_USER:-rentmanager}:${POSTGRES_PASSWORD:-rentmanager_dev}@postgres:5432/${POSTGRES_DB:-rentmanager}"
+      DATABASE_URL_SYNC: "postgresql://${POSTGRES_USER:-rentmanager}:${POSTGRES_PASSWORD:-rentmanager_dev}@postgres:5432/${POSTGRES_DB:-rentmanager}"
+      REDIS_URL: "redis://redis:6379/0"
+      MEILI_URL: "http://meilisearch:7700"
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-masterkey_dev}
+      MINIO_ENDPOINT: "minio:9000"
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin_dev}
+      SECRET_KEY: ${SECRET_KEY:-dev-secret-key-change-in-production}
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      meilisearch:
+        condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.backend.rule=PathPrefix(`/api`)"
+      - "traefik.http.routers.backend.entrypoints=web"
+      - "traefik.http.services.backend.loadbalancer.server.port=8000"
+    networks:
+      - rentmanager
+
+  celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: rm-celery-worker
+    command: celery -A app.celery_app worker --loglevel=info
+    environment:
+      DATABASE_URL: "postgresql+asyncpg://${POSTGRES_USER:-rentmanager}:${POSTGRES_PASSWORD:-rentmanager_dev}@postgres:5432/${POSTGRES_DB:-rentmanager}"
+      DATABASE_URL_SYNC: "postgresql://${POSTGRES_USER:-rentmanager}:${POSTGRES_PASSWORD:-rentmanager_dev}@postgres:5432/${POSTGRES_DB:-rentmanager}"
+      REDIS_URL: "redis://redis:6379/0"
+      MEILI_URL: "http://meilisearch:7700"
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-masterkey_dev}
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - rentmanager
+
+  celery-beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: rm-celery-beat
+    command: celery -A app.celery_app beat --loglevel=info
+    environment:
+      REDIS_URL: "redis://redis:6379/0"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - rentmanager
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: rm-frontend
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost/api}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.frontend.rule=PathPrefix(`/`)"
+      - "traefik.http.routers.frontend.entrypoints=web"
+      - "traefik.http.routers.frontend.priority=1"
+      - "traefik.http.services.frontend.loadbalancer.server.port=3000"
+    networks:
+      - rentmanager
+
+volumes:
+  postgres_data:
+    name: rm_postgres_data
+  redis_data:
+    name: rm_redis_data
+  meilisearch_data:
+    name: rm_meilisearch_data
+  minio_data:
+    name: rm_minio_data
+
+networks:
+  rentmanager:
+    name: rm_network
+    driver: bridge
