@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 from sqlmodel import SQLModel
 
 from app.core.auth.models import TENANT_AUTH_TABLES  # noqa: F401 — registers models
+from app.core.auth.seed import seed_default_roles
 
 TENANT_TABLE_REGISTRY: set[str] = set()
 TENANT_TABLE_REGISTRY.update(TENANT_AUTH_TABLES)
@@ -24,4 +25,9 @@ async def provision_tenant_schema(engine: AsyncEngine, session: AsyncSession, te
     await session.execute(text(f"CREATE SCHEMA IF NOT EXISTS {schema_name}"))
     await session.commit()
     await create_tenant_tables(engine, schema_name)
+
+    await session.execute(text(f"SET search_path TO {schema_name}, public"))
+    await seed_default_roles(session)
+    await session.execute(text("SET search_path TO public"))
+
     return schema_name
