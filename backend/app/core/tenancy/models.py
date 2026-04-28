@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, Text
+from sqlalchemy import Column, DateTime, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, SQLModel
 
@@ -17,8 +17,14 @@ class Tenant(SQLModel, table=True):
     config: dict | None = Field(default=None, sa_column=Column(JSONB))
     base_currency: str = Field(default="USD", max_length=3)
     timezone: str = Field(default="UTC", max_length=50)
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+    updated_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
 
 
 class TenantDomain(SQLModel, table=True):
@@ -29,7 +35,10 @@ class TenantDomain(SQLModel, table=True):
     domain: str = Field(max_length=255, unique=True, index=True)
     is_primary: bool = Field(default=False)
     is_verified: bool = Field(default=False)
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
 
 
 class PlatformConfig(SQLModel, table=True):
@@ -39,4 +48,7 @@ class PlatformConfig(SQLModel, table=True):
     key: str = Field(max_length=100, unique=True, index=True)
     value: str = Field(sa_column=Column(Text))
     description: str | None = Field(default=None, max_length=500)
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )

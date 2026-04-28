@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
+from sqlalchemy import Column, DateTime
 from sqlmodel import Field, SQLModel
 
 TENANT_AUTH_TABLES: set[str] = {
@@ -24,9 +25,17 @@ class User(SQLModel, table=True):
     is_verified: bool = Field(default=False)
     user_type: str = Field(max_length=20)
     avatar_url: str | None = Field(default=None, max_length=500)
-    last_login: datetime | None = Field(default=None)
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    last_login: datetime | None = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+    updated_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
 
 
 class Role(SQLModel, table=True):
@@ -37,7 +46,10 @@ class Role(SQLModel, table=True):
     slug: str = Field(max_length=100, index=True)
     description: str | None = Field(default=None, max_length=500)
     is_system: bool = Field(default=False)
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
 
 
 class Permission(SQLModel, table=True):
@@ -60,7 +72,10 @@ class UserRole(SQLModel, table=True):
 
     user_id: uuid.UUID = Field(foreign_key="users.id", primary_key=True)
     role_id: uuid.UUID = Field(foreign_key="roles.id", primary_key=True)
-    assigned_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    assigned_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
 
 
 class PlatformUser(SQLModel, table=True):
@@ -71,5 +86,11 @@ class PlatformUser(SQLModel, table=True):
     password_hash: str = Field(max_length=255)
     full_name: str = Field(max_length=255)
     is_active: bool = Field(default=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+    updated_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )

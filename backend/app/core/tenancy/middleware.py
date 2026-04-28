@@ -5,7 +5,7 @@ from sqlmodel import select
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
-from app.database import async_session_factory
+from app import database as db_module
 from app.core.tenancy.context import TenantContext, set_current_tenant
 from app.core.tenancy.models import Tenant, TenantDomain
 
@@ -57,14 +57,14 @@ class TenantMiddleware(BaseHTTPMiddleware):
     async def _get_tenant_by_slug(self, slug: str) -> Tenant | None:
         if not re.match(r"^[a-zA-Z0-9_-]+$", slug):
             return None
-        async with async_session_factory() as session:
+        async with db_module.async_session_factory() as session:
             result = await session.exec(
                 select(Tenant).where(Tenant.slug == slug, Tenant.is_active == True)
             )
             return result.first()
 
     async def _get_tenant_by_domain(self, domain: str) -> Tenant | None:
-        async with async_session_factory() as session:
+        async with db_module.async_session_factory() as session:
             result = await session.exec(
                 select(TenantDomain).where(TenantDomain.domain == domain)
             )

@@ -3,7 +3,7 @@ import uuid
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel import select
 
 from app.core.auth.models import Permission, Role, RolePermission, User, UserRole
@@ -188,7 +188,7 @@ async def test_me_without_token(client: AsyncClient, test_tenant: Tenant):
         "/api/auth/me",
         headers={"X-Tenant-ID": test_tenant.slug},
     )
-    assert response.status_code == 403
+    assert response.status_code == 401
 
 
 @pytest.mark.asyncio

@@ -1,5 +1,6 @@
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
+from sqlalchemy.ext.asyncio import AsyncEngine
+from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel import SQLModel
 
 from app.core.auth.models import TENANT_AUTH_TABLES  # noqa: F401 — registers models
@@ -14,7 +15,7 @@ async def create_tenant_tables(engine: AsyncEngine, schema_name: str) -> None:
         t for t in SQLModel.metadata.sorted_tables if t.name in TENANT_TABLE_REGISTRY
     ]
     async with engine.begin() as conn:
-        await conn.execute(text(f"SET search_path TO {schema_name}, public"))
+        await conn.execute(text(f"SET search_path TO {schema_name}"))
         for table in tables:
             await conn.run_sync(lambda sync_conn, t=table: t.create(sync_conn, checkfirst=True))
         await conn.execute(text("SET search_path TO public"))

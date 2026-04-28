@@ -13,7 +13,7 @@ dependencies = [
     "redis>=5.2",
     "celery[redis]>=5.4",
     "python-jose[cryptography]>=3.3",
-    "passlib[bcrypt]>=1.7",
+    "bcrypt>=4.0",
     "httpx>=0.28",
     "meilisearch>=0.31",
     "minio>=7.2",
@@ -36,6 +36,7 @@ packages = ["app"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+filterwarnings = ["ignore::DeprecationWarning:sqlmodel"]
 
 [tool.ruff]
 target-version = "py312"
