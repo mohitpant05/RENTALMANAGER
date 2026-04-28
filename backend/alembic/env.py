@@ -12,6 +12,7 @@ from app.config import get_settings
 from app.core.tenancy.models import Tenant, TenantDomain  # noqa: F401
 from app.core.auth.models import PlatformUser  # noqa: F401
 from app.domains.resources.models import ResourceType, Resource, ResourceAvailability  # noqa: F401
+from app.domains.bookings.models import Booking  # noqa: F401
 
 config = context.config
 if config.config_file_name is not None:

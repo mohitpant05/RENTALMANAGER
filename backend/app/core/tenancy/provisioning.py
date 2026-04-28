@@ -7,10 +7,12 @@ from app.core.auth.models import TENANT_AUTH_TABLES  # noqa: F401 — registers 
 from app.core.auth.seed import seed_default_roles
 from app.core.tenancy.context import validate_schema_name
 from app.domains.resources.models import TENANT_RESOURCE_TABLES  # noqa: F401
+from app.domains.bookings.models import TENANT_BOOKING_TABLES  # noqa: F401
 
 TENANT_TABLE_REGISTRY: set[str] = set()
 TENANT_TABLE_REGISTRY.update(TENANT_AUTH_TABLES)
 TENANT_TABLE_REGISTRY.update(TENANT_RESOURCE_TABLES)
+TENANT_TABLE_REGISTRY.update(TENANT_BOOKING_TABLES)
 
 
 async def create_tenant_tables(engine: AsyncEngine, schema_name: str) -> None:
