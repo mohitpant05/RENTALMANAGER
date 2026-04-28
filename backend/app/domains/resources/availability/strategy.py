@@ -53,7 +53,7 @@ async def confirm_hold(session: AsyncSession, hold_token: str, booking_id: uuid.
         select(ResourceAvailability).where(
             ResourceAvailability.hold_token == hold_token,
             ResourceAvailability.status == "held",
-        )
+        ).with_for_update()
     )
     record = result.first()
     if record is None:

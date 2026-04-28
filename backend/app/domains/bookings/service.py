@@ -75,10 +75,13 @@ async def create_booking(
     return booking
 
 
-async def get_booking(session: AsyncSession, booking_id: uuid.UUID) -> Booking:
-    result = await session.exec(
-        select(Booking).where(Booking.id == booking_id)
-    )
+async def get_booking(
+    session: AsyncSession, booking_id: uuid.UUID, *, for_update: bool = False
+) -> Booking:
+    stmt = select(Booking).where(Booking.id == booking_id)
+    if for_update:
+        stmt = stmt.with_for_update()
+    result = await session.exec(stmt)
     booking = result.first()
     if booking is None:
         raise HTTPException(status_code=404, detail="Booking not found")
@@ -108,7 +111,7 @@ async def list_bookings(
 async def confirm_booking(
     session: AsyncSession, booking_id: uuid.UUID
 ) -> Booking:
-    booking = await get_booking(session, booking_id)
+    booking = await get_booking(session, booking_id, for_update=True)
     if not can_transition(booking.status, "confirmed"):
         raise HTTPException(
             status_code=409,
@@ -127,7 +130,7 @@ async def confirm_booking(
 async def reject_booking(
     session: AsyncSession, booking_id: uuid.UUID, reason: str | None = None
 ) -> Booking:
-    booking = await get_booking(session, booking_id)
+    booking = await get_booking(session, booking_id, for_update=True)
     if not can_transition(booking.status, "rejected"):
         raise HTTPException(
             status_code=409,
@@ -154,7 +157,7 @@ async def cancel_booking(
     is_admin: bool = False,
     reason: str | None = None,
 ) -> Booking:
-    booking = await get_booking(session, booking_id)
+    booking = await get_booking(session, booking_id, for_update=True)
 
     if not is_admin and booking.user_id != user_id:
         raise HTTPException(status_code=403, detail="Not the booking owner")
@@ -188,7 +191,7 @@ async def cancel_booking(
 async def mark_no_show(
     session: AsyncSession, booking_id: uuid.UUID
 ) -> Booking:
-    booking = await get_booking(session, booking_id)
+    booking = await get_booking(session, booking_id, for_update=True)
     if not can_transition(booking.status, "no_show"):
         raise HTTPException(
             status_code=409,
