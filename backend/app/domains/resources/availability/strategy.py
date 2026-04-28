@@ -9,7 +9,7 @@ from sqlalchemy import and_, or_
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.domains.resources.models import ResourceAvailability
+from app.domains.resources.models import Resource, ResourceAvailability
 
 
 @dataclass
@@ -103,6 +103,15 @@ async def create_hold(
     end: datetime,
     hold_minutes: int,
 ) -> HoldResult:
+    # Lock the resource row to serialize concurrent hold attempts
+    await session.exec(
+        select(Resource).where(Resource.id == resource_id).with_for_update()
+    )
+    # Re-check overlap under lock to prevent TOCTOU race
+    available = await check_overlap(session, resource_id, start, end)
+    if not available:
+        raise ValueError("Resource no longer available (concurrent booking)")
+
     token = str(uuid.uuid4())
     expires = datetime.now(UTC) + timedelta(minutes=hold_minutes)
     record = ResourceAvailability(

@@ -38,7 +38,4 @@ class HourlyProvider:
         self, session: AsyncSession, resource_id: uuid.UUID, start: datetime, end: datetime,
         hold_minutes: int = 10,
     ) -> HoldResult:
-        available = await self.check(session, resource_id, start, end)
-        if not available:
-            raise ValueError("Resource not available for requested hours")
         return await create_hold(session, resource_id, start, end, hold_minutes)

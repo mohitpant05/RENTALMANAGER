@@ -1,10 +1,11 @@
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
-from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel import SQLModel
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.auth.models import TENANT_AUTH_TABLES  # noqa: F401 — registers models
 from app.core.auth.seed import seed_default_roles
+from app.core.tenancy.context import validate_schema_name
 from app.domains.resources.models import TENANT_RESOURCE_TABLES  # noqa: F401
 
 TENANT_TABLE_REGISTRY: set[str] = set()
@@ -13,6 +14,7 @@ TENANT_TABLE_REGISTRY.update(TENANT_RESOURCE_TABLES)
 
 
 async def create_tenant_tables(engine: AsyncEngine, schema_name: str) -> None:
+    validate_schema_name(schema_name)
     tables = [
         t for t in SQLModel.metadata.sorted_tables if t.name in TENANT_TABLE_REGISTRY
     ]
@@ -23,8 +25,11 @@ async def create_tenant_tables(engine: AsyncEngine, schema_name: str) -> None:
         await conn.execute(text("SET search_path TO public"))
 
 
-async def provision_tenant_schema(engine: AsyncEngine, session: AsyncSession, tenant_id: str) -> str:
+async def provision_tenant_schema(
+    engine: AsyncEngine, session: AsyncSession, tenant_id: str
+) -> str:
     schema_name = f"tenant_{tenant_id.replace('-', '_')}"
+    validate_schema_name(schema_name)
     await session.execute(text(f"CREATE SCHEMA IF NOT EXISTS {schema_name}"))
     await session.commit()
     await create_tenant_tables(engine, schema_name)

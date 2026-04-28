@@ -50,7 +50,4 @@ class TimeSlotProvider:
         self, session: AsyncSession, resource_id: uuid.UUID, start: datetime, end: datetime,
         hold_minutes: int = 10,
     ) -> HoldResult:
-        available = await self.check(session, resource_id, start, end)
-        if not available:
-            raise ValueError("Time slot not available")
         return await create_hold(session, resource_id, start, end, hold_minutes)

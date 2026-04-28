@@ -1,12 +1,12 @@
 from collections.abc import AsyncGenerator
 
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.config import get_settings
-from app.core.tenancy.context import get_current_tenant
+from app.core.tenancy.context import get_current_tenant, validate_schema_name
 
 settings = get_settings()
 
@@ -30,6 +30,7 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
 
 
 async def get_tenant_session(tenant_schema: str) -> AsyncGenerator[AsyncSession, None]:
+    validate_schema_name(tenant_schema)
     async with async_session_factory() as session:
         await session.execute(text(f"SET search_path TO {tenant_schema}, public"))
         yield session
