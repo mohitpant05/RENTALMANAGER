@@ -117,3 +117,57 @@ def test_validate_empty_schema():
 def test_validate_none_schema():
     errors = validate_attributes({"anything": "goes"}, None)
     assert errors == []
+
+
+from datetime import timedelta
+
+from app.domains.resources.availability.strategy import (
+    HoldResult,
+    get_availability_provider,
+)
+from app.domains.resources.availability.date_range import DateRangeProvider
+
+
+def test_get_availability_provider_date_range():
+    provider = get_availability_provider("date_range")
+    assert isinstance(provider, DateRangeProvider)
+
+
+def test_get_availability_provider_unknown_raises():
+    try:
+        get_availability_provider("unknown_model")
+        assert False, "Should have raised"
+    except ValueError:
+        pass
+
+
+def test_date_range_validate_times_valid():
+    provider = DateRangeProvider()
+    now = datetime.now(timezone.utc)
+    start = now + timedelta(days=1)
+    end = now + timedelta(days=3)
+    errors = provider.validate_times(start, end, slot_config=None)
+    assert errors == []
+
+
+def test_date_range_validate_times_end_before_start():
+    provider = DateRangeProvider()
+    now = datetime.now(timezone.utc)
+    start = now + timedelta(days=3)
+    end = now + timedelta(days=1)
+    errors = provider.validate_times(start, end, slot_config=None)
+    assert len(errors) == 1
+
+
+def test_date_range_validate_times_start_in_past():
+    provider = DateRangeProvider()
+    now = datetime.now(timezone.utc)
+    start = now - timedelta(days=1)
+    end = now + timedelta(days=1)
+    errors = provider.validate_times(start, end, slot_config=None)
+    assert len(errors) == 1
+
+
+def test_hold_result_structure():
+    result = HoldResult(hold_token="abc-123", expires=datetime.now(timezone.utc))
+    assert result.hold_token == "abc-123"
