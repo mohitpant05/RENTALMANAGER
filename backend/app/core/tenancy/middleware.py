@@ -10,6 +10,7 @@ from app.core.tenancy.context import TenantContext, set_current_tenant
 from app.core.tenancy.models import Tenant, TenantDomain
 
 TENANT_FREE_PATHS = {"/api/health", "/api/docs", "/api/openapi.json", "/api/redoc"}
+TENANT_FREE_PREFIXES = ("/api/platform/",)
 
 
 class TenantMiddleware(BaseHTTPMiddleware):
@@ -19,11 +20,17 @@ class TenantMiddleware(BaseHTTPMiddleware):
             set_current_tenant(None)
             return await call_next(request)
 
+        if any(path.startswith(p) for p in TENANT_FREE_PREFIXES):
+            set_current_tenant(None)
+            return await call_next(request)
+
         tenant = await self._resolve_tenant(request)
         if tenant is None:
             return JSONResponse(
                 status_code=400,
-                content={"detail": "Tenant not found. Provide X-Tenant-ID header or use tenant subdomain."},
+                content={
+                    "detail": "Tenant not found. Provide X-Tenant-ID header."
+                },
             )
 
         set_current_tenant(TenantContext(tenant=tenant, schema_name=tenant.schema_name))
@@ -59,7 +66,7 @@ class TenantMiddleware(BaseHTTPMiddleware):
             return None
         async with db_module.async_session_factory() as session:
             result = await session.exec(
-                select(Tenant).where(Tenant.slug == slug, Tenant.is_active == True)
+                select(Tenant).where(Tenant.slug == slug, Tenant.is_active.is_(True))
             )
             return result.first()
 
@@ -73,6 +80,8 @@ class TenantMiddleware(BaseHTTPMiddleware):
                 return None
 
             result = await session.exec(
-                select(Tenant).where(Tenant.id == tenant_domain.tenant_id, Tenant.is_active == True)
+                select(Tenant).where(
+                    Tenant.id == tenant_domain.tenant_id, Tenant.is_active.is_(True)
+                )
             )
             return result.first()

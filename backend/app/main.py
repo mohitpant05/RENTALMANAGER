@@ -3,6 +3,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app.config import get_settings
+from app.core.admin.platform_router import router as platform_router
+from app.core.admin.router import router as admin_router
 from app.core.auth.router import router as auth_router
 from app.core.notifications.router import router as notification_router
 from app.core.search.router import router as search_router
@@ -38,6 +40,8 @@ app.include_router(search_router)
 app.include_router(review_router)
 app.include_router(notification_router)
 app.include_router(storage_router)
+app.include_router(admin_router)
+app.include_router(platform_router)
 
 
 @app.get("/api/health")
