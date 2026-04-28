@@ -1,3 +1,5 @@
+import asyncio
+
 from celery import Celery
 
 from app.config import get_settings
@@ -21,4 +23,72 @@ celery.conf.update(
     worker_prefetch_multiplier=1,
 )
 
-celery.conf.beat_schedule = {}
+
+def _run_async(coro):
+    loop = asyncio.new_event_loop()
+    try:
+        return loop.run_until_complete(coro)
+    finally:
+        loop.close()
+
+
+async def _run_for_all_tenants(task_fn):
+    from sqlalchemy import text as sa_text
+
+    from sqlmodel import select
+
+    from app.core.tenancy.context import validate_schema_name
+    from app.core.tenancy.models import Tenant
+    from app.database import async_session_factory
+
+    async with async_session_factory() as session:
+        result = await session.exec(
+            select(Tenant).where(Tenant.is_active.is_(True))
+        )
+        tenants = list(result.all())
+
+    total = 0
+    for tenant in tenants:
+        validate_schema_name(tenant.schema_name)
+        async with async_session_factory() as session:
+            await session.execute(
+                sa_text(f"SET search_path TO {tenant.schema_name}, public")
+            )
+            count = await task_fn(session)
+            total += count
+            await session.execute(sa_text("SET search_path TO public"))
+    return total
+
+
+@celery.task(name="bookings.cleanup_expired_holds")
+def task_cleanup_expired_holds():
+    from app.domains.bookings.tasks import cleanup_expired_holds
+    return _run_async(_run_for_all_tenants(cleanup_expired_holds))
+
+
+@celery.task(name="bookings.activate_confirmed")
+def task_activate_confirmed():
+    from app.domains.bookings.tasks import activate_confirmed_bookings
+    return _run_async(_run_for_all_tenants(activate_confirmed_bookings))
+
+
+@celery.task(name="bookings.complete_active")
+def task_complete_active():
+    from app.domains.bookings.tasks import complete_active_bookings
+    return _run_async(_run_for_all_tenants(complete_active_bookings))
+
+
+celery.conf.beat_schedule = {
+    "cleanup-expired-holds": {
+        "task": "bookings.cleanup_expired_holds",
+        "schedule": 60.0,
+    },
+    "activate-confirmed-bookings": {
+        "task": "bookings.activate_confirmed",
+        "schedule": 60.0,
+    },
+    "complete-active-bookings": {
+        "task": "bookings.complete_active",
+        "schedule": 60.0,
+    },
+}
