@@ -126,6 +126,8 @@ from app.domains.resources.availability.strategy import (
     get_availability_provider,
 )
 from app.domains.resources.availability.date_range import DateRangeProvider
+from app.domains.resources.availability.time_slot import TimeSlotProvider
+from app.domains.resources.availability.hourly import HourlyProvider
 
 
 def test_get_availability_provider_date_range():
@@ -171,3 +173,69 @@ def test_date_range_validate_times_start_in_past():
 def test_hold_result_structure():
     result = HoldResult(hold_token="abc-123", expires=datetime.now(timezone.utc))
     assert result.hold_token == "abc-123"
+
+
+def test_time_slot_validate_times_valid():
+    provider = TimeSlotProvider()
+    now = datetime.now(timezone.utc)
+    start = now + timedelta(hours=1)
+    end = start + timedelta(hours=1, minutes=30)
+    slot_config = {"duration_options": ["1h", "1.5h", "2h"], "buffer_between": "30min"}
+    errors = provider.validate_times(start, end, slot_config)
+    assert errors == []
+
+
+def test_time_slot_validate_times_invalid_duration():
+    provider = TimeSlotProvider()
+    now = datetime.now(timezone.utc)
+    start = now + timedelta(hours=1)
+    end = start + timedelta(hours=3)
+    slot_config = {"duration_options": ["1h", "1.5h", "2h"], "buffer_between": "30min"}
+    errors = provider.validate_times(start, end, slot_config)
+    assert len(errors) == 1
+
+
+def test_time_slot_validate_no_config():
+    provider = TimeSlotProvider()
+    now = datetime.now(timezone.utc)
+    start = now + timedelta(hours=1)
+    end = start + timedelta(hours=1)
+    errors = provider.validate_times(start, end, slot_config=None)
+    assert errors == []
+
+
+def test_hourly_validate_times_valid():
+    provider = HourlyProvider()
+    now = datetime.now(timezone.utc)
+    start = now + timedelta(hours=1)
+    end = start + timedelta(hours=4)
+    errors = provider.validate_times(start, end, slot_config=None)
+    assert errors == []
+
+
+def test_hourly_validate_times_end_before_start():
+    provider = HourlyProvider()
+    now = datetime.now(timezone.utc)
+    start = now + timedelta(hours=5)
+    end = now + timedelta(hours=1)
+    errors = provider.validate_times(start, end, slot_config=None)
+    assert len(errors) == 1
+
+
+def test_hourly_validate_times_minimum_duration():
+    provider = HourlyProvider()
+    now = datetime.now(timezone.utc)
+    start = now + timedelta(hours=1)
+    end = start + timedelta(minutes=15)
+    errors = provider.validate_times(start, end, slot_config=None)
+    assert len(errors) == 1
+
+
+def test_get_provider_time_slot():
+    provider = get_availability_provider("time_slot")
+    assert isinstance(provider, TimeSlotProvider)
+
+
+def test_get_provider_hourly():
+    provider = get_availability_provider("hourly")
+    assert isinstance(provider, HourlyProvider)
