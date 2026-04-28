@@ -1,0 +1,19 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: alembic-migrate
+  namespace: rentmanager
+spec:
+  template:
+    spec:
+      containers:
+        - name: migrate
+          image: rentmanager-backend:latest
+          command: ["alembic", "upgrade", "head"]
+          envFrom:
+            - configMapRef:
+                name: rentmanager-config
+            - secretRef:
+                name: rentmanager-secrets
+      restartPolicy: Never
+  backoffLimit: 3

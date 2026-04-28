@@ -1,0 +1,86 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    outputs:
+      registry: ${{ steps.ecr-login.outputs.registry }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Login to ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push backend
+        env:
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/rentmanager-backend:$IMAGE_TAG \
+            -t $ECR_REGISTRY/rentmanager-backend:latest \
+            --target prod backend/
+          docker push $ECR_REGISTRY/rentmanager-backend:$IMAGE_TAG
+          docker push $ECR_REGISTRY/rentmanager-backend:latest
+
+      - name: Build and push frontend
+        env:
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/rentmanager-frontend:$IMAGE_TAG \
+            -t $ECR_REGISTRY/rentmanager-frontend:latest \
+            --target prod frontend/
+          docker push $ECR_REGISTRY/rentmanager-frontend:$IMAGE_TAG
+          docker push $ECR_REGISTRY/rentmanager-frontend:latest
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Login to ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Deploy to k3s
+        env:
+          KUBECONFIG_DATA: ${{ secrets.KUBECONFIG }}
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          echo "$KUBECONFIG_DATA" | base64 -d > /tmp/kubeconfig
+          export KUBECONFIG=/tmp/kubeconfig
+          kubectl set image deployment/backend \
+            backend=$ECR_REGISTRY/rentmanager-backend:$IMAGE_TAG \
+            -n rentmanager
+          kubectl set image deployment/celery-worker \
+            worker=$ECR_REGISTRY/rentmanager-backend:$IMAGE_TAG \
+            -n rentmanager
+          kubectl set image deployment/celery-beat \
+            beat=$ECR_REGISTRY/rentmanager-backend:$IMAGE_TAG \
+            -n rentmanager
+          kubectl set image deployment/frontend \
+            frontend=$ECR_REGISTRY/rentmanager-frontend:$IMAGE_TAG \
+            -n rentmanager
+          kubectl rollout status deployment/backend -n rentmanager --timeout=120s

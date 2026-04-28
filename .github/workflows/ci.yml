@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+      - name: Install dependencies
+        working-directory: backend
+        run: uv pip install --system ".[dev]"
+      - name: Lint
+        working-directory: backend
+        run: ruff check .
+
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: rentmanager
+          POSTGRES_PASSWORD: rentmanager_test
+          POSTGRES_DB: rentmanager_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U rentmanager"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+      meilisearch:
+        image: getmeili/meilisearch:v1.12
+        env:
+          MEILI_MASTER_KEY: test_master_key
+          MEILI_ENV: development
+        ports:
+          - 7700:7700
+      minio:
+        image: minio/minio:latest
+        env:
+          MINIO_ROOT_USER: minioadmin
+          MINIO_ROOT_PASSWORD: minioadmin_test
+        ports:
+          - 9000:9000
+        options: >-
+          --health-cmd "curl -f http://localhost:9000/minio/health/live"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+      - name: Install dependencies
+        working-directory: backend
+        run: uv pip install --system ".[dev]"
+      - name: Run tests
+        working-directory: backend
+        env:
+          DATABASE_URL: "postgresql+asyncpg://rentmanager:rentmanager_test@localhost:5432/rentmanager_test"
+          DATABASE_URL_SYNC: "postgresql://rentmanager:rentmanager_test@localhost:5432/rentmanager_test"
+          REDIS_URL: "redis://localhost:6379/0"
+          MEILI_URL: "http://localhost:7700"
+          MEILI_MASTER_KEY: test_master_key
+          MINIO_ENDPOINT: "localhost:9000"
+          MINIO_ROOT_USER: minioadmin
+          MINIO_ROOT_PASSWORD: minioadmin_test
+          SECRET_KEY: test-secret-key
+        run: pytest --tb=short -q
