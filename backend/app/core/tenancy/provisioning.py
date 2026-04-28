@@ -5,9 +5,11 @@ from sqlmodel import SQLModel
 
 from app.core.auth.models import TENANT_AUTH_TABLES  # noqa: F401 — registers models
 from app.core.auth.seed import seed_default_roles
+from app.domains.resources.models import TENANT_RESOURCE_TABLES  # noqa: F401
 
 TENANT_TABLE_REGISTRY: set[str] = set()
 TENANT_TABLE_REGISTRY.update(TENANT_AUTH_TABLES)
+TENANT_TABLE_REGISTRY.update(TENANT_RESOURCE_TABLES)
 
 
 async def create_tenant_tables(engine: AsyncEngine, schema_name: str) -> None:
