@@ -3,15 +3,21 @@ from datetime import UTC, datetime, timedelta
 
 from pydantic import ValidationError
 
-from app.domains.bookings.models import Booking, TENANT_BOOKING_TABLES
+from app.domains.bookings.models import TENANT_BOOKING_TABLES, Booking
 from app.domains.bookings.schemas import BookingCreate, BookingListParams
 from app.domains.bookings.state_machine import (
     ALL_STATUSES,
     TERMINAL_STATUSES,
-    VALID_TRANSITIONS,
     calculate_refund_percent,
     can_transition,
 )
+
+_FULL_POLICY = {
+    "free_cancel_hours": 48,
+    "partial_cancel_hours": 24,
+    "partial_refund_percent": 50,
+    "no_refund_after": True,
+}
 
 
 def test_can_transition_pending_to_confirmed():
@@ -77,21 +83,21 @@ def test_refund_full_when_no_policy():
 
 
 def test_refund_full_within_free_cancel_window():
-    policy = {"free_cancel_hours": 48, "partial_cancel_hours": 24, "partial_refund_percent": 50, "no_refund_after": True}
+    policy = _FULL_POLICY
     now = datetime.now(UTC)
     start = now + timedelta(hours=72)
     assert calculate_refund_percent(policy, start, now=now) == 100.0
 
 
 def test_refund_partial_within_partial_window():
-    policy = {"free_cancel_hours": 48, "partial_cancel_hours": 24, "partial_refund_percent": 50, "no_refund_after": True}
+    policy = _FULL_POLICY
     now = datetime.now(UTC)
     start = now + timedelta(hours=30)
     assert calculate_refund_percent(policy, start, now=now) == 50.0
 
 
 def test_refund_zero_past_all_windows():
-    policy = {"free_cancel_hours": 48, "partial_cancel_hours": 24, "partial_refund_percent": 50, "no_refund_after": True}
+    policy = _FULL_POLICY
     now = datetime.now(UTC)
     start = now + timedelta(hours=10)
     assert calculate_refund_percent(policy, start, now=now) == 0.0
@@ -105,14 +111,14 @@ def test_refund_full_when_no_refund_after_false():
 
 
 def test_refund_exactly_at_free_cancel_boundary():
-    policy = {"free_cancel_hours": 48, "partial_cancel_hours": 24, "partial_refund_percent": 50, "no_refund_after": True}
+    policy = _FULL_POLICY
     now = datetime.now(UTC)
     start = now + timedelta(hours=48)
     assert calculate_refund_percent(policy, start, now=now) == 100.0
 
 
 def test_refund_just_below_free_cancel_boundary():
-    policy = {"free_cancel_hours": 48, "partial_cancel_hours": 24, "partial_refund_percent": 50, "no_refund_after": True}
+    policy = _FULL_POLICY
     now = datetime.now(UTC)
     start = now + timedelta(hours=47, minutes=59)
     assert calculate_refund_percent(policy, start, now=now) == 50.0

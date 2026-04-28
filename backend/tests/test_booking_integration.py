@@ -438,12 +438,12 @@ async def test_customer_cannot_confirm_booking(
 
 @pytest.mark.asyncio
 async def test_cleanup_expired_holds(db_session, test_tenant, db_engine):
-    import uuid
     from sqlalchemy import text
+
     from app.core.auth.models import User
     from app.core.auth.password import hash_password
-    from app.domains.resources.models import ResourceAvailability, ResourceType, Resource
     from app.domains.bookings.tasks import cleanup_expired_holds
+    from app.domains.resources.models import Resource, ResourceAvailability, ResourceType
 
     schema = test_tenant.schema_name
     await db_session.execute(text(f"SET search_path TO {schema}, public"))

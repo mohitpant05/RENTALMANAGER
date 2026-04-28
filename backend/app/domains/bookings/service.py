@@ -1,15 +1,15 @@
 import uuid
 from datetime import UTC, datetime
 
-from fastapi import HTTPException, status
+from fastapi import HTTPException
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.domains.bookings.models import Booking
 from app.domains.bookings.schemas import BookingCreate
 from app.domains.bookings.state_machine import (
-    can_transition,
     calculate_refund_percent,
+    can_transition,
 )
 from app.domains.resources.availability.strategy import confirm_hold, release_hold
 from app.domains.resources.models import Resource, ResourceType
