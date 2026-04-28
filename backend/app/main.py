@@ -4,6 +4,7 @@ from fastapi import FastAPI
 
 from app.config import get_settings
 from app.core.auth.router import router as auth_router
+from app.core.notifications.router import router as notification_router
 from app.core.search.router import router as search_router
 from app.core.tenancy.middleware import TenantMiddleware
 from app.database import engine
@@ -34,6 +35,7 @@ app.include_router(resource_router)
 app.include_router(booking_router)
 app.include_router(search_router)
 app.include_router(review_router)
+app.include_router(notification_router)
 
 
 @app.get("/api/health")
