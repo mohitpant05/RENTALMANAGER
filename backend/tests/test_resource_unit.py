@@ -239,3 +239,106 @@ def test_get_provider_time_slot():
 def test_get_provider_hourly():
     provider = get_availability_provider("hourly")
     assert isinstance(provider, HourlyProvider)
+
+
+from app.domains.resources.pricing.strategy import get_pricing_provider
+from app.domains.resources.pricing.providers import (
+    FixedPerDayProvider,
+    FixedPerSlotProvider,
+    HourlyPricingProvider,
+    TieredProvider,
+)
+
+
+def test_fixed_per_day_pricing():
+    provider = FixedPerDayProvider()
+    now = datetime.now(timezone.utc)
+    start = now
+    end = now + timedelta(days=3)
+    price = provider.calculate(base_price=100.0, start=start, end=end, config=None)
+    assert price == 300.0
+
+
+def test_fixed_per_day_partial_day_rounds_up():
+    provider = FixedPerDayProvider()
+    now = datetime.now(timezone.utc)
+    start = now
+    end = now + timedelta(days=2, hours=6)
+    price = provider.calculate(base_price=100.0, start=start, end=end, config=None)
+    assert price == 300.0
+
+
+def test_fixed_per_slot_pricing():
+    provider = FixedPerSlotProvider()
+    now = datetime.now(timezone.utc)
+    start = now
+    end = now + timedelta(hours=1, minutes=30)
+    price = provider.calculate(base_price=50.0, start=start, end=end, config=None)
+    assert price == 50.0
+
+
+def test_hourly_pricing():
+    provider = HourlyPricingProvider()
+    now = datetime.now(timezone.utc)
+    start = now
+    end = now + timedelta(hours=4)
+    price = provider.calculate(base_price=25.0, start=start, end=end, config=None)
+    assert price == 100.0
+
+
+def test_hourly_pricing_partial_hour():
+    provider = HourlyPricingProvider()
+    now = datetime.now(timezone.utc)
+    start = now
+    end = now + timedelta(hours=2, minutes=30)
+    price = provider.calculate(base_price=20.0, start=start, end=end, config=None)
+    assert price == 60.0
+
+
+def test_tiered_pricing():
+    provider = TieredProvider()
+    config = {
+        "tiers": [
+            {"min_days": 1, "max_days": 3, "rate_multiplier": 1.0},
+            {"min_days": 4, "max_days": 7, "rate_multiplier": 0.85},
+            {"min_days": 8, "max_days": None, "rate_multiplier": 0.70},
+        ]
+    }
+    now = datetime.now(timezone.utc)
+    start = now
+    end = now + timedelta(days=10)
+    price = provider.calculate(base_price=100.0, start=start, end=end, config=config)
+    # Days 1-3: 3 * 100 * 1.0 = 300
+    # Days 4-7: 4 * 100 * 0.85 = 340
+    # Days 8-10: 3 * 100 * 0.70 = 210
+    assert price == 850.0
+
+
+def test_tiered_pricing_short_stay():
+    provider = TieredProvider()
+    config = {
+        "tiers": [
+            {"min_days": 1, "max_days": 3, "rate_multiplier": 1.0},
+            {"min_days": 4, "max_days": 7, "rate_multiplier": 0.85},
+        ]
+    }
+    now = datetime.now(timezone.utc)
+    start = now
+    end = now + timedelta(days=2)
+    price = provider.calculate(base_price=100.0, start=start, end=end, config=config)
+    assert price == 200.0
+
+
+def test_get_pricing_provider_all_models():
+    assert isinstance(get_pricing_provider("fixed_per_day"), FixedPerDayProvider)
+    assert isinstance(get_pricing_provider("fixed_per_slot"), FixedPerSlotProvider)
+    assert isinstance(get_pricing_provider("per_hour"), HourlyPricingProvider)
+    assert isinstance(get_pricing_provider("tiered"), TieredProvider)
+
+
+def test_get_pricing_provider_unknown_raises():
+    try:
+        get_pricing_provider("unknown")
+        assert False, "Should have raised"
+    except ValueError:
+        pass
