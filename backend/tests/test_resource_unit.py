@@ -342,3 +342,53 @@ def test_get_pricing_provider_unknown_raises():
         assert False, "Should have raised"
     except ValueError:
         pass
+
+
+from pydantic import ValidationError
+
+from app.domains.resources.schemas import (
+    ResourceTypeCreate,
+    ResourceTypeUpdate,
+)
+
+
+def test_resource_type_create_valid():
+    data = ResourceTypeCreate(
+        name="Apartments",
+        slug="apartments",
+        availability_model="date_range",
+        pricing_model="fixed_per_day",
+    )
+    assert data.name == "Apartments"
+
+
+def test_resource_type_create_invalid_availability_model():
+    try:
+        ResourceTypeCreate(
+            name="Test",
+            slug="test",
+            availability_model="invalid_model",
+            pricing_model="fixed_per_day",
+        )
+        assert False, "Should have raised"
+    except ValidationError:
+        pass
+
+
+def test_resource_type_create_invalid_pricing_model():
+    try:
+        ResourceTypeCreate(
+            name="Test",
+            slug="test",
+            availability_model="date_range",
+            pricing_model="invalid_model",
+        )
+        assert False, "Should have raised"
+    except ValidationError:
+        pass
+
+
+def test_resource_type_update_partial():
+    data = ResourceTypeUpdate(name="Updated Name")
+    assert data.name == "Updated Name"
+    assert data.slug is None
