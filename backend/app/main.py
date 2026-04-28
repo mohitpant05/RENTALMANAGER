@@ -9,6 +9,7 @@ from app.core.tenancy.middleware import TenantMiddleware
 from app.database import engine
 from app.domains.bookings.router import router as booking_router
 from app.domains.resources.router import resource_router, resource_type_router
+from app.domains.reviews.router import router as review_router
 
 
 @asynccontextmanager
@@ -32,6 +33,7 @@ app.include_router(resource_type_router)
 app.include_router(resource_router)
 app.include_router(booking_router)
 app.include_router(search_router)
+app.include_router(review_router)
 
 
 @app.get("/api/health")
