@@ -1,0 +1,68 @@
+RESOURCE_TYPE_TEMPLATES: dict[str, dict] = {
+    "venues": {
+        "name": "Venues",
+        "slug": "venues",
+        "icon": "building",
+        "description": "Apartments, houses, event spaces, and other rentable venues",
+        "availability_model": "date_range",
+        "pricing_model": "fixed_per_day",
+        "attribute_schema": [
+            {"name": "property_type", "type": "enum", "options": ["apartment", "house", "villa", "studio", "event_space"], "required": True, "filterable": True},
+            {"name": "bedrooms", "type": "number", "required": True, "filterable": True},
+            {"name": "bathrooms", "type": "number", "required": True, "filterable": True},
+            {"name": "max_guests", "type": "number", "required": True, "filterable": True},
+            {"name": "amenities", "type": "tags", "required": False, "filterable": True},
+            {"name": "pet_friendly", "type": "boolean", "required": False, "filterable": True},
+        ],
+        "cancellation_defaults": {
+            "free_cancel_hours": 48,
+            "partial_cancel_hours": 24,
+            "partial_refund_percent": 50,
+            "no_refund_after": True,
+        },
+    },
+    "vehicles": {
+        "name": "Vehicles",
+        "slug": "vehicles",
+        "icon": "car",
+        "description": "Cars, bikes, scooters, vans, and other vehicles for rent",
+        "availability_model": "hourly",
+        "pricing_model": "per_hour",
+        "attribute_schema": [
+            {"name": "vehicle_type", "type": "enum", "options": ["car", "bike", "scooter", "van", "truck", "electric_bike"], "required": True, "filterable": True},
+            {"name": "seats", "type": "number", "required": True, "filterable": True},
+            {"name": "fuel_type", "type": "enum", "options": ["petrol", "diesel", "electric", "hybrid", "none"], "required": True, "filterable": True},
+            {"name": "transmission", "type": "enum", "options": ["manual", "automatic"], "required": False, "filterable": True},
+            {"name": "features", "type": "tags", "required": False, "filterable": True},
+        ],
+        "cancellation_defaults": {
+            "free_cancel_hours": 4,
+            "no_refund_after": True,
+        },
+    },
+    "cooks": {
+        "name": "Cooks",
+        "slug": "cooks",
+        "icon": "chef-hat",
+        "description": "Private cooks and chefs available for hire by time slot",
+        "availability_model": "time_slot",
+        "pricing_model": "fixed_per_slot",
+        "slot_config": {
+            "duration_options": ["1h", "1.5h", "2h", "3h"],
+            "buffer_between": "30min",
+        },
+        "attribute_schema": [
+            {"name": "cuisine_type", "type": "tags", "required": True, "filterable": True},
+            {"name": "experience_years", "type": "number", "required": True, "filterable": True},
+            {"name": "specialties", "type": "tags", "required": False, "filterable": True},
+            {"name": "max_guests_served", "type": "number", "required": True, "filterable": True},
+            {"name": "brings_own_ingredients", "type": "boolean", "required": False, "filterable": True},
+        ],
+        "cancellation_defaults": {
+            "free_cancel_hours": 24,
+            "partial_cancel_hours": 12,
+            "partial_refund_percent": 50,
+            "no_refund_after": True,
+        },
+    },
+}

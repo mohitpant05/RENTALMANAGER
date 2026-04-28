@@ -392,3 +392,38 @@ def test_resource_type_update_partial():
     data = ResourceTypeUpdate(name="Updated Name")
     assert data.name == "Updated Name"
     assert data.slug is None
+
+
+from app.domains.resources.templates import RESOURCE_TYPE_TEMPLATES
+
+
+def test_templates_have_required_keys():
+    required = {"name", "slug", "availability_model", "pricing_model", "attribute_schema"}
+    for slug, tmpl in RESOURCE_TYPE_TEMPLATES.items():
+        assert required.issubset(tmpl.keys()), f"Template '{slug}' missing keys"
+
+
+def test_venues_template():
+    tmpl = RESOURCE_TYPE_TEMPLATES["venues"]
+    assert tmpl["availability_model"] == "date_range"
+    assert tmpl["pricing_model"] == "fixed_per_day"
+    attr_names = {a["name"] for a in tmpl["attribute_schema"]}
+    assert "bedrooms" in attr_names
+    assert "property_type" in attr_names
+
+
+def test_vehicles_template():
+    tmpl = RESOURCE_TYPE_TEMPLATES["vehicles"]
+    assert tmpl["availability_model"] == "hourly"
+    assert tmpl["pricing_model"] == "per_hour"
+    attr_names = {a["name"] for a in tmpl["attribute_schema"]}
+    assert "vehicle_type" in attr_names
+    assert "seats" in attr_names
+
+
+def test_cooks_template():
+    tmpl = RESOURCE_TYPE_TEMPLATES["cooks"]
+    assert tmpl["availability_model"] == "time_slot"
+    assert tmpl["pricing_model"] == "fixed_per_slot"
+    attr_names = {a["name"] for a in tmpl["attribute_schema"]}
+    assert "cuisine_type" in attr_names
