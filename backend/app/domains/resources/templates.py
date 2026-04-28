@@ -7,7 +7,11 @@ RESOURCE_TYPE_TEMPLATES: dict[str, dict] = {
         "availability_model": "date_range",
         "pricing_model": "fixed_per_day",
         "attribute_schema": [
-            {"name": "property_type", "type": "enum", "options": ["apartment", "house", "villa", "studio", "event_space"], "required": True, "filterable": True},
+            {
+                "name": "property_type", "type": "enum",
+                "options": ["apartment", "house", "villa", "studio", "event_space"],
+                "required": True, "filterable": True,
+            },
             {"name": "bedrooms", "type": "number", "required": True, "filterable": True},
             {"name": "bathrooms", "type": "number", "required": True, "filterable": True},
             {"name": "max_guests", "type": "number", "required": True, "filterable": True},
@@ -29,10 +33,22 @@ RESOURCE_TYPE_TEMPLATES: dict[str, dict] = {
         "availability_model": "hourly",
         "pricing_model": "per_hour",
         "attribute_schema": [
-            {"name": "vehicle_type", "type": "enum", "options": ["car", "bike", "scooter", "van", "truck", "electric_bike"], "required": True, "filterable": True},
+            {
+                "name": "vehicle_type", "type": "enum",
+                "options": ["car", "bike", "scooter", "van", "truck", "electric_bike"],
+                "required": True, "filterable": True,
+            },
             {"name": "seats", "type": "number", "required": True, "filterable": True},
-            {"name": "fuel_type", "type": "enum", "options": ["petrol", "diesel", "electric", "hybrid", "none"], "required": True, "filterable": True},
-            {"name": "transmission", "type": "enum", "options": ["manual", "automatic"], "required": False, "filterable": True},
+            {
+                "name": "fuel_type", "type": "enum",
+                "options": ["petrol", "diesel", "electric", "hybrid", "none"],
+                "required": True, "filterable": True,
+            },
+            {
+                "name": "transmission", "type": "enum",
+                "options": ["manual", "automatic"],
+                "required": False, "filterable": True,
+            },
             {"name": "features", "type": "tags", "required": False, "filterable": True},
         ],
         "cancellation_defaults": {
@@ -56,7 +72,10 @@ RESOURCE_TYPE_TEMPLATES: dict[str, dict] = {
             {"name": "experience_years", "type": "number", "required": True, "filterable": True},
             {"name": "specialties", "type": "tags", "required": False, "filterable": True},
             {"name": "max_guests_served", "type": "number", "required": True, "filterable": True},
-            {"name": "brings_own_ingredients", "type": "boolean", "required": False, "filterable": True},
+            {
+                "name": "brings_own_ingredients", "type": "boolean",
+                "required": False, "filterable": True,
+            },
         ],
         "cancellation_defaults": {
             "free_cancel_hours": 24,

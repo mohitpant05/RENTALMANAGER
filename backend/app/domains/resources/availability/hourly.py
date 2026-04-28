@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -17,7 +17,7 @@ class HourlyProvider:
         self, start: datetime, end: datetime, slot_config: dict | None
     ) -> list[str]:
         errors: list[str] = []
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         if start < now:
             errors.append("Start time cannot be in the past")
         if end <= start:

@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import Column, DateTime, Text
 from sqlalchemy.dialects.postgresql import JSONB
@@ -29,11 +29,11 @@ class ResourceType(SQLModel, table=True):
     requires_verification: bool = Field(default=False)
     is_active: bool = Field(default=True)
     created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
+        default_factory=lambda: datetime.now(UTC),
         sa_column=Column(DateTime(timezone=True), nullable=False),
     )
     updated_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
+        default_factory=lambda: datetime.now(UTC),
         sa_column=Column(DateTime(timezone=True), nullable=False),
     )
 
@@ -57,11 +57,11 @@ class Resource(SQLModel, table=True):
     owner_id: uuid.UUID = Field(foreign_key="users.id", index=True)
     version: int = Field(default=1)
     created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
+        default_factory=lambda: datetime.now(UTC),
         sa_column=Column(DateTime(timezone=True), nullable=False),
     )
     updated_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
+        default_factory=lambda: datetime.now(UTC),
         sa_column=Column(DateTime(timezone=True), nullable=False),
     )
 
@@ -81,6 +81,6 @@ class ResourceAvailability(SQLModel, table=True):
     booking_id: uuid.UUID | None = Field(default=None)
     version: int = Field(default=1)
     created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
+        default_factory=lambda: datetime.now(UTC),
         sa_column=Column(DateTime(timezone=True), nullable=False),
     )

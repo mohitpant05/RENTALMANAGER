@@ -1,5 +1,4 @@
-import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from httpx import AsyncClient
@@ -398,7 +397,7 @@ async def active_venue(
 async def test_check_availability(
     client: AsyncClient, admin_headers: dict, active_venue: dict
 ):
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     start = (now + timedelta(days=10)).isoformat()
     end = (now + timedelta(days=13)).isoformat()
     response = await client.post(
@@ -416,7 +415,7 @@ async def test_check_availability(
 async def test_hold_resource(
     client: AsyncClient, admin_headers: dict, active_venue: dict
 ):
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     start = (now + timedelta(days=20)).isoformat()
     end = (now + timedelta(days=22)).isoformat()
     response = await client.post(
@@ -434,7 +433,7 @@ async def test_hold_resource(
 async def test_hold_then_check_unavailable(
     client: AsyncClient, admin_headers: dict, active_venue: dict
 ):
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     start = (now + timedelta(days=30)).isoformat()
     end = (now + timedelta(days=32)).isoformat()
 
@@ -458,7 +457,7 @@ async def test_hold_then_check_unavailable(
 async def test_hold_then_release_then_available(
     client: AsyncClient, admin_headers: dict, active_venue: dict
 ):
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     start = (now + timedelta(days=40)).isoformat()
     end = (now + timedelta(days=42)).isoformat()
 
@@ -488,7 +487,7 @@ async def test_hold_then_release_then_available(
 async def test_calculate_price(
     client: AsyncClient, admin_headers: dict, active_venue: dict
 ):
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     start = (now + timedelta(days=50)).isoformat()
     end = (now + timedelta(days=55)).isoformat()
     response = await client.post(
@@ -522,7 +521,7 @@ async def test_hold_inactive_resource_fails(
         headers=admin_headers,
     )
     resource_id = create.json()["id"]
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     start = (now + timedelta(days=60)).isoformat()
     end = (now + timedelta(days=62)).isoformat()
     response = await client.post(

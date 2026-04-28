@@ -1,12 +1,34 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timedelta
 
+from pydantic import ValidationError
+
+from app.domains.resources.attributes import validate_attributes
+from app.domains.resources.availability.date_range import DateRangeProvider
+from app.domains.resources.availability.hourly import HourlyProvider
+from app.domains.resources.availability.strategy import (
+    HoldResult,
+    get_availability_provider,
+)
+from app.domains.resources.availability.time_slot import TimeSlotProvider
 from app.domains.resources.models import (
     TENANT_RESOURCE_TABLES,
     Resource,
     ResourceAvailability,
     ResourceType,
 )
+from app.domains.resources.pricing.providers import (
+    FixedPerDayProvider,
+    FixedPerSlotProvider,
+    HourlyPricingProvider,
+    TieredProvider,
+)
+from app.domains.resources.pricing.strategy import get_pricing_provider
+from app.domains.resources.schemas import (
+    ResourceTypeCreate,
+    ResourceTypeUpdate,
+)
+from app.domains.resources.templates import RESOURCE_TYPE_TEMPLATES
 
 
 def test_resource_type_model_fields():
@@ -38,8 +60,8 @@ def test_resource_model_fields():
 def test_resource_availability_model_fields():
     ra = ResourceAvailability(
         resource_id=uuid.uuid4(),
-        start_time=datetime.now(timezone.utc),
-        end_time=datetime.now(timezone.utc),
+        start_time=datetime.now(UTC),
+        end_time=datetime.now(UTC),
         status="held",
     )
     assert ra.status == "held"
@@ -50,8 +72,6 @@ def test_tenant_resource_tables_registry():
     expected = {"resource_types", "resources", "resource_availability"}
     assert TENANT_RESOURCE_TABLES == expected
 
-
-from app.domains.resources.attributes import validate_attributes
 
 
 def test_validate_required_attribute_present():
@@ -119,16 +139,6 @@ def test_validate_none_schema():
     assert errors == []
 
 
-from datetime import timedelta
-
-from app.domains.resources.availability.strategy import (
-    HoldResult,
-    get_availability_provider,
-)
-from app.domains.resources.availability.date_range import DateRangeProvider
-from app.domains.resources.availability.time_slot import TimeSlotProvider
-from app.domains.resources.availability.hourly import HourlyProvider
-
 
 def test_get_availability_provider_date_range():
     provider = get_availability_provider("date_range")
@@ -145,7 +155,7 @@ def test_get_availability_provider_unknown_raises():
 
 def test_date_range_validate_times_valid():
     provider = DateRangeProvider()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     start = now + timedelta(days=1)
     end = now + timedelta(days=3)
     errors = provider.validate_times(start, end, slot_config=None)
@@ -154,7 +164,7 @@ def test_date_range_validate_times_valid():
 
 def test_date_range_validate_times_end_before_start():
     provider = DateRangeProvider()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     start = now + timedelta(days=3)
     end = now + timedelta(days=1)
     errors = provider.validate_times(start, end, slot_config=None)
@@ -163,7 +173,7 @@ def test_date_range_validate_times_end_before_start():
 
 def test_date_range_validate_times_start_in_past():
     provider = DateRangeProvider()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     start = now - timedelta(days=1)
     end = now + timedelta(days=1)
     errors = provider.validate_times(start, end, slot_config=None)
@@ -171,13 +181,13 @@ def test_date_range_validate_times_start_in_past():
 
 
 def test_hold_result_structure():
-    result = HoldResult(hold_token="abc-123", expires=datetime.now(timezone.utc))
+    result = HoldResult(hold_token="abc-123", expires=datetime.now(UTC))
     assert result.hold_token == "abc-123"
 
 
 def test_time_slot_validate_times_valid():
     provider = TimeSlotProvider()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     start = now + timedelta(hours=1)
     end = start + timedelta(hours=1, minutes=30)
     slot_config = {"duration_options": ["1h", "1.5h", "2h"], "buffer_between": "30min"}
@@ -187,7 +197,7 @@ def test_time_slot_validate_times_valid():
 
 def test_time_slot_validate_times_invalid_duration():
     provider = TimeSlotProvider()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     start = now + timedelta(hours=1)
     end = start + timedelta(hours=3)
     slot_config = {"duration_options": ["1h", "1.5h", "2h"], "buffer_between": "30min"}
@@ -197,7 +207,7 @@ def test_time_slot_validate_times_invalid_duration():
 
 def test_time_slot_validate_no_config():
     provider = TimeSlotProvider()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     start = now + timedelta(hours=1)
     end = start + timedelta(hours=1)
     errors = provider.validate_times(start, end, slot_config=None)
@@ -206,7 +216,7 @@ def test_time_slot_validate_no_config():
 
 def test_hourly_validate_times_valid():
     provider = HourlyProvider()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     start = now + timedelta(hours=1)
     end = start + timedelta(hours=4)
     errors = provider.validate_times(start, end, slot_config=None)
@@ -215,7 +225,7 @@ def test_hourly_validate_times_valid():
 
 def test_hourly_validate_times_end_before_start():
     provider = HourlyProvider()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     start = now + timedelta(hours=5)
     end = now + timedelta(hours=1)
     errors = provider.validate_times(start, end, slot_config=None)
@@ -224,7 +234,7 @@ def test_hourly_validate_times_end_before_start():
 
 def test_hourly_validate_times_minimum_duration():
     provider = HourlyProvider()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     start = now + timedelta(hours=1)
     end = start + timedelta(minutes=15)
     errors = provider.validate_times(start, end, slot_config=None)
@@ -241,18 +251,10 @@ def test_get_provider_hourly():
     assert isinstance(provider, HourlyProvider)
 
 
-from app.domains.resources.pricing.strategy import get_pricing_provider
-from app.domains.resources.pricing.providers import (
-    FixedPerDayProvider,
-    FixedPerSlotProvider,
-    HourlyPricingProvider,
-    TieredProvider,
-)
-
 
 def test_fixed_per_day_pricing():
     provider = FixedPerDayProvider()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     start = now
     end = now + timedelta(days=3)
     price = provider.calculate(base_price=100.0, start=start, end=end, config=None)
@@ -261,7 +263,7 @@ def test_fixed_per_day_pricing():
 
 def test_fixed_per_day_partial_day_rounds_up():
     provider = FixedPerDayProvider()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     start = now
     end = now + timedelta(days=2, hours=6)
     price = provider.calculate(base_price=100.0, start=start, end=end, config=None)
@@ -270,7 +272,7 @@ def test_fixed_per_day_partial_day_rounds_up():
 
 def test_fixed_per_slot_pricing():
     provider = FixedPerSlotProvider()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     start = now
     end = now + timedelta(hours=1, minutes=30)
     price = provider.calculate(base_price=50.0, start=start, end=end, config=None)
@@ -279,7 +281,7 @@ def test_fixed_per_slot_pricing():
 
 def test_hourly_pricing():
     provider = HourlyPricingProvider()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     start = now
     end = now + timedelta(hours=4)
     price = provider.calculate(base_price=25.0, start=start, end=end, config=None)
@@ -288,7 +290,7 @@ def test_hourly_pricing():
 
 def test_hourly_pricing_partial_hour():
     provider = HourlyPricingProvider()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     start = now
     end = now + timedelta(hours=2, minutes=30)
     price = provider.calculate(base_price=20.0, start=start, end=end, config=None)
@@ -304,7 +306,7 @@ def test_tiered_pricing():
             {"min_days": 8, "max_days": None, "rate_multiplier": 0.70},
         ]
     }
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     start = now
     end = now + timedelta(days=10)
     price = provider.calculate(base_price=100.0, start=start, end=end, config=config)
@@ -322,7 +324,7 @@ def test_tiered_pricing_short_stay():
             {"min_days": 4, "max_days": 7, "rate_multiplier": 0.85},
         ]
     }
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     start = now
     end = now + timedelta(days=2)
     price = provider.calculate(base_price=100.0, start=start, end=end, config=config)
@@ -343,13 +345,6 @@ def test_get_pricing_provider_unknown_raises():
     except ValueError:
         pass
 
-
-from pydantic import ValidationError
-
-from app.domains.resources.schemas import (
-    ResourceTypeCreate,
-    ResourceTypeUpdate,
-)
 
 
 def test_resource_type_create_valid():
@@ -393,8 +388,6 @@ def test_resource_type_update_partial():
     assert data.name == "Updated Name"
     assert data.slug is None
 
-
-from app.domains.resources.templates import RESOURCE_TYPE_TEMPLATES
 
 
 def test_templates_have_required_keys():

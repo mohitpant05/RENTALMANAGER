@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import HTTPException, status
 from sqlmodel import select
@@ -56,7 +56,7 @@ async def list_resource_types(
 ) -> list[ResourceType]:
     stmt = select(ResourceType)
     if active_only:
-        stmt = stmt.where(ResourceType.is_active == True)
+        stmt = stmt.where(ResourceType.is_active.is_(True))
     result = await session.exec(stmt.order_by(ResourceType.name))
     return list(result.all())
 
@@ -92,7 +92,7 @@ async def update_resource_type(
     update_data = data.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         setattr(rt, key, value)
-    rt.updated_at = datetime.now(timezone.utc)
+    rt.updated_at = datetime.now(UTC)
     session.add(rt)
     await session.commit()
     await session.refresh(rt)
@@ -104,7 +104,7 @@ async def delete_resource_type(
 ) -> None:
     rt = await get_resource_type(session, resource_type_id)
     rt.is_active = False
-    rt.updated_at = datetime.now(timezone.utc)
+    rt.updated_at = datetime.now(UTC)
     session.add(rt)
     await session.commit()
 
@@ -194,7 +194,7 @@ async def update_resource(
     update_data = data.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         setattr(resource, key, value)
-    resource.updated_at = datetime.now(timezone.utc)
+    resource.updated_at = datetime.now(UTC)
     resource.version += 1
     session.add(resource)
     await session.commit()
@@ -212,7 +212,7 @@ async def delete_resource(
     if not is_admin and resource.owner_id != user_id:
         raise HTTPException(status_code=403, detail="Not the resource owner")
     resource.status = "archived"
-    resource.updated_at = datetime.now(timezone.utc)
+    resource.updated_at = datetime.now(UTC)
     session.add(resource)
     await session.commit()
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Protocol
 
 from sqlalchemy import and_, or_
@@ -58,7 +58,7 @@ async def confirm_hold(session: AsyncSession, hold_token: str, booking_id: uuid.
     record = result.first()
     if record is None:
         return False
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     if record.hold_expires and record.hold_expires < now:
         await session.delete(record)
         await session.commit()
@@ -78,7 +78,7 @@ async def check_overlap(
     start: datetime,
     end: datetime,
 ) -> bool:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     result = await session.exec(
         select(ResourceAvailability).where(
             ResourceAvailability.resource_id == resource_id,
@@ -104,7 +104,7 @@ async def create_hold(
     hold_minutes: int,
 ) -> HoldResult:
     token = str(uuid.uuid4())
-    expires = datetime.now(timezone.utc) + timedelta(minutes=hold_minutes)
+    expires = datetime.now(UTC) + timedelta(minutes=hold_minutes)
     record = ResourceAvailability(
         resource_id=resource_id,
         start_time=start,
