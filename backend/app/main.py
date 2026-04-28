@@ -6,6 +6,7 @@ from app.config import get_settings
 from app.core.auth.router import router as auth_router
 from app.core.tenancy.middleware import TenantMiddleware
 from app.database import engine
+from app.domains.bookings.router import router as booking_router
 from app.domains.resources.router import resource_router, resource_type_router
 
 
@@ -28,6 +29,7 @@ app.add_middleware(TenantMiddleware)
 app.include_router(auth_router)
 app.include_router(resource_type_router)
 app.include_router(resource_router)
+app.include_router(booking_router)
 
 
 @app.get("/api/health")
