@@ -34,7 +34,6 @@ def _run_async(coro):
 
 async def _run_for_all_tenants(task_fn):
     from sqlalchemy import text as sa_text
-
     from sqlmodel import select
 
     from app.core.tenancy.context import validate_schema_name
@@ -78,6 +77,38 @@ def task_complete_active():
     return _run_async(_run_for_all_tenants(complete_active_bookings))
 
 
+@celery.task(name="search.full_reindex")
+def task_full_reindex():
+    async def _do_reindex():
+        from sqlalchemy import text as sa_text
+        from sqlmodel import select
+
+        from app.core.search.tasks import full_reindex
+        from app.core.tenancy.context import validate_schema_name
+        from app.core.tenancy.models import Tenant
+        from app.database import async_session_factory
+
+        async with async_session_factory() as session:
+            result = await session.exec(
+                select(Tenant).where(Tenant.is_active.is_(True))
+            )
+            tenants = list(result.all())
+
+        total = 0
+        for tenant in tenants:
+            validate_schema_name(tenant.schema_name)
+            async with async_session_factory() as session:
+                await session.execute(
+                    sa_text(f"SET search_path TO {tenant.schema_name}, public")
+                )
+                count = await full_reindex(session, str(tenant.id))
+                total += count
+                await session.execute(sa_text("SET search_path TO public"))
+        return total
+
+    return _run_async(_do_reindex())
+
+
 celery.conf.beat_schedule = {
     "cleanup-expired-holds": {
         "task": "bookings.cleanup_expired_holds",
@@ -90,5 +121,9 @@ celery.conf.beat_schedule = {
     "complete-active-bookings": {
         "task": "bookings.complete_active",
         "schedule": 60.0,
+    },
+    "search-full-reindex": {
+        "task": "search.full_reindex",
+        "schedule": 86400.0,
     },
 }

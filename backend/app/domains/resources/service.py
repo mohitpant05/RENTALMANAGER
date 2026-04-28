@@ -5,6 +5,9 @@ from fastapi import HTTPException, status
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.search.indexing import create_resource_type_index, delete_resource_type_index
+from app.core.search.sync import build_document, remove_resource, sync_resource
+from app.core.tenancy.context import get_current_tenant
 from app.domains.resources.attributes import validate_attributes
 from app.domains.resources.availability.strategy import (
     get_availability_provider,
@@ -48,6 +51,13 @@ async def create_resource_type(
     session.add(rt)
     await session.commit()
     await session.refresh(rt)
+
+    tenant_ctx = get_current_tenant()
+    if tenant_ctx:
+        create_resource_type_index(
+            str(tenant_ctx.tenant.id), rt.slug, rt.attribute_schema
+        )
+
     return rt
 
 
@@ -108,6 +118,10 @@ async def delete_resource_type(
     session.add(rt)
     await session.commit()
 
+    tenant_ctx = get_current_tenant()
+    if tenant_ctx:
+        delete_resource_type_index(str(tenant_ctx.tenant.id), rt.slug)
+
 
 async def create_resource(
     session: AsyncSession, data: ResourceCreate, owner_id: uuid.UUID
@@ -138,6 +152,18 @@ async def create_resource(
     session.add(resource)
     await session.commit()
     await session.refresh(resource)
+
+    tenant_ctx = get_current_tenant()
+    if tenant_ctx:
+        doc = build_document(
+            resource.id, resource.name, resource.description,
+            resource.location_lat, resource.location_lng, resource.location_address,
+            resource.attributes, resource.base_price, resource.currency,
+            resource.status, resource.rating_avg, resource.rating_count,
+            rt.slug, resource.created_at,
+        )
+        sync_resource(str(tenant_ctx.tenant.id), rt.slug, doc)
+
     return resource
 
 
@@ -199,6 +225,19 @@ async def update_resource(
     session.add(resource)
     await session.commit()
     await session.refresh(resource)
+
+    tenant_ctx = get_current_tenant()
+    if tenant_ctx:
+        rt_for_sync = await get_resource_type(session, resource.type_id)
+        doc = build_document(
+            resource.id, resource.name, resource.description,
+            resource.location_lat, resource.location_lng, resource.location_address,
+            resource.attributes, resource.base_price, resource.currency,
+            resource.status, resource.rating_avg, resource.rating_count,
+            rt_for_sync.slug, resource.created_at,
+        )
+        sync_resource(str(tenant_ctx.tenant.id), rt_for_sync.slug, doc)
+
     return resource
 
 
@@ -211,10 +250,17 @@ async def delete_resource(
     resource = await get_resource(session, resource_id)
     if not is_admin and resource.owner_id != user_id:
         raise HTTPException(status_code=403, detail="Not the resource owner")
+
+    rt_for_sync = await get_resource_type(session, resource.type_id)
+
     resource.status = "archived"
     resource.updated_at = datetime.now(UTC)
     session.add(resource)
     await session.commit()
+
+    tenant_ctx = get_current_tenant()
+    if tenant_ctx:
+        remove_resource(str(tenant_ctx.tenant.id), rt_for_sync.slug, str(resource.id))
 
 
 async def check_availability(
