@@ -10,6 +10,9 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 import app.database as db_module
 from app.config import get_settings
+from app.core.auth.models import User
+from app.core.auth.password import hash_password
+from app.core.auth.seed import seed_default_roles
 from app.core.tenancy.context import TenantContext, set_current_tenant
 from app.core.tenancy.models import Tenant
 from app.core.tenancy.provisioning import create_tenant_tables
@@ -75,9 +78,58 @@ async def test_tenant(db_session: AsyncSession, db_engine) -> AsyncGenerator[Ten
     await db_session.commit()
     await create_tenant_tables(db_engine, schema_name)
 
+    await db_session.execute(text(f"SET search_path TO {schema_name}, public"))
+    await seed_default_roles(db_session)
+    await db_session.execute(text("SET search_path TO public"))
+
     set_current_tenant(TenantContext(tenant=tenant, schema_name=schema_name))
     yield tenant
     set_current_tenant(None)
 
     await db_session.execute(text(f"DROP SCHEMA IF EXISTS {schema_name} CASCADE"))
     await db_session.commit()
+
+
+@pytest.fixture
+async def admin_headers(client: AsyncClient, test_tenant: Tenant, db_session: AsyncSession) -> dict:
+    schema_name = test_tenant.schema_name
+    await db_session.execute(text(f"SET search_path TO {schema_name}, public"))
+    admin = User(
+        email="admin@test.com",
+        password_hash=hash_password("adminpass123"),
+        full_name="Test Admin",
+        user_type="admin",
+    )
+    db_session.add(admin)
+    await db_session.commit()
+    await db_session.refresh(admin)
+    await db_session.execute(text("SET search_path TO public"))
+
+    resp = await client.post(
+        "/api/auth/login",
+        json={"email": "admin@test.com", "password": "adminpass123"},
+        headers={"X-Tenant-ID": test_tenant.slug},
+    )
+    tokens = resp.json()
+    return {
+        "X-Tenant-ID": test_tenant.slug,
+        "Authorization": f"Bearer {tokens['access_token']}",
+    }
+
+
+@pytest.fixture
+async def customer_headers(client: AsyncClient, test_tenant: Tenant) -> dict:
+    resp = await client.post(
+        "/api/auth/register",
+        json={
+            "email": "customer@test.com",
+            "password": "customerpass1",
+            "full_name": "Test Customer",
+        },
+        headers={"X-Tenant-ID": test_tenant.slug},
+    )
+    tokens = resp.json()
+    return {
+        "X-Tenant-ID": test_tenant.slug,
+        "Authorization": f"Bearer {tokens['access_token']}",
+    }
