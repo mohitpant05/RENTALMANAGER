@@ -7,7 +7,6 @@ from app.core.auth.schemas import (
     AcceptInviteRequest,
     LoginRequest,
     RefreshRequest,
-    RegisterRequest,
     TokenResponse,
     UserResponse,
     VerifyInviteResponse,
@@ -19,7 +18,6 @@ from app.core.auth.service import (
     create_tokens,
     get_user_roles,
     refresh_tokens,
-    register_user,
     verify_invite_token,
 )
 from app.core.auth.jwt import decode_token, revoke_refresh_token
@@ -27,18 +25,6 @@ from app.core.tenancy.context import get_current_tenant
 from app.database import get_db
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
-
-
-@router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
-async def register(
-    data: RegisterRequest,
-    session: AsyncSession = Depends(get_db),
-):
-    tenant_ctx = get_current_tenant()
-    tenant_id = str(tenant_ctx.tenant.id)
-    user = await register_user(session, data, tenant_id=tenant_id)
-    roles = await get_user_roles(session, str(user.id))
-    return await create_tokens(user, tenant_id, roles)
 
 
 @router.get("/verify-invite", response_model=VerifyInviteResponse)

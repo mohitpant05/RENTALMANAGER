@@ -113,7 +113,7 @@ def task_full_reindex():
     return _run_async(_do_reindex())
 
 
-@celery.task(name="email.send", bind=True, max_retries=3)
+@celery.task(name="email.send", bind=True, max_retries=3, queue="email")
 def task_send_email(self, to: str, subject: str, body: str):
     provider = get_email_provider()
     if provider is None:

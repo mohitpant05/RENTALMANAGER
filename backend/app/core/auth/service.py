@@ -4,7 +4,7 @@ from fastapi import HTTPException, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel import select
 
-from app.core.auth.invite import delete_invite_token, get_invite_data
+from app.core.auth.invite import claim_invite_token, get_invite_data
 from app.core.auth.jwt import (
     create_access_token,
     create_refresh_token,
@@ -173,7 +173,7 @@ async def verify_invite_token(token: str, tenant_id: str, session: AsyncSession)
 async def accept_invite(
     token: str, password: str, tenant_id: str, session: AsyncSession
 ) -> tuple[User, list[str]]:
-    data = await get_invite_data(token)
+    data = await claim_invite_token(token)
     if data is None or data["tenant_id"] != tenant_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -194,8 +194,6 @@ async def accept_invite(
     user.updated_at = datetime.now(timezone.utc)
     session.add(user)
     await session.commit()
-
-    await delete_invite_token(token)
 
     roles = await get_user_roles(session, str(user.id))
     return user, roles

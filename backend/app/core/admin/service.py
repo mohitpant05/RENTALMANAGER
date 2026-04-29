@@ -138,6 +138,8 @@ async def invite_staff(
         if existing.is_active:
             raise HTTPException(status_code=409, detail="User already active")
         user = existing
+        from app.core.auth.invite import delete_user_invite_tokens
+        await delete_user_invite_tokens(str(user.id))
     else:
         user = User(
             email=data.email,
