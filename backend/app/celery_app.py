@@ -1,8 +1,12 @@
 import asyncio
+import logging
 
 from celery import Celery
 
 from app.config import get_settings
+from app.core.email.factory import get_email_provider
+
+logger = logging.getLogger(__name__)
 
 settings = get_settings()
 
@@ -107,6 +111,18 @@ def task_full_reindex():
         return total
 
     return _run_async(_do_reindex())
+
+
+@celery.task(name="email.send", bind=True, max_retries=3)
+def task_send_email(self, to: str, subject: str, body: str):
+    provider = get_email_provider()
+    if provider is None:
+        logger.warning("No email provider configured, skipping email to %s", to)
+        return None
+    try:
+        return provider.send(to, subject, body)
+    except Exception as exc:
+        raise self.retry(exc=exc, countdown=30 * (2 ** self.request.retries))
 
 
 celery.conf.beat_schedule = {
