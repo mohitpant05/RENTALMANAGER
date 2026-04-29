@@ -19,6 +19,17 @@ class Settings(BaseSettings):
     refresh_token_expire_days: int = 7
     jwt_algorithm: str = "HS256"
 
+    frontend_url: str = "http://localhost:3000"
+    invite_token_expire_hours: int = 72
+
+    email_provider: str = ""
+    email_from: str = ""
+    smtp_host: str = "smtp.gmail.com"
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    mandrill_api_key: str = ""
+
     debug: bool = True
 
 
