@@ -4,6 +4,7 @@ from fastapi import HTTPException, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel import select
 
+from app.core.auth.invite import delete_invite_token, get_invite_data
 from app.core.auth.jwt import (
     create_access_token,
     create_refresh_token,
@@ -52,7 +53,17 @@ async def register_user(
 async def authenticate_user(session: AsyncSession, data: LoginRequest) -> User:
     result = await session.exec(select(User).where(User.email == data.email))
     user = result.first()
-    if user is None or not verify_password(data.password, user.password_hash):
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password",
+        )
+    if user.password_hash is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Account pending invite acceptance",
+        )
+    if not verify_password(data.password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",
@@ -144,3 +155,47 @@ def build_user_response(user: User, roles: list[str]) -> UserResponse:
         created_at=user.created_at,
         roles=roles,
     )
+
+
+async def verify_invite_token(token: str, tenant_id: str, session: AsyncSession) -> dict:
+    data = await get_invite_data(token)
+    if data is None or data["tenant_id"] != tenant_id:
+        return {"valid": False}
+
+    result = await session.exec(select(User).where(User.id == data["user_id"]))
+    user = result.first()
+    if user is None:
+        return {"valid": False}
+
+    return {"valid": True, "email": user.email, "full_name": user.full_name}
+
+
+async def accept_invite(
+    token: str, password: str, tenant_id: str, session: AsyncSession
+) -> tuple[User, list[str]]:
+    data = await get_invite_data(token)
+    if data is None or data["tenant_id"] != tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired invite",
+        )
+
+    result = await session.exec(select(User).where(User.id == data["user_id"]))
+    user = result.first()
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired invite",
+        )
+
+    user.password_hash = hash_password(password)
+    user.is_active = True
+    user.is_verified = True
+    user.updated_at = datetime.now(timezone.utc)
+    session.add(user)
+    await session.commit()
+
+    await delete_invite_token(token)
+
+    roles = await get_user_roles(session, str(user.id))
+    return user, roles

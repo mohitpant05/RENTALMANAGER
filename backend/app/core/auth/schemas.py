@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 
 class RegisterRequest(BaseModel):
@@ -44,3 +44,14 @@ class UserResponse(BaseModel):
     avatar_url: str | None
     created_at: datetime
     roles: list[str] = []
+
+
+class AcceptInviteRequest(BaseModel):
+    token: str
+    password: str = Field(min_length=8)
+
+
+class VerifyInviteResponse(BaseModel):
+    valid: bool
+    email: str | None = None
+    full_name: str | None = None
