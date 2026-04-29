@@ -18,7 +18,7 @@ class User(SQLModel, table=True):
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     email: str = Field(max_length=255, index=True)
-    password_hash: str = Field(max_length=255)
+    password_hash: str | None = Field(default=None, max_length=255)
     full_name: str = Field(max_length=255)
     phone: str | None = Field(default=None, max_length=50)
     is_active: bool = Field(default=True)
