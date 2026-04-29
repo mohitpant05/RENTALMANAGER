@@ -3,11 +3,24 @@
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/lib/auth-store";
 import api from "@/lib/api";
-import type { LoginRequest, RegisterRequest, TokenResponse, UserResponse } from "@/types/api";
+import type {
+  AcceptInviteRequest,
+  LoginRequest,
+  TokenResponse,
+  UserResponse,
+} from "@/types/api";
 
 export function useAuth() {
   const router = useRouter();
-  const { setAuth, clearAuth, setAccessToken, isAuthenticated, user, isLoading, getRefreshToken } = useAuthStore();
+  const {
+    setAuth,
+    clearAuth,
+    setAccessToken,
+    isAuthenticated,
+    user,
+    isLoading,
+    getRefreshToken,
+  } = useAuthStore();
 
   async function login(data: LoginRequest) {
     const res = await api.post<TokenResponse>("/auth/login", data);
@@ -18,8 +31,8 @@ export function useAuth() {
     router.push("/resources");
   }
 
-  async function register(data: RegisterRequest) {
-    const res = await api.post<TokenResponse>("/auth/register", data);
+  async function acceptInvite(data: AcceptInviteRequest) {
+    const res = await api.post<TokenResponse>("/auth/accept-invite", data);
     const meRes = await api.get<UserResponse>("/auth/me", {
       headers: { Authorization: `Bearer ${res.data.access_token}` },
     });
@@ -60,5 +73,13 @@ export function useAuth() {
     }
   }
 
-  return { login, register, logout, initAuth, isAuthenticated, user, isLoading };
+  return {
+    login,
+    acceptInvite,
+    logout,
+    initAuth,
+    isAuthenticated,
+    user,
+    isLoading,
+  };
 }

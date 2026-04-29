@@ -56,3 +56,14 @@ export interface ThemeResponse {
   features: Record<string, unknown>;
   updated_at: string;
 }
+
+export interface AcceptInviteRequest {
+  token: string;
+  password: string;
+}
+
+export interface VerifyInviteResponse {
+  valid: boolean;
+  email?: string;
+  full_name?: string;
+}
