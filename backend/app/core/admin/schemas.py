@@ -79,7 +79,6 @@ class StaffUserResponse(BaseModel):
 class StaffInvite(BaseModel):
     email: str
     full_name: str
-    password: str
     user_type: str = "staff"
     role_slugs: list[str] = []
 

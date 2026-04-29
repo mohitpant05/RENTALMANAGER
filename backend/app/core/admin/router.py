@@ -127,7 +127,12 @@ async def invite_tenant_staff(
     session: AsyncSession = Depends(get_db),
     user: User = Depends(_require_admin()),
 ):
-    new_user = await invite_staff(session, data)
+    tenant_ctx = get_current_tenant()
+    new_user = await invite_staff(
+        session, data,
+        tenant_id=str(tenant_ctx.tenant.id),
+        tenant_slug=tenant_ctx.tenant.slug,
+    )
     return StaffUserResponse.model_validate(new_user)
 
 

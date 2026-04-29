@@ -8,7 +8,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.admin.models import TenantTheme
 from app.core.admin.schemas import DomainCreate, StaffInvite, ThemeUpdate
 from app.core.auth.models import Role, User, UserRole
-from app.core.auth.password import hash_password
 from app.core.tenancy.models import Tenant, TenantDomain
 
 
@@ -129,28 +128,57 @@ async def list_staff(session: AsyncSession) -> list[dict]:
     return staff_list
 
 
-async def invite_staff(session: AsyncSession, data: StaffInvite) -> User:
+async def invite_staff(
+    session: AsyncSession, data: StaffInvite, tenant_id: str, tenant_slug: str
+) -> User:
     result = await session.exec(select(User).where(User.email == data.email))
-    if result.first() is not None:
-        raise HTTPException(status_code=409, detail="Email already registered")
+    existing = result.first()
 
-    user = User(
-        email=data.email,
-        password_hash=hash_password(data.password),
-        full_name=data.full_name,
-        user_type=data.user_type,
+    if existing is not None:
+        if existing.is_active:
+            raise HTTPException(status_code=409, detail="User already active")
+        user = existing
+    else:
+        user = User(
+            email=data.email,
+            password_hash=None,
+            full_name=data.full_name,
+            user_type=data.user_type,
+            is_active=False,
+        )
+        session.add(user)
+        await session.commit()
+        await session.refresh(user)
+
+        for slug in data.role_slugs:
+            role_result = await session.exec(select(Role).where(Role.slug == slug))
+            role = role_result.first()
+            if role is not None:
+                user_role = UserRole(user_id=user.id, role_id=role.id)
+                session.add(user_role)
+        await session.commit()
+
+    import uuid as _uuid
+
+    from app.celery_app import task_send_email
+    from app.config import get_settings
+    from app.core.auth.invite import store_invite_token
+
+    token = str(_uuid.uuid4())
+    await store_invite_token(token, str(user.id), tenant_id)
+
+    settings = get_settings()
+    invite_link = f"{settings.frontend_url}/t/{tenant_slug}/accept-invite?token={token}"
+    subject = "You've been invited to RentManager"
+    body = (
+        f"Hi {user.full_name},\n\n"
+        f"You've been invited to join as {user.user_type}.\n\n"
+        f"Click the link below to set your password and activate your account:\n"
+        f"{invite_link}\n\n"
+        f"This link expires in {settings.invite_token_expire_hours} hours."
     )
-    session.add(user)
-    await session.commit()
-    await session.refresh(user)
+    task_send_email.delay(user.email, subject, body)
 
-    for slug in data.role_slugs:
-        role_result = await session.exec(select(Role).where(Role.slug == slug))
-        role = role_result.first()
-        if role is not None:
-            user_role = UserRole(user_id=user.id, role_id=role.id)
-            session.add(user_role)
-    await session.commit()
     return user
 
 
