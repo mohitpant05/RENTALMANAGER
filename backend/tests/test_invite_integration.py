@@ -1,10 +1,16 @@
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import text
 
-from app.core.auth.invite import get_invite_data, store_invite_token
-from app.core.auth.models import User
 from app.core.tenancy.models import Tenant
+
+
+async def _get_invite_token(user_id: str) -> str:
+    from app.redis_client import get_redis
+
+    r = get_redis()
+    token = await r.get(f"invite_user:{user_id}")
+    assert token is not None, f"No invite token found for user {user_id}"
+    return token
 
 
 @pytest.mark.asyncio
@@ -36,15 +42,8 @@ async def test_verify_invite_valid_token(
         headers=admin_headers,
     )
     assert resp.status_code == 201
-
-    from app.redis_client import get_redis
-
-    r = get_redis()
-    keys = []
-    async for key in r.scan_iter(match="invite:*"):
-        keys.append(key)
-    assert len(keys) >= 1
-    token = keys[-1].replace("invite:", "")
+    user_id = resp.json()["id"]
+    token = await _get_invite_token(user_id)
 
     resp = await client.get(
         f"/api/auth/verify-invite?token={token}",
@@ -79,14 +78,8 @@ async def test_accept_invite_activates_user_and_returns_tokens(
         headers=admin_headers,
     )
     assert resp.status_code == 201
-
-    from app.redis_client import get_redis
-
-    r = get_redis()
-    keys = []
-    async for key in r.scan_iter(match="invite:*"):
-        keys.append(key)
-    token = keys[-1].replace("invite:", "")
+    user_id = resp.json()["id"]
+    token = await _get_invite_token(user_id)
 
     resp = await client.post(
         "/api/auth/accept-invite",
@@ -116,14 +109,8 @@ async def test_accept_invite_token_single_use(
         headers=admin_headers,
     )
     assert resp.status_code == 201
-
-    from app.redis_client import get_redis
-
-    r = get_redis()
-    keys = []
-    async for key in r.scan_iter(match="invite:*"):
-        keys.append(key)
-    token = keys[-1].replace("invite:", "")
+    user_id = resp.json()["id"]
+    token = await _get_invite_token(user_id)
 
     resp = await client.post(
         "/api/auth/accept-invite",
@@ -150,20 +137,15 @@ async def test_reinvite_active_user_fails(
         headers=admin_headers,
     )
     assert resp.status_code == 201
+    user_id = resp.json()["id"]
+    token = await _get_invite_token(user_id)
 
-    from app.redis_client import get_redis
-
-    r = get_redis()
-    keys = []
-    async for key in r.scan_iter(match="invite:*"):
-        keys.append(key)
-    token = keys[-1].replace("invite:", "")
-
-    await client.post(
+    accept_resp = await client.post(
         "/api/auth/accept-invite",
         json={"token": token, "password": "password123"},
         headers={"X-Tenant-ID": test_tenant.slug},
     )
+    assert accept_resp.status_code == 200
 
     resp2 = await client.post(
         "/api/admin/staff",
