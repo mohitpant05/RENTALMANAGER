@@ -165,6 +165,7 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      target: dev
     container_name: rm-frontend
     ports:
       - "${FRONTEND_PORT:-3000}:3000"
