@@ -28,6 +28,9 @@ node_modules/
 .DS_Store
 Thumbs.db
 
+# Docs
+docs/
+
 # Superpowers
 .superpowers/
 
