@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Pencil, Trash2, MapPin, Star } from "lucide-react";
+import { ArrowLeft, CalendarDays, Pencil, Trash2, MapPin, Star } from "lucide-react";
 import Link from "next/link";
 import api from "@/lib/api";
 import type { ResourceResponse, ResourceTypeResponse } from "@/types/api";
@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { CreateResourceSheet } from "@/components/resources/create-resource-sheet";
+import { BookResourceSheet } from "@/components/bookings/book-resource-sheet";
 import { toast } from "sonner";
 
 export default function ResourceDetailPage() {
@@ -24,6 +25,7 @@ export default function ResourceDetailPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [editOpen, setEditOpen] = useState(false);
+  const [bookOpen, setBookOpen] = useState(false);
 
   const { data: types } = useQuery({
     queryKey: ["resource-types"],
@@ -100,6 +102,10 @@ export default function ResourceDetailPage() {
           )}
         </div>
         <div className="flex items-center gap-2">
+          <Button onClick={() => setBookOpen(true)} disabled={resource.status !== "active"}>
+            <CalendarDays className="mr-2 h-4 w-4" />
+            Book
+          </Button>
           <Button variant="outline" onClick={() => setEditOpen(true)}>
             <Pencil className="mr-2 h-4 w-4" />
             Edit
@@ -212,6 +218,14 @@ export default function ResourceDetailPage() {
         typeName={currentType.name}
         attributeSchema={currentType.attribute_schema}
         editingResource={resource}
+      />
+
+      <BookResourceSheet
+        open={bookOpen}
+        onClose={() => setBookOpen(false)}
+        resourceId={resource.id}
+        resourceName={resource.name}
+        availabilityModel={currentType.availability_model}
       />
     </div>
   );
