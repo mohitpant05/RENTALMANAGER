@@ -67,3 +67,106 @@ export interface VerifyInviteResponse {
   email?: string;
   full_name?: string;
 }
+
+export interface ResourceTypeResponse {
+  id: string;
+  name: string;
+  slug: string;
+  icon: string | null;
+  description: string | null;
+  availability_model: string;
+  pricing_model: string;
+  attribute_schema: AttributeField[] | null;
+  slot_config: Record<string, unknown> | null;
+  pricing_config: Record<string, unknown> | null;
+  cancellation_defaults: Record<string, unknown> | null;
+  requires_verification: boolean;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AttributeField {
+  name: string;
+  type: "enum" | "number" | "boolean" | "tags" | "text";
+  options?: string[];
+  required?: boolean;
+  filterable?: boolean;
+}
+
+export interface ResourceTypeCreate {
+  name: string;
+  slug: string;
+  icon?: string;
+  description?: string;
+  availability_model: string;
+  pricing_model: string;
+  attribute_schema?: AttributeField[];
+  slot_config?: Record<string, unknown>;
+  pricing_config?: Record<string, unknown>;
+  cancellation_defaults?: Record<string, unknown>;
+  requires_verification?: boolean;
+}
+
+export interface ResourceTypeUpdate {
+  name?: string;
+  slug?: string;
+  icon?: string;
+  description?: string;
+  attribute_schema?: AttributeField[];
+  slot_config?: Record<string, unknown>;
+  pricing_config?: Record<string, unknown>;
+  cancellation_defaults?: Record<string, unknown>;
+  requires_verification?: boolean;
+  is_active?: boolean;
+}
+
+export interface ResourceTypeTemplate {
+  slug: string;
+  name: string;
+  description?: string;
+}
+
+export interface ResourceResponse {
+  id: string;
+  type_id: string;
+  name: string;
+  description: string | null;
+  location_lat: number | null;
+  location_lng: number | null;
+  location_address: string | null;
+  attributes: Record<string, unknown> | null;
+  base_price: number;
+  currency: string;
+  status: string;
+  rating_avg: number;
+  rating_count: number;
+  owner_id: string;
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ResourceCreate {
+  type_id: string;
+  name: string;
+  description?: string;
+  location_lat?: number;
+  location_lng?: number;
+  location_address?: string;
+  attributes?: Record<string, unknown>;
+  base_price: number;
+  currency?: string;
+}
+
+export interface ResourceUpdate {
+  name?: string;
+  description?: string;
+  location_lat?: number;
+  location_lng?: number;
+  location_address?: string;
+  attributes?: Record<string, unknown>;
+  base_price?: number;
+  currency?: string;
+  status?: string;
+}
