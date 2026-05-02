@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, Settings } from "lucide-react";
 import api from "@/lib/api";
 import type { ResourceResponse, ResourceTypeResponse } from "@/types/api";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,7 @@ export default function ResourceTypePage() {
     useState<ResourceResponse | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
+  const [editTypeOpen, setEditTypeOpen] = useState(false);
 
   const { data: types } = useQuery({
     queryKey: ["resource-types"],
@@ -113,10 +114,16 @@ export default function ResourceTypePage() {
             </p>
           )}
         </div>
-        <Button onClick={openCreate}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add {currentType.name.replace(/s$/, "")}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setEditTypeOpen(true)}>
+            <Settings className="mr-2 h-4 w-4" />
+            Type Settings
+          </Button>
+          <Button onClick={openCreate}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add {currentType.name.replace(/s$/, "")}
+          </Button>
+        </div>
       </div>
 
       <div className="flex items-center gap-3">
@@ -169,8 +176,12 @@ export default function ResourceTypePage() {
       />
 
       <CreateTypeSheet
-        open={typeSheetOpen}
-        onClose={() => setTypeSheetOpen(false)}
+        open={typeSheetOpen || editTypeOpen}
+        onClose={() => {
+          setTypeSheetOpen(false);
+          setEditTypeOpen(false);
+        }}
+        editingType={editTypeOpen ? currentType : null}
       />
     </div>
   );
