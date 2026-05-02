@@ -170,3 +170,82 @@ export interface ResourceUpdate {
   currency?: string;
   status?: string;
 }
+
+// ─── Bookings ───────────────────────────────────────────
+
+export interface BookingResponse {
+  id: string;
+  resource_id: string;
+  user_id: string;
+  status: string;
+  start_time: string;
+  end_time: string;
+  total_price: number;
+  currency: string;
+  hold_token: string | null;
+  cancellation_policy: Record<string, unknown> | null;
+  notes: string | null;
+  auto_confirm: boolean;
+  confirmed_at: string | null;
+  cancelled_at: string | null;
+  cancellation_reason: string | null;
+  refund_percent: number | null;
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BookingCreate {
+  resource_id: string;
+  hold_token: string;
+  start_time: string;
+  end_time: string;
+  notes?: string;
+  auto_confirm?: boolean;
+}
+
+export interface BookingCancel {
+  reason?: string;
+}
+
+export interface BookingReject {
+  reason?: string;
+}
+
+// ─── Availability ───────────────────────────────────────
+
+export interface AvailabilityCheckRequest {
+  start: string;
+  end: string;
+}
+
+export interface AvailabilityCheckResponse {
+  available: boolean;
+  price: number | null;
+}
+
+export interface HoldRequest {
+  start: string;
+  end: string;
+  hold_minutes?: number;
+}
+
+export interface HoldResponse {
+  hold_token: string;
+  expires: string;
+  price: number;
+}
+
+export interface ReleaseRequest {
+  hold_token: string;
+}
+
+export interface PriceCalculateRequest {
+  start: string;
+  end: string;
+}
+
+export interface PriceCalculateResponse {
+  price: number;
+  currency: string;
+}
