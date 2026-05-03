@@ -53,6 +53,7 @@ async def register_user(
 async def authenticate_user(session: AsyncSession, data: LoginRequest) -> User:
     result = await session.exec(select(User).where(User.email == data.email))
     user = result.first()
+    print('logging the user here as', user)
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

@@ -59,7 +59,9 @@ async def login(
     session: AsyncSession = Depends(get_db),
 ):
     tenant_ctx = get_current_tenant()
+    print('logging the tenant ctx', tenant_ctx);
     tenant_id = str(tenant_ctx.tenant.id)
+    print('logging the tenant_id here as', tenant_id)
     user = await authenticate_user(session, data)
     roles = await get_user_roles(session, str(user.id))
     return await create_tokens(user, tenant_id, roles)

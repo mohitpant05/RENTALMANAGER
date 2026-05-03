@@ -4,7 +4,7 @@ import { useTenantStore } from "./tenant-store";
 import type { TokenResponse } from "@/types/api";
 
 const api = axios.create({
-  baseURL: "/api",
+  baseURL: "http://localhost:8000/api",
 });
 
 let isRefreshing = false;
