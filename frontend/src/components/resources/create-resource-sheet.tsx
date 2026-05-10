@@ -34,6 +34,35 @@ const resourceSchema = z.object({
 
 type ResourceForm = z.infer<typeof resourceSchema>;
 
+const PLACEHOLDERS: Record<string, { name: string; description: string; location: string }> = {
+  Vehicles: {
+    name: "e.g. Tata Harrier, Honda City, Royal Enfield 350",
+    description: "Year, condition, mileage, special features...",
+    location: "e.g. Koramangala, Bangalore",
+  },
+  Venues: {
+    name: "e.g. Lakeside Banquet Hall, Rooftop Studio",
+    description: "Capacity, ambience, available facilities...",
+    location: "e.g. MG Road, Mumbai",
+  },
+  Cooks: {
+    name: "e.g. Chef Ramesh, Anita's Kitchen",
+    description: "Specialties, experience, cuisines offered...",
+    location: "e.g. Indiranagar, Bangalore",
+  },
+};
+
+function getPlaceholders(typeName: string) {
+  const match = PLACEHOLDERS[typeName];
+  if (match) return match;
+  const singular = typeName.replace(/s$/, "").toLowerCase();
+  return {
+    name: `e.g. My ${singular} name`,
+    description: `Describe this ${singular}...`,
+    location: "Address or area",
+  };
+}
+
 interface CreateResourceSheetProps {
   open: boolean;
   onClose: () => void;
@@ -54,6 +83,7 @@ export function CreateResourceSheet({
   const queryClient = useQueryClient();
   const isEditing = !!editingResource;
   const [attributes, setAttributes] = useState<Record<string, unknown>>({});
+  const ph = getPlaceholders(typeName);
 
   const {
     register,
@@ -151,8 +181,8 @@ export function CreateResourceSheet({
 
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
-      <SheetContent className="overflow-y-auto">
-        <SheetHeader>
+      <SheetContent className="overflow-y-auto sm:max-w-md">
+        <SheetHeader className="px-6 pt-6">
           <SheetTitle>
             {isEditing ? "Edit Resource" : `Add ${typeName}`}
           </SheetTitle>
@@ -168,11 +198,11 @@ export function CreateResourceSheet({
             if (!validateAttributes()) return;
             createMutation.mutate(d as ResourceForm);
           })}
-          className="mt-6 space-y-4"
+          className="space-y-5 px-6 pb-6"
         >
           <div className="space-y-2">
             <Label htmlFor="name">Name</Label>
-            <Input id="name" placeholder="e.g. Beach House" {...register("name")} />
+            <Input id="name" placeholder={ph.name} {...register("name")} />
             {errors.name && (
               <p className="text-sm text-destructive">{errors.name.message}</p>
             )}
@@ -180,9 +210,11 @@ export function CreateResourceSheet({
 
           <div className="space-y-2">
             <Label htmlFor="description">Description</Label>
-            <Input
+            <textarea
               id="description"
-              placeholder="Brief description"
+              placeholder={ph.description}
+              rows={3}
+              className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
               {...register("description")}
             />
           </div>
@@ -213,14 +245,14 @@ export function CreateResourceSheet({
             <Label htmlFor="location_address">Location</Label>
             <Input
               id="location_address"
-              placeholder="Address"
+              placeholder={ph.location}
               {...register("location_address")}
             />
           </div>
 
           {attributeSchema && attributeSchema.length > 0 && (
-            <div className="space-y-3 rounded-lg border p-4">
-              <p className="text-sm font-medium text-muted-foreground">
+            <div className="space-y-4 rounded-lg border p-5">
+              <p className="text-sm font-medium">
                 Custom Attributes
               </p>
               {attributeSchema.map((attr) => (
@@ -302,13 +334,13 @@ export function CreateResourceSheet({
             </div>
           )}
 
-          <div className="flex gap-3 pt-4">
+          <div className="flex gap-3 border-t pt-5">
             <Button type="submit" disabled={isSubmitting} className="flex-1">
               {isSubmitting
                 ? "Saving..."
                 : isEditing
                   ? "Update"
-                  : "Create"}
+                  : `Create ${typeName}`}
             </Button>
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel

@@ -12,9 +12,10 @@ interface AuthState {
   setAccessToken: (token: string) => void;
   clearAuth: () => void;
   getRefreshToken: () => string | null;
+  isAdmin: () => boolean;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
+export const useAuthStore = create<AuthState>((set, get) => ({
   accessToken: null,
   user: null,
   isAuthenticated: false,
@@ -22,6 +23,7 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   setAuth: (accessToken, refreshToken, user) => {
     localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+    document.cookie = `rm_auth=${user.user_type};path=/;max-age=604800;samesite=lax`;
     set({ accessToken, user, isAuthenticated: true, isLoading: false });
   },
 
@@ -31,11 +33,17 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   clearAuth: () => {
     localStorage.removeItem(REFRESH_TOKEN_KEY);
+    document.cookie = "rm_auth=;path=/;max-age=0";
     set({ accessToken: null, user: null, isAuthenticated: false, isLoading: false });
   },
 
   getRefreshToken: () => {
     if (typeof window === "undefined") return null;
     return localStorage.getItem(REFRESH_TOKEN_KEY);
+  },
+
+  isAdmin: () => {
+    const user = get().user;
+    return user?.user_type === "admin" || user?.user_type === "staff";
   },
 }));

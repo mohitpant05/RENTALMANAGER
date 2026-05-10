@@ -22,8 +22,8 @@ class Settings(BaseSettings):
     frontend_url: str = "http://localhost:3000"
     invite_token_expire_hours: int = 72
 
-    email_provider: str = ""
-    email_from: str = ""
+    email_provider: str = "console"
+    email_from: str = "noreply@rentmanager.dev"
     smtp_host: str = "smtp.gmail.com"
     smtp_port: int = 587
     smtp_user: str = ""

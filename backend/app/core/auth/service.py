@@ -4,6 +4,7 @@ from fastapi import HTTPException, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel import select
 
+from app.celery_app import task_send_email
 from app.core.auth.invite import claim_invite_token, get_invite_data
 from app.core.auth.jwt import (
     create_access_token,
@@ -17,11 +18,13 @@ from app.core.auth.models import Role, User, UserRole
 from app.core.auth.password import hash_password, verify_password
 from app.core.auth.schemas import (
     LoginRequest,
+    ProfileUpdateRequest,
     RefreshRequest,
     RegisterRequest,
     TokenResponse,
     UserResponse,
 )
+from app.core.email.templates import welcome_email
 
 
 async def register_user(
@@ -47,6 +50,13 @@ async def register_user(
     session.add(user)
     await session.commit()
     await session.refresh(user)
+
+    try:
+        body = welcome_email(user.full_name)
+        task_send_email.delay(user.email, "Welcome to RentManager", body)
+    except Exception as e:
+        print(f"Failed to send welcome email: {e}")
+
     return user
 
 
@@ -143,6 +153,25 @@ async def refresh_tokens(session: AsyncSession, data: RefreshRequest) -> TokenRe
     return await create_tokens(user, tenant_id, roles)
 
 
+async def update_profile(
+    session: AsyncSession, user: User, data: ProfileUpdateRequest
+) -> User:
+    from datetime import datetime, timezone
+
+    update_data = data.model_dump(exclude_unset=True)
+    if not update_data:
+        return user
+
+    for key, value in update_data.items():
+        setattr(user, key, value)
+
+    user.updated_at = datetime.now(timezone.utc)
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+    return user
+
+
 def build_user_response(user: User, roles: list[str]) -> UserResponse:
     return UserResponse(
         id=user.id,
@@ -195,6 +224,12 @@ async def accept_invite(
     user.updated_at = datetime.now(timezone.utc)
     session.add(user)
     await session.commit()
+
+    try:
+        body = welcome_email(user.full_name)
+        task_send_email.delay(user.email, "Welcome to RentManager", body)
+    except Exception as e:
+        print(f"Failed to send welcome email: {e}")
 
     roles = await get_user_roles(session, str(user.id))
     return user, roles

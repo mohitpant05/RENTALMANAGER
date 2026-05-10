@@ -23,7 +23,7 @@ from app.domains.reviews.service import (
 router = APIRouter(prefix="/api/reviews", tags=["reviews"])
 
 
-@router.post("/", response_model=ReviewResponse, status_code=201)
+@router.post("", response_model=ReviewResponse, status_code=201)
 async def create_resource_review(
     data: ReviewCreate,
     session: AsyncSession = Depends(get_db),
@@ -41,7 +41,7 @@ async def create_lister_review(
     return await create_review(session, data, user.id, direction="lister_to_customer")
 
 
-@router.get("/", response_model=list[ReviewResponse])
+@router.get("", response_model=list[ReviewResponse])
 async def list_all_reviews(
     resource_id: uuid.UUID | None = Query(default=None),
     direction: str | None = Query(default=None),

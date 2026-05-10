@@ -249,3 +249,134 @@ export interface PriceCalculateResponse {
   price: number;
   currency: string;
 }
+
+// ─── Staff ─────────────────────────────────────────────
+
+export interface StaffInviteRequest {
+  email: string;
+  full_name: string;
+  user_type: "staff" | "admin";
+  role_slugs?: string[];
+}
+
+export interface StaffUserResponse {
+  id: string;
+  email: string;
+  full_name: string;
+  phone: string | null;
+  is_active: boolean;
+  user_type: string;
+  created_at: string;
+  roles: string[];
+}
+
+// ─── Notifications ─────────────────────────────────────
+
+export interface NotificationResponse {
+  id: string;
+  user_id: string;
+  event_type: string;
+  payload: Record<string, unknown>;
+  message: string;
+  is_read: boolean;
+  created_at: string;
+}
+
+export interface UnreadCountResponse {
+  count: number;
+}
+
+// ─── Reviews ───────────────────────────────────────────
+
+export interface ReviewResponse {
+  id: string;
+  resource_id: string | null;
+  lister_id: string | null;
+  reviewer_id: string;
+  direction: string;
+  rating: number;
+  comment: string | null;
+  category_ratings: Record<string, number> | null;
+  status: string;
+  rejection_reason: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ReviewCreate {
+  resource_id: string;
+  rating: number;
+  comment?: string;
+  category_ratings?: Record<string, number>;
+  direction?: string;
+}
+
+export interface ReviewModerateRequest {
+  status: "approved" | "rejected";
+  rejection_reason?: string;
+}
+
+export interface RatingSummaryResponse {
+  average: number;
+  count: number;
+  distribution: Record<string, number>;
+}
+
+// ─── Storage ───────────────────────────────────────────
+
+export interface UploadUrlRequest {
+  filename: string;
+  content_type: string;
+  entity_type: string;
+  entity_id: string;
+}
+
+export interface UploadUrlResponse {
+  upload_url: string;
+  attachment_id: string;
+}
+
+export interface AttachmentResponse {
+  id: string;
+  entity_type: string;
+  entity_id: string;
+  filename: string;
+  content_type: string;
+  size_bytes: number;
+  url: string;
+  created_at: string;
+}
+
+// ─── Search ────────────────────────────────────────────
+
+export interface SearchRequest {
+  query: string;
+  type_slug?: string;
+  min_price?: number;
+  max_price?: number;
+  location?: string;
+  sort?: "relevance" | "price_asc" | "price_desc" | "rating";
+  offset?: number;
+  limit?: number;
+}
+
+export interface SearchResponse {
+  hits: ResourceResponse[];
+  total: number;
+  processing_time_ms: number;
+}
+
+// ─── Domains ───────────────────────────────────────────
+
+export interface DomainResponse {
+  id: string;
+  domain: string;
+  tenant_id: string;
+  is_primary: boolean;
+  is_verified: boolean;
+  created_at: string;
+}
+
+export interface DomainCreate {
+  domain: string;
+}

@@ -51,7 +51,7 @@ export function TemplatePicker({ onCreateCustom }: TemplatePickerProps) {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["resource-types"] });
       toast.success(`${data.name} created`);
-      router.push(`/resources/${data.slug}`);
+      router.push(`/admin/resources/${data.slug}`);
     },
     onError: () => {
       toast.error("Failed to create resource type");

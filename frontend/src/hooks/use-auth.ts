@@ -6,6 +6,7 @@ import api from "@/lib/api";
 import type {
   AcceptInviteRequest,
   LoginRequest,
+  RegisterRequest,
   TokenResponse,
   UserResponse,
 } from "@/types/api";
@@ -20,7 +21,14 @@ export function useAuth() {
     user,
     isLoading,
     getRefreshToken,
+    isAdmin,
   } = useAuthStore();
+
+  function getRedirectPath(userType: string): string {
+    return userType === "admin" || userType === "staff"
+      ? "/admin"
+      : "/";
+  }
 
   async function login(data: LoginRequest) {
     const res = await api.post<TokenResponse>("/auth/login", data);
@@ -28,7 +36,16 @@ export function useAuth() {
       headers: { Authorization: `Bearer ${res.data.access_token}` },
     });
     setAuth(res.data.access_token, res.data.refresh_token, meRes.data);
-    router.push("/resources");
+    router.push(getRedirectPath(meRes.data.user_type));
+  }
+
+  async function register(data: RegisterRequest) {
+    const res = await api.post<TokenResponse>("/auth/register", data);
+    const meRes = await api.get<UserResponse>("/auth/me", {
+      headers: { Authorization: `Bearer ${res.data.access_token}` },
+    });
+    setAuth(res.data.access_token, res.data.refresh_token, meRes.data);
+    router.push("/");
   }
 
   async function acceptInvite(data: AcceptInviteRequest) {
@@ -37,7 +54,7 @@ export function useAuth() {
       headers: { Authorization: `Bearer ${res.data.access_token}` },
     });
     setAuth(res.data.access_token, res.data.refresh_token, meRes.data);
-    router.push("/resources");
+    router.push("/admin");
   }
 
   async function logout() {
@@ -46,7 +63,7 @@ export function useAuth() {
       try {
         await api.post("/auth/logout", { refresh_token: refreshToken });
       } catch {
-        // Logout best-effort
+        // best-effort
       }
     }
     clearAuth();
@@ -75,11 +92,13 @@ export function useAuth() {
 
   return {
     login,
+    register,
     acceptInvite,
     logout,
     initAuth,
     isAuthenticated,
     user,
     isLoading,
+    isAdmin,
   };
 }

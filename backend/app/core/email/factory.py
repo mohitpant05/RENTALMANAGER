@@ -6,6 +6,9 @@ def get_email_provider() -> EmailProvider | None:
     settings = get_settings()
     if not settings.email_provider or not settings.email_from:
         return None
+    if settings.email_provider == "console":
+        from app.core.email.console import ConsoleEmailProvider
+        return ConsoleEmailProvider(from_addr=settings.email_from)
     if settings.email_provider == "gmail":
         from app.core.email.gmail import GmailSMTPProvider
         if not settings.smtp_user or not settings.smtp_password:

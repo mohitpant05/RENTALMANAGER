@@ -4,7 +4,7 @@ import { useTenantStore } from "./tenant-store";
 import type { TokenResponse } from "@/types/api";
 
 const api = axios.create({
-  baseURL: "http://localhost:8000/api",
+  baseURL: "/api",
 });
 
 let isRefreshing = false;
@@ -70,7 +70,7 @@ api.interceptors.response.use(
     }
 
     try {
-      const { data } = await axios.post<TokenResponse>("/api/auth/refresh", {
+      const { data } = await api.post<TokenResponse>("/auth/refresh", {
         refresh_token: refreshToken,
       });
       const currentUser = useAuthStore.getState().user;

@@ -34,6 +34,23 @@ async def create_booking_endpoint(
     return await create_booking(session, data, user.id)
 
 
+@router.get("/mine", response_model=list[BookingResponse])
+async def list_my_bookings_endpoint(
+    status: str | None = None,
+    offset: int = 0,
+    limit: int = 50,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+):
+    return await list_bookings(
+        session,
+        user_id=user.id,
+        status_filter=status,
+        offset=offset,
+        limit=limit,
+    )
+
+
 @router.get("", response_model=list[BookingResponse])
 async def list_bookings_endpoint(
     status: str | None = None,

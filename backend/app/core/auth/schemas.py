@@ -46,6 +46,12 @@ class UserResponse(BaseModel):
     roles: list[str] = []
 
 
+class ProfileUpdateRequest(BaseModel):
+    full_name: str | None = None
+    phone: str | None = None
+    avatar_url: str | None = None
+
+
 class AcceptInviteRequest(BaseModel):
     token: str
     password: str = Field(min_length=8)

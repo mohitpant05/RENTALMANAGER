@@ -3,6 +3,9 @@ FROM python:3.12-slim AS base
 WORKDIR /app
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
 # Development target
 FROM base AS dev
 COPY pyproject.toml ./
@@ -11,6 +14,7 @@ RUN mkdir -p app && echo '__version__ = "0.1.0"' > app/__init__.py && \
     rm app/__init__.py
 COPY . .
 EXPOSE 8000
+ENTRYPOINT ["/entrypoint.sh"]
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
 # Production target

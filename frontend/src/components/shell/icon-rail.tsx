@@ -3,10 +3,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  Bell,
   Box,
   CalendarDays,
+  LayoutDashboard,
   Palette,
   Settings,
+  Star,
   Users,
   Sun,
   Moon,
@@ -18,11 +21,14 @@ import { useAuth } from "@/hooks/use-auth";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 const NAV_ITEMS = [
-  { href: "/resources", icon: Box, label: "Resources" },
-  { href: "/bookings", icon: CalendarDays, label: "Bookings" },
-  { href: "/staff", icon: Users, label: "Staff" },
-  { href: "/theming", icon: Palette, label: "Theming" },
-  { href: "/settings", icon: Settings, label: "Settings" },
+  { href: "/admin", icon: LayoutDashboard, label: "Dashboard" },
+  { href: "/admin/resources", icon: Box, label: "Resources" },
+  { href: "/admin/bookings", icon: CalendarDays, label: "Bookings" },
+  { href: "/admin/reviews", icon: Star, label: "Reviews" },
+  { href: "/admin/staff", icon: Users, label: "Staff" },
+  { href: "/admin/notifications", icon: Bell, label: "Notifications" },
+  { href: "/admin/theming", icon: Palette, label: "Theming" },
+  { href: "/admin/settings", icon: Settings, label: "Settings" },
 ] as const;
 
 export function IconRail() {

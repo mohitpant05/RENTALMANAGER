@@ -20,31 +20,47 @@ interface SubNavSection {
 }
 
 const STATIC_NAV_CONFIG: Record<string, SubNavSection> = {
-  "/bookings": {
+  "/admin/bookings": {
     title: "Bookings",
     items: [
-      { href: "/bookings", label: "All" },
-      { href: "/bookings?status=pending", label: "Pending" },
-      { href: "/bookings?status=confirmed", label: "Confirmed" },
-      { href: "/bookings?status=active", label: "Active" },
-      { href: "/bookings?status=completed", label: "Completed" },
-      { href: "/bookings?status=cancelled", label: "Cancelled" },
+      { href: "/admin/bookings", label: "All" },
+      { href: "/admin/bookings?status=pending", label: "Pending" },
+      { href: "/admin/bookings?status=confirmed", label: "Confirmed" },
+      { href: "/admin/bookings?status=active", label: "Active" },
+      { href: "/admin/bookings?status=completed", label: "Completed" },
+      { href: "/admin/bookings?status=cancelled", label: "Cancelled" },
     ],
   },
-  "/theming": {
+  "/admin/reviews": {
+    title: "Reviews",
+    items: [
+      { href: "/admin/reviews", label: "All" },
+      { href: "/admin/reviews?status=pending", label: "Pending Moderation" },
+      { href: "/admin/reviews?status=approved", label: "Approved" },
+      { href: "/admin/reviews?status=rejected", label: "Rejected" },
+    ],
+  },
+  "/admin/notifications": {
+    title: "Notifications",
+    items: [
+      { href: "/admin/notifications", label: "All" },
+      { href: "/admin/notifications?unread=true", label: "Unread" },
+    ],
+  },
+  "/admin/theming": {
     title: "Theming",
     items: [
-      { href: "/theming#brand", label: "Brand" },
-      { href: "/theming#colors", label: "Colors" },
-      { href: "/theming#typography", label: "Typography" },
-      { href: "/theming#components", label: "Components" },
+      { href: "/admin/theming#brand", label: "Brand" },
+      { href: "/admin/theming#colors", label: "Colors" },
+      { href: "/admin/theming#typography", label: "Typography" },
+      { href: "/admin/theming#components", label: "Components" },
     ],
   },
-  "/settings": {
+  "/admin/settings": {
     title: "Settings",
     items: [
-      { href: "/settings#general", label: "General" },
-      { href: "/settings#domains", label: "Domains" },
+      { href: "/admin/settings#general", label: "General" },
+      { href: "/admin/settings#domains", label: "Domains" },
     ],
   },
 };
@@ -64,7 +80,7 @@ function useResourceTypesNav(): SubNavSection | null {
 
   return {
     title: "Resources",
-    items: types.map((t) => ({ href: `/resources/${t.slug}`, label: t.name })),
+    items: types.map((t) => ({ href: `/admin/resources/${t.slug}`, label: t.name })),
     action: { label: "+ Add Type", onClick: () => setOpen(true) },
   };
 }
@@ -72,7 +88,7 @@ function useResourceTypesNav(): SubNavSection | null {
 export function SubNav() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const isResourcesSection = pathname.startsWith("/resources");
+  const isResourcesSection = pathname.startsWith("/admin/resources");
   const resourcesNav = useResourceTypesNav();
 
   const staticKey = Object.keys(STATIC_NAV_CONFIG).find((key) =>

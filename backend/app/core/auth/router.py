@@ -1,12 +1,16 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlmodel.ext.asyncio.session import AsyncSession
+
+from app.rate_limiter import limiter
 
 from app.core.auth.dependencies import get_current_user
 from app.core.auth.models import User
 from app.core.auth.schemas import (
     AcceptInviteRequest,
     LoginRequest,
+    ProfileUpdateRequest,
     RefreshRequest,
+    RegisterRequest,
     TokenResponse,
     UserResponse,
     VerifyInviteResponse,
@@ -18,6 +22,8 @@ from app.core.auth.service import (
     create_tokens,
     get_user_roles,
     refresh_tokens,
+    register_user,
+    update_profile,
     verify_invite_token,
 )
 from app.core.auth.jwt import decode_token, revoke_refresh_token
@@ -67,6 +73,20 @@ async def login(
     return await create_tokens(user, tenant_id, roles)
 
 
+@router.post("/register", response_model=TokenResponse)
+@limiter.limit("5/minute")
+async def register(
+    request: Request,
+    data: RegisterRequest,
+    session: AsyncSession = Depends(get_db),
+):
+    tenant_ctx = get_current_tenant()
+    tenant_id = str(tenant_ctx.tenant.id)
+    user = await register_user(session, data, tenant_id, user_type="customer")
+    roles = await get_user_roles(session, str(user.id))
+    return await create_tokens(user, tenant_id, roles)
+
+
 @router.post("/refresh", response_model=TokenResponse)
 async def refresh(
     data: RefreshRequest,
@@ -97,3 +117,14 @@ async def me(
 ):
     roles = await get_user_roles(session, str(user.id))
     return build_user_response(user, roles)
+
+
+@router.patch("/me", response_model=UserResponse)
+async def update_me(
+    data: ProfileUpdateRequest,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+):
+    updated = await update_profile(session, user, data)
+    roles = await get_user_roles(session, str(updated.id))
+    return build_user_response(updated, roles)

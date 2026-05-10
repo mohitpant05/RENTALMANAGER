@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, computed_field
 
 
 class NotificationResponse(BaseModel):
@@ -16,6 +16,11 @@ class NotificationResponse(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+    @computed_field
+    @property
+    def message(self) -> str:
+        return self.body or self.title
 
 
 class UnreadCountResponse(BaseModel):

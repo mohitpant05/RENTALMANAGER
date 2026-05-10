@@ -27,16 +27,17 @@ const loginSchema = z.object({
 type LoginForm = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
-  const { login, isAuthenticated, isLoading } = useAuth();
+  const { login, isAuthenticated, isLoading, user } = useAuth();
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     if (!isLoading && isAuthenticated) {
-      router.push("/resources");
+      const userType = user?.user_type;
+      router.push(userType === "admin" || userType === "staff" ? "/admin" : "/");
     }
-  }, [isLoading, isAuthenticated, router]);
+  }, [isLoading, isAuthenticated, user, router]);
 
   const {
     register,
@@ -124,9 +125,10 @@ export default function LoginPage() {
           </Button>
         </form>
         <p className="mt-4 text-center text-sm text-muted-foreground">
-          <span className="cursor-not-allowed opacity-50">
-            Forgot password?
-          </span>
+          Don't have an account?{" "}
+          <a href="/register" className="font-medium text-primary hover:underline">
+            Sign up
+          </a>
         </p>
       </CardContent>
     </Card>

@@ -1,9 +1,25 @@
+import logging
 import uuid
 from datetime import UTC, datetime
 
 from fastapi import HTTPException
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
+
+from app.celery_app import task_send_email
+from app.core.email.templates import (
+    booking_confirmation_email,
+    booking_status_change_email,
+)
+from app.core.notifications.events import (
+    BOOKING_CONFIRMED,
+    BOOKING_NEW,
+    booking_confirmed_payload,
+    booking_new_payload,
+)
+from app.core.notifications.service import notify as notify_user
+
+logger = logging.getLogger(__name__)
 
 from app.domains.bookings.models import Booking
 from app.domains.bookings.schemas import BookingCreate
@@ -14,6 +30,45 @@ from app.domains.bookings.state_machine import (
 from app.domains.resources.availability.strategy import confirm_hold, release_hold
 from app.domains.resources.models import Resource, ResourceType
 from app.domains.resources.pricing.strategy import get_pricing_provider
+
+
+async def _dispatch_booking_event(
+    session: AsyncSession,
+    booking: Booking,
+    resource_name: str,
+    user_email: str,
+    user_name: str,
+    event_type: str,
+    new_status: str,
+):
+    try:
+        if new_status == "confirmed":
+            subject = "Booking Confirmed"
+            body = booking_confirmation_email(
+                user_name,
+                resource_name,
+                str(booking.start_time),
+                str(booking.end_time),
+                f"{booking.currency} {booking.total_price:.2f}",
+            )
+            task_send_email.delay(user_email, subject, body)
+            await notify_user(
+                session, booking.user_id, BOOKING_CONFIRMED, subject, body,
+                booking_confirmed_payload(str(booking.id), resource_name),
+            )
+        elif new_status == "cancelled" or new_status == "rejected":
+            subject = f"Booking {new_status.capitalize()}"
+            body = booking_status_change_email(user_name, resource_name, new_status)
+            task_send_email.delay(user_email, subject, body)
+        elif new_status == "pending":
+            subject = "New Booking Pending"
+            body = booking_status_change_email(user_name, resource_name, "pending")
+            await notify_user(
+                session, booking.user_id, BOOKING_NEW, subject, body,
+                booking_new_payload(str(booking.id), resource_name, user_name),
+            )
+    except Exception as e:
+        logger.warning("Failed to dispatch booking event: %s", e)
 
 
 async def create_booking(
@@ -72,6 +127,18 @@ async def create_booking(
     session.add(booking)
     await session.commit()
     await session.refresh(booking)
+
+    from app.core.auth.models import User
+    user_result = await session.exec(select(User).where(User.id == user_id))
+    user = user_result.first()
+    user_email = user.email if user else ""
+    user_name = user.full_name if user else ""
+
+    await _dispatch_booking_event(
+        session, booking, resource.name, user_email, user_name,
+        "booking.created", booking.status,
+    )
+
     return booking
 
 
@@ -108,6 +175,23 @@ async def list_bookings(
     return list(result.all())
 
 
+async def _load_booking_context(
+    session: AsyncSession, booking: Booking
+) -> tuple[str, str, str]:
+    from app.core.auth.models import User
+    user_result = await session.exec(select(User).where(User.id == booking.user_id))
+    user = user_result.first()
+    resource_result = await session.exec(
+        select(Resource).where(Resource.id == booking.resource_id)
+    )
+    resource = resource_result.first()
+    return (
+        resource.name if resource else "Resource",
+        user.email if user else "",
+        user.full_name if user else "Customer",
+    )
+
+
 async def confirm_booking(
     session: AsyncSession, booking_id: uuid.UUID
 ) -> Booking:
@@ -124,6 +208,12 @@ async def confirm_booking(
     session.add(booking)
     await session.commit()
     await session.refresh(booking)
+
+    res_name, user_email, user_name = await _load_booking_context(session, booking)
+    await _dispatch_booking_event(
+        session, booking, res_name, user_email, user_name,
+        "booking.confirmed", "confirmed",
+    )
     return booking
 
 
@@ -147,6 +237,12 @@ async def reject_booking(
     session.add(booking)
     await session.commit()
     await session.refresh(booking)
+
+    res_name, user_email, user_name = await _load_booking_context(session, booking)
+    await _dispatch_booking_event(
+        session, booking, res_name, user_email, user_name,
+        "booking.rejected", "rejected",
+    )
     return booking
 
 
@@ -185,6 +281,12 @@ async def cancel_booking(
     session.add(booking)
     await session.commit()
     await session.refresh(booking)
+
+    res_name, user_email, user_name = await _load_booking_context(session, booking)
+    await _dispatch_booking_event(
+        session, booking, res_name, user_email, user_name,
+        "booking.cancelled", "cancelled",
+    )
     return booking
 
 

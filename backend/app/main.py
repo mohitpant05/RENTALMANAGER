@@ -5,6 +5,7 @@ import asyncio
 import httpx
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
 from sqlalchemy import text
 
 from app.config import get_settings
@@ -15,16 +16,19 @@ from app.core.notifications.router import router as notification_router
 from app.core.search.router import router as search_router
 from app.core.storage.router import router as storage_router
 from app.core.tenancy.middleware import TenantMiddleware
+from app.core.tenancy.router import router as tenancy_router
 from app.database import async_session_factory, engine
 from app.domains.bookings.router import router as booking_router
 from app.domains.resources.router import resource_router, resource_type_router
 from app.domains.reviews.router import router as review_router
+from app.rate_limiter import limiter
 from app.redis_client import get_redis
+
+settings = get_settings()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    settings = get_settings()
     print(f"Starting RentManager backend (debug={settings.debug})")
     yield
     await engine.dispose()
@@ -37,10 +41,14 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-origins = ["http://localhost:3000", "http://localhost"]
+app.state.limiter = limiter
+app.add_exception_handler(429, _rate_limit_exceeded_handler)
+
+origins = ["http://localhost:3000", "http://localhost:3001", "http://localhost:3002", "http://localhost:3003", "http://localhost"]
 
 app.add_middleware(CORSMiddleware, allow_origins=origins, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 app.add_middleware(TenantMiddleware)
+app.include_router(tenancy_router)
 app.include_router(auth_router)
 app.include_router(resource_type_router)
 app.include_router(resource_router)

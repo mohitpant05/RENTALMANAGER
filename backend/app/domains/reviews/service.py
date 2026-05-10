@@ -6,6 +6,11 @@ from sqlalchemy import func
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.notifications.events import (
+    REVIEW_RECEIVED,
+    review_received_payload,
+)
+from app.core.notifications.service import notify as notify_user
 from app.core.search.sync import build_document, sync_resource
 from app.core.tenancy.context import get_current_tenant
 from app.domains.bookings.models import Booking
@@ -76,6 +81,20 @@ async def create_review(
 
     if direction == "customer_to_resource":
         await _update_resource_rating(session, booking.resource_id)
+
+    try:
+        result = await session.exec(
+            select(Resource).where(Resource.id == booking.resource_id)
+        )
+        resource = result.first()
+        if resource:
+            await notify_user(
+                session, resource.owner_id, REVIEW_RECEIVED,
+                "New Review", f"You received a {review.rating}-star review",
+                review_received_payload(str(review.id), resource.name, review.rating),
+            )
+    except Exception as e:
+        print(f"Failed to send review notification: {e}")
 
     return review
 

@@ -42,7 +42,7 @@ resource_type_router = APIRouter(prefix="/api/resource-types", tags=["resource-t
 resource_router = APIRouter(prefix="/api/resources", tags=["resources"])
 
 
-@resource_type_router.get("/", response_model=list[ResourceTypeResponse])
+@resource_type_router.get("", response_model=list[ResourceTypeResponse])
 async def list_types(
     active_only: bool = Query(True),
     session: AsyncSession = Depends(get_db),
@@ -67,7 +67,7 @@ async def get_type_by_slug(
 
 
 @resource_type_router.post(
-    "/",
+    "",
     response_model=ResourceTypeResponse,
     status_code=status.HTTP_201_CREATED,
 )
@@ -118,7 +118,7 @@ async def delete_type(
 
 # --- Resource endpoints ---
 
-@resource_router.get("/", response_model=list[ResourceResponse])
+@resource_router.get("", response_model=list[ResourceResponse])
 async def list_all_resources(
     type_id: uuid.UUID | None = Query(None),
     status_filter: str | None = Query(None, alias="status"),
@@ -140,7 +140,7 @@ async def get_one_resource(
 
 
 @resource_router.post(
-    "/",
+    "",
     response_model=ResourceResponse,
     status_code=status.HTTP_201_CREATED,
 )

@@ -21,7 +21,7 @@ from app.database import get_db
 router = APIRouter(prefix="/api/notifications", tags=["notifications"])
 
 
-@router.get("/", response_model=list[NotificationResponse])
+@router.get("", response_model=list[NotificationResponse])
 async def list_my_notifications(
     unread_only: bool = Query(default=False),
     offset: int = Query(default=0, ge=0),

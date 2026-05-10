@@ -1,6 +1,6 @@
 "use client";
 
-import { MoreHorizontal, Pencil, Trash2, ExternalLink } from "lucide-react";
+import { MoreHorizontal, Pencil, Trash2, ExternalLink, CheckCircle, XCircle, Archive } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import {
@@ -61,6 +61,19 @@ export function ResourceTable({
     },
   });
 
+  const statusMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      await api.put(`/resources/${id}`, { status });
+    },
+    onSuccess: (_, { status }) => {
+      queryClient.invalidateQueries({ queryKey: ["resources", typeId] });
+      toast.success(`Status changed to ${status}`);
+    },
+    onError: () => {
+      toast.error("Failed to update status");
+    },
+  });
+
   if (resources.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-16">
@@ -89,7 +102,7 @@ export function ResourceTable({
           <TableRow key={r.id}>
             <TableCell className="font-medium">
               <Link
-                href={`/resources/${typeSlug}/${r.id}`}
+                href={`/admin/resources/${typeSlug}/${r.id}`}
                 className="hover:underline"
               >
                 {r.name}
@@ -121,7 +134,7 @@ export function ResourceTable({
               <DropdownMenuContent align="end">
                 <DropdownMenuItem
                   render={
-                    <Link href={`/resources/${typeSlug}/${r.id}`}>
+                    <Link href={`/admin/resources/${typeSlug}/${r.id}`}>
                       <ExternalLink className="mr-2 h-4 w-4" />
                       View
                     </Link>
@@ -131,6 +144,30 @@ export function ResourceTable({
                   <Pencil className="mr-2 h-4 w-4" />
                   Edit
                 </DropdownMenuItem>
+                {r.status !== "active" && (
+                  <DropdownMenuItem
+                    onClick={() => statusMutation.mutate({ id: r.id, status: "active" })}
+                  >
+                    <CheckCircle className="mr-2 h-4 w-4" />
+                    Activate
+                  </DropdownMenuItem>
+                )}
+                {r.status === "active" && (
+                  <DropdownMenuItem
+                    onClick={() => statusMutation.mutate({ id: r.id, status: "inactive" })}
+                  >
+                    <XCircle className="mr-2 h-4 w-4" />
+                    Deactivate
+                  </DropdownMenuItem>
+                )}
+                {r.status !== "archived" && (
+                  <DropdownMenuItem
+                    onClick={() => statusMutation.mutate({ id: r.id, status: "archived" })}
+                  >
+                    <Archive className="mr-2 h-4 w-4" />
+                    Archive
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem
                   onClick={() => deleteMutation.mutate(r.id)}
                   className="text-destructive focus:text-destructive"

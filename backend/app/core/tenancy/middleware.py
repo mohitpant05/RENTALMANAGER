@@ -9,13 +9,12 @@ from app import database as db_module
 from app.core.tenancy.context import TenantContext, set_current_tenant
 from app.core.tenancy.models import Tenant, TenantDomain
 
-TENANT_FREE_PATHS = {"/api/health", "/api/docs", "/api/openapi.json", "/api/redoc"}
+TENANT_FREE_PATHS = {"/api/health", "/api/docs", "/api/openapi.json", "/api/redoc", "/api/tenancy/resolve"}
 TENANT_FREE_PREFIXES = ("/api/platform/", "/api/health/")
 
 
 class TenantMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
-        print('logging inside the dispatcher for tenantmiddleware', request )
         path = request.url.path
         if path in TENANT_FREE_PATHS or not path.startswith("/api"):
             set_current_tenant(None)
