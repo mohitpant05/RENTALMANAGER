@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { ImagePlus, X } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -16,12 +17,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import api from "@/lib/api";
+import { useAttachments } from "@/hooks/use-storage";
 import type {
   AttributeField,
   ResourceCreate,
   ResourceResponse,
   ResourceUpdate,
 } from "@/types/api";
+import { CurrencySelect } from "@/components/ui/currency-select";
+import { ResourcePreviewModal } from "@/components/resources/resource-preview-modal";
 import { toast } from "sonner";
 
 const resourceSchema = z.object({
@@ -83,12 +87,22 @@ export function CreateResourceSheet({
   const queryClient = useQueryClient();
   const isEditing = !!editingResource;
   const [attributes, setAttributes] = useState<Record<string, unknown>>({});
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const [showPreview, setShowPreview] = useState(false);
+  const [pendingFormData, setPendingFormData] = useState<ResourceForm | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const ph = getPlaceholders(typeName);
+
+  const resourceId = editingResource?.id ?? "";
+  const { data: existingAttachments } = useAttachments("resource", resourceId);
 
   const {
     register,
     handleSubmit,
     reset,
+    setValue,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<ResourceForm>({
     resolver: zodResolver(resourceSchema),
@@ -120,8 +134,30 @@ export function CreateResourceSheet({
         location_address: "",
       });
       setAttributes({});
+      setImageFiles([]);
+      setImagePreviews([]);
     }
   }, [editingResource, reset]);
+
+  function handleImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    const valid = files.filter(
+      (f) => f.type.startsWith("image/") && f.size <= 10 * 1024 * 1024
+    );
+    if (valid.length < files.length) {
+      toast.error("Some files skipped (must be images under 10MB)");
+    }
+    setImageFiles((prev) => [...prev, ...valid]);
+    const previews = valid.map((f) => URL.createObjectURL(f));
+    setImagePreviews((prev) => [...prev, ...previews]);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  function removeImage(index: number) {
+    URL.revokeObjectURL(imagePreviews[index]);
+    setImageFiles((prev) => prev.filter((_, i) => i !== index));
+    setImagePreviews((prev) => prev.filter((_, i) => i !== index));
+  }
 
   function handleAttributeChange(name: string, value: unknown) {
     setAttributes((prev) => ({ ...prev, [name]: value }));
@@ -145,6 +181,24 @@ export function CreateResourceSheet({
     return Object.keys(errors).length === 0;
   }
 
+  async function uploadImage(resourceId: string, file: File) {
+    const { data: urlData } = await api.post<{ upload_url: string; attachment_id: string }>(
+      "/storage/upload-url",
+      {
+        filename: file.name,
+        content_type: file.type,
+        entity_type: "resource",
+        entity_id: resourceId,
+      }
+    );
+    await fetch(urlData.upload_url, {
+      method: "PUT",
+      headers: { "Content-Type": file.type },
+      body: file,
+    });
+    await api.post("/storage/confirm", { attachment_id: urlData.attachment_id });
+  }
+
   const createMutation = useMutation({
     mutationFn: async (data: ResourceForm) => {
       const payload: Record<string, unknown> = {
@@ -164,10 +218,22 @@ export function CreateResourceSheet({
       } as ResourceCreate);
       return res;
     },
-    onSuccess: () => {
+    onSuccess: async (resource) => {
+      if (imageFiles.length > 0) {
+        for (const file of imageFiles) {
+          try {
+            await uploadImage(resource.id, file);
+          } catch {
+            toast.error(`Failed to upload ${file.name}`);
+          }
+        }
+      }
       queryClient.invalidateQueries({ queryKey: ["resources", typeId] });
       queryClient.invalidateQueries({ queryKey: ["resource", editingResource?.id] });
+      queryClient.invalidateQueries({ queryKey: ["attachments", "resource", resource.id] });
       toast.success(isEditing ? "Resource updated" : "Resource created");
+      setImageFiles([]);
+      setImagePreviews([]);
       onClose();
     },
     onError: () => {
@@ -180,7 +246,8 @@ export function CreateResourceSheet({
   }
 
   return (
-    <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
+    <>
+    <Sheet open={open && !showPreview} onOpenChange={(o) => !o && onClose()}>
       <SheetContent className="overflow-y-auto sm:max-w-md">
         <SheetHeader className="px-6 pt-6">
           <SheetTitle>
@@ -196,7 +263,8 @@ export function CreateResourceSheet({
         <form
           onSubmit={handleSubmit((d) => {
             if (!validateAttributes()) return;
-            createMutation.mutate(d as ResourceForm);
+            setPendingFormData(d);
+            setShowPreview(true);
           })}
           className="space-y-5 px-6 pb-6"
         >
@@ -236,8 +304,11 @@ export function CreateResourceSheet({
               )}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="currency">Currency</Label>
-              <Input id="currency" {...register("currency")} />
+              <Label>Currency</Label>
+              <CurrencySelect
+                value={watch("currency")}
+                onChange={(val) => setValue("currency", val)}
+              />
             </div>
           </div>
 
@@ -334,13 +405,66 @@ export function CreateResourceSheet({
             </div>
           )}
 
+          <div className="space-y-2">
+            <Label>Vehicle Images</Label>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={handleImageSelect}
+            />
+
+            <div className="flex flex-wrap gap-2">
+              {isEditing &&
+                existingAttachments?.map((att) => (
+                  <div
+                    key={att.id}
+                    className="relative h-20 w-20 overflow-hidden rounded-md border"
+                  >
+                    <img
+                      src={att.url}
+                      alt={att.filename}
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
+                ))}
+
+              {imagePreviews.map((src, i) => (
+                <div
+                  key={i}
+                  className="relative h-20 w-20 overflow-hidden rounded-md border"
+                >
+                  <img
+                    src={src}
+                    alt={`Preview ${i + 1}`}
+                    className="h-full w-full object-cover"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeImage(i)}
+                    className="absolute right-0.5 top-0.5 rounded-full bg-background/80 p-0.5 hover:bg-destructive hover:text-destructive-foreground"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="flex h-20 w-20 flex-col items-center justify-center gap-1 rounded-md border border-dashed text-muted-foreground hover:border-primary hover:text-primary"
+              >
+                <ImagePlus className="h-5 w-5" />
+                <span className="text-[10px]">Add</span>
+              </button>
+            </div>
+          </div>
+
           <div className="flex gap-3 border-t pt-5">
             <Button type="submit" disabled={isSubmitting} className="flex-1">
-              {isSubmitting
-                ? "Saving..."
-                : isEditing
-                  ? "Update"
-                  : `Create ${typeName}`}
+              {isEditing ? "Preview Changes" : "Preview & Save"}
             </Button>
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
@@ -349,5 +473,29 @@ export function CreateResourceSheet({
         </form>
       </SheetContent>
     </Sheet>
+
+    <ResourcePreviewModal
+      open={showPreview}
+      onClose={() => setShowPreview(false)}
+      onConfirm={() => {
+        if (pendingFormData) {
+          createMutation.mutate(pendingFormData);
+          setShowPreview(false);
+        }
+      }}
+      isSaving={createMutation.isPending}
+      data={{
+        name: pendingFormData?.name ?? "",
+        description: pendingFormData?.description,
+        base_price: pendingFormData?.base_price ?? 0,
+        currency: pendingFormData?.currency ?? "USD",
+        location_address: pendingFormData?.location_address,
+        attributes,
+        typeName,
+        imagePreviews,
+        existingImages: existingAttachments?.map((a) => a.url) ?? [],
+      }}
+    />
+    </>
   );
 }

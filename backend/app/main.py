@@ -1,6 +1,5 @@
-from contextlib import asynccontextmanager
-
 import asyncio
+from contextlib import asynccontextmanager
 
 import httpx
 from fastapi import FastAPI
@@ -12,7 +11,11 @@ from app.config import get_settings
 from app.core.admin.platform_router import router as platform_router
 from app.core.admin.router import router as admin_router
 from app.core.auth.router import router as auth_router
+from app.core.commission.router import router as commission_router
+from app.core.currency.router import router as currency_router
 from app.core.notifications.router import router as notification_router
+from app.core.payments.router import router as payment_router
+from app.core.payouts.router import router as payout_router
 from app.core.search.router import router as search_router
 from app.core.storage.router import router as storage_router
 from app.core.tenancy.middleware import TenantMiddleware
@@ -27,9 +30,50 @@ from app.redis_client import get_redis
 settings = get_settings()
 
 
+async def _sync_template_schemas():
+    from sqlalchemy import text as sa_text
+    from sqlmodel import select
+
+    from app.core.tenancy.context import validate_schema_name
+    from app.core.tenancy.models import Tenant
+    from app.domains.resources.models import ResourceType
+    from app.domains.resources.templates import RESOURCE_TYPE_TEMPLATES
+
+    async with async_session_factory() as session:
+        result = await session.exec(
+            select(Tenant).where(Tenant.is_active.is_(True))
+        )
+        tenants = list(result.all())
+
+    for tenant in tenants:
+        validate_schema_name(tenant.schema_name)
+        async with async_session_factory() as session:
+            await session.execute(
+                sa_text(f"SET search_path TO {tenant.schema_name}, public")
+            )
+            result = await session.exec(select(ResourceType))
+            resource_types = list(result.all())
+
+            for rt in resource_types:
+                tmpl = RESOURCE_TYPE_TEMPLATES.get(rt.slug)
+                if not tmpl:
+                    continue
+                tmpl_schema = tmpl.get("attribute_schema")
+                if tmpl_schema and rt.attribute_schema != tmpl_schema:
+                    rt.attribute_schema = tmpl_schema
+                    session.add(rt)
+
+            await session.commit()
+            await session.execute(sa_text("SET search_path TO public"))
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print(f"Starting RentManager backend (debug={settings.debug})")
+    try:
+        await _sync_template_schemas()
+    except Exception as e:
+        print(f"Template schema sync skipped: {e}")
     yield
     await engine.dispose()
     print("Shutting down RentManager backend")
@@ -58,6 +102,10 @@ app.include_router(review_router)
 app.include_router(notification_router)
 app.include_router(storage_router)
 app.include_router(admin_router)
+app.include_router(currency_router)
+app.include_router(commission_router)
+app.include_router(payment_router)
+app.include_router(payout_router)
 app.include_router(platform_router)
 
 

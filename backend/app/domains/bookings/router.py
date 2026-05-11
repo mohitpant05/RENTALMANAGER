@@ -31,7 +31,7 @@ async def create_booking_endpoint(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
-    return await create_booking(session, data, user.id)
+    return await create_booking(session, data, user.id, is_admin=(user.user_type == "admin"))
 
 
 @router.get("/mine", response_model=list[BookingResponse])

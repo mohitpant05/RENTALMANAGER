@@ -32,6 +32,28 @@ class TenantConfigUpdate(BaseModel):
     config: dict | None = None
 
 
+SENSITIVE_CONFIG_KEYS = {
+    "stripe_secret_key",
+    "stripe_publishable_key",
+    "razorpay_key_id",
+    "razorpay_key_secret",
+    "webhook_secret_stripe",
+    "webhook_secret_razorpay",
+}
+
+
+def _mask_config(config: dict | None) -> dict | None:
+    if config is None:
+        return None
+    masked = {}
+    for k, v in config.items():
+        if k in SENSITIVE_CONFIG_KEYS and isinstance(v, str) and len(v) > 4:
+            masked[k] = "••••" + v[-4:]
+        else:
+            masked[k] = v
+    return masked
+
+
 class TenantResponse(BaseModel):
     id: uuid.UUID
     name: str
@@ -45,6 +67,12 @@ class TenantResponse(BaseModel):
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+    @classmethod
+    def from_tenant(cls, tenant: object) -> "TenantResponse":
+        resp = cls.model_validate(tenant)
+        resp.config = _mask_config(resp.config)
+        return resp
 
 
 class DomainCreate(BaseModel):
@@ -90,6 +118,11 @@ class PlatformLoginRequest(BaseModel):
 
 class PlatformTokenResponse(BaseModel):
     access_token: str
+
+
+class DeactivationImpactResponse(BaseModel):
+    resources_count: int
+    pending_bookings_count: int
 
 
 class TenantCreate(BaseModel):

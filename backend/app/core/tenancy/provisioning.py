@@ -6,6 +6,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.auth.models import TENANT_AUTH_TABLES  # noqa: F401 — registers models
 from app.core.auth.seed import seed_default_roles
 from app.core.notifications.models import TENANT_NOTIFICATION_TABLES  # noqa: F401
+from app.core.payments.models import TENANT_PAYMENT_TABLES  # noqa: F401
+from app.core.payouts.models import TENANT_PAYOUT_TABLES  # noqa: F401
 from app.core.storage.models import TENANT_STORAGE_TABLES  # noqa: F401
 from app.core.tenancy.context import validate_schema_name
 from app.domains.bookings.models import TENANT_BOOKING_TABLES  # noqa: F401
@@ -19,6 +21,8 @@ TENANT_TABLE_REGISTRY.update(TENANT_BOOKING_TABLES)
 TENANT_TABLE_REGISTRY.update(TENANT_REVIEW_TABLES)
 TENANT_TABLE_REGISTRY.update(TENANT_NOTIFICATION_TABLES)
 TENANT_TABLE_REGISTRY.update(TENANT_STORAGE_TABLES)
+TENANT_TABLE_REGISTRY.update(TENANT_PAYMENT_TABLES)
+TENANT_TABLE_REGISTRY.update(TENANT_PAYOUT_TABLES)
 
 
 async def create_tenant_tables(engine: AsyncEngine, schema_name: str) -> None:

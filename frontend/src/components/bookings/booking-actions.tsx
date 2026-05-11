@@ -1,13 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Check, X, Ban, AlertTriangle } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Check, X, Ban, AlertTriangle, Loader2 } from "lucide-react";
 import api from "@/lib/api";
 import type { BookingResponse } from "@/types/api";
+import type { PaymentResponse } from "@/types/payment";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import {
   Sheet,
   SheetContent,
@@ -140,6 +142,10 @@ export function BookingActions({ booking }: BookingActionsProps) {
         )}
       </div>
 
+      {booking.status === "pending" || booking.status === "confirmed" || booking.status === "completed" ? (
+        <PaymentAction bookingId={booking.id} />
+      ) : null}
+
       <Sheet open={!!reasonSheetAction} onOpenChange={(open) => { if (!open) closeReasonSheet(); }}>
         <SheetContent>
           <SheetHeader>
@@ -171,4 +177,68 @@ export function BookingActions({ booking }: BookingActionsProps) {
       </Sheet>
     </>
   );
+}
+
+function PaymentAction({ bookingId }: { bookingId: string }) {
+  const queryClient = useQueryClient();
+
+  const { data: payment } = useQuery({
+    queryKey: ["payment", bookingId],
+    queryFn: async () => {
+      try {
+        const { data } = await api.get<PaymentResponse>(`/payments/booking/${bookingId}`);
+        return data;
+      } catch {
+        return null;
+      }
+    },
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async () => {
+      const { data } = await api.post<PaymentResponse>(`/payments/booking/${bookingId}`);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["payment", bookingId] });
+      toast.success("Payment created");
+    },
+    onError: () => toast.error("Failed to create payment"),
+  });
+
+  const markPaidMutation = useMutation({
+    mutationFn: async () => {
+      const { data } = await api.post<PaymentResponse>(`/payments/${payment!.id}/mark-paid`);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["payment", bookingId] });
+      toast.success("Payment marked as paid");
+    },
+    onError: () => toast.error("Failed to mark paid"),
+  });
+
+  if (!payment) {
+    return (
+      <Button size="sm" variant="outline" onClick={() => createMutation.mutate()} disabled={createMutation.isPending}>
+        {createMutation.isPending && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
+        Create Payment
+      </Button>
+    );
+  }
+
+  if (payment.status === "paid") {
+    return <Badge variant="secondary">Paid</Badge>;
+  }
+
+  if (payment.status === "pending") {
+    return (
+      <Button size="sm" onClick={() => markPaidMutation.mutate()} disabled={markPaidMutation.isPending}>
+        {markPaidMutation.isPending && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
+        Mark Paid
+      </Button>
+    );
+  }
+
+  return <Badge variant="outline">{payment.status}</Badge>;
 }

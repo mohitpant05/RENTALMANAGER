@@ -9,6 +9,13 @@ import { useAuthStore } from "@/lib/auth-store";
 import { useTenantStore } from "@/lib/tenant-store";
 import type { ResourceResponse, ResourceTypeResponse } from "@/types/api";
 import { useAttachments } from "@/hooks/use-storage";
+import {
+  useCurrencyStore,
+  useRates,
+  convertPrice,
+  formatPrice,
+} from "@/hooks/use-currency";
+import { CurrencySelect } from "@/components/ui/currency-select";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +33,8 @@ export default function PublicHomePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedType, setSelectedType] = useState<string>("all");
   const [debouncedQuery, setDebouncedQuery] = useState("");
+  const { displayCurrency, setDisplayCurrency } = useCurrencyStore();
+  const { data: rates } = useRates();
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedQuery(searchQuery), 300);
@@ -136,6 +145,11 @@ export default function PublicHomePage() {
                   ))}
                 </SelectContent>
               </Select>
+              <CurrencySelect
+                value={displayCurrency}
+                onChange={setDisplayCurrency}
+                className="w-full sm:w-[140px]"
+              />
             </div>
           </div>
         </section>
@@ -158,7 +172,12 @@ export default function PublicHomePage() {
           {tenantResolved && (
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {filtered?.map((resource) => (
-                <ResourceCard key={resource.id} resource={resource} />
+                <ResourceCard
+                  key={resource.id}
+                  resource={resource}
+                  displayCurrency={displayCurrency}
+                  rates={rates}
+                />
               ))}
             </div>
           )}
@@ -168,10 +187,17 @@ export default function PublicHomePage() {
   );
 }
 
-function ResourceCard({ resource }: { resource: ResourceResponse }) {
-  const { data: attachments } = useAttachments("resource", resource.id);
+interface ResourceCardProps {
+  resource: ResourceResponse;
+  displayCurrency: string;
+  rates: Record<string, number> | undefined;
+}
 
+function ResourceCard({ resource, displayCurrency, rates }: ResourceCardProps) {
+  const { data: attachments } = useAttachments("resource", resource.id);
   const coverImage = attachments?.[0]?.url ?? null;
+  const converted = convertPrice(resource.base_price, resource.currency, displayCurrency, rates);
+  const priceLabel = formatPrice(converted, displayCurrency);
 
   return (
     <Link href={`/resources/${resource.id}`} className="group block overflow-hidden rounded-lg border bg-card transition-shadow hover:shadow-md">
@@ -215,9 +241,7 @@ function ResourceCard({ resource }: { resource: ResourceResponse }) {
 
         <div className="mt-3 flex items-center justify-between">
           <div>
-            <span className="text-lg font-bold">
-              {resource.currency} {resource.base_price.toFixed(2)}
-            </span>
+            <span className="text-lg font-bold">{priceLabel}</span>
             <span className="ml-1 text-sm text-muted-foreground">/day</span>
           </div>
           <Badge variant={resource.status === "active" ? "default" : "secondary"}>

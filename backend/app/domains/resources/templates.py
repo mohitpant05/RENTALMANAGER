@@ -38,6 +38,10 @@ RESOURCE_TYPE_TEMPLATES: dict[str, dict] = {
                 "options": ["car", "bike", "scooter", "van", "truck", "electric_bike"],
                 "required": True, "filterable": True,
             },
+            {"name": "vehicle_number", "type": "text", "required": True, "filterable": True},
+            {"name": "engine_number", "type": "text", "required": True, "filterable": False},
+            {"name": "chassis_number", "type": "text", "required": True, "filterable": False},
+            {"name": "year", "type": "number", "required": True, "filterable": True},
             {"name": "seats", "type": "number", "required": True, "filterable": True},
             {
                 "name": "fuel_type", "type": "enum",

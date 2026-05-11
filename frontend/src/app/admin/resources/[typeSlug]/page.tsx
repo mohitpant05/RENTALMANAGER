@@ -46,7 +46,7 @@ export default function ResourceTypePage() {
     queryFn: async () => {
       const params = new URLSearchParams();
       if (currentType!.id) params.set("type_id", currentType!.id);
-      if (statusFilter !== "all") params.set("status", statusFilter);
+      params.set("status", statusFilter);
       const { data } = await api.get<ResourceResponse[]>(
         `/resources?${params.toString()}`
       );

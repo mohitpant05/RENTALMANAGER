@@ -11,6 +11,13 @@ import { ImageCarousel } from "@/components/public/image-carousel";
 import { BookingCard } from "@/components/public/booking-card";
 import { ReviewList } from "@/components/public/review-list";
 import { Badge } from "@/components/ui/badge";
+import {
+  useCurrencyStore,
+  useRates,
+  convertPrice,
+  formatPrice,
+} from "@/hooks/use-currency";
+import { CurrencySelect } from "@/components/ui/currency-select";
 
 export default function ResourceDetailPage({
   params,
@@ -37,9 +44,16 @@ export default function ResourceDetailPage({
 
   const { data: attachments } = useAttachments("resource", id);
 
+  const { displayCurrency, setDisplayCurrency } = useCurrencyStore();
+  const { data: rates } = useRates();
+
   const resourceType = resourceTypes?.find((t) => t.id === resource?.type_id);
   const images = attachments?.map((a) => a.url) ?? [];
   const attributes = resource?.attributes as Record<string, unknown> | null;
+  const convertedPrice = resource
+    ? convertPrice(resource.base_price, resource.currency, displayCurrency, rates)
+    : 0;
+  const priceLabel = formatPrice(convertedPrice, displayCurrency);
 
   if (resourceLoading) {
     return (
@@ -134,9 +148,7 @@ export default function ResourceDetailPage({
       <div className="fixed bottom-0 left-0 right-0 border-t bg-background p-4 lg:hidden">
         <div className="mx-auto flex max-w-6xl items-center justify-between">
           <div>
-            <span className="text-lg font-bold">
-              {resource.currency} {resource.base_price.toFixed(2)}
-            </span>
+            <span className="text-lg font-bold">{priceLabel}</span>
             <span className="ml-1 text-sm text-muted-foreground">
               {priceUnitShort(resourceType?.availability_model ?? "date_range")}
             </span>

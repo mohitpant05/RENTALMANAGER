@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.admin.schemas import (
+    DeactivationImpactResponse,
     DomainCreate,
     DomainResponse,
     StaffInvite,
@@ -14,8 +15,10 @@ from app.core.admin.schemas import (
     ThemeUpdate,
 )
 from app.core.admin.service import (
+    activate_user,
     add_domain,
     deactivate_user,
+    get_deactivation_impact,
     get_theme,
     invite_staff,
     list_domains,
@@ -39,7 +42,7 @@ def _require_admin():
 @router.get("/tenant", response_model=TenantResponse)
 async def get_tenant_info(user: User = Depends(_require_admin())):
     ctx = get_current_tenant()
-    return TenantResponse.model_validate(ctx.tenant)
+    return TenantResponse.from_tenant(ctx.tenant)
 
 
 @router.patch("/tenant", response_model=TenantResponse)
@@ -57,7 +60,7 @@ async def patch_tenant(
         tz=data.timezone,
         config=data.config,
     )
-    return TenantResponse.model_validate(tenant)
+    return TenantResponse.from_tenant(tenant)
 
 
 @router.get("/theme", response_model=ThemeResponse)
@@ -144,3 +147,22 @@ async def deactivate_staff(
 ):
     deactivated = await deactivate_user(session, user_id)
     return StaffUserResponse.model_validate(deactivated)
+
+
+@router.post("/staff/{user_id}/activate", response_model=StaffUserResponse)
+async def activate_staff(
+    user_id: uuid.UUID,
+    session: AsyncSession = Depends(get_db),
+    user: User = Depends(_require_admin()),
+):
+    activated = await activate_user(session, user_id)
+    return StaffUserResponse.model_validate(activated)
+
+
+@router.get("/staff/{user_id}/deactivation-impact", response_model=DeactivationImpactResponse)
+async def staff_deactivation_impact(
+    user_id: uuid.UUID,
+    session: AsyncSession = Depends(get_db),
+    _user: User = Depends(_require_admin()),
+):
+    return await get_deactivation_impact(session, user_id)

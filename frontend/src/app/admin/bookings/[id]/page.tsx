@@ -2,11 +2,12 @@
 
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Calendar, Clock, DollarSign } from "lucide-react";
+import { ArrowLeft, Calendar, Clock, DollarSign, Percent, Wallet, CreditCard, ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 import api from "@/lib/api";
 import type { BookingResponse, ResourceResponse } from "@/types/api";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BookingActions } from "@/components/bookings/booking-actions";
 
 const STATUS_VARIANT: Record<
@@ -155,6 +156,35 @@ export default function BookingDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Financial Breakdown */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Financial Breakdown</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2 text-sm">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Base Price</span>
+            <span>{booking.currency} {booking.total_price.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Service Fee</span>
+            <span>{booking.currency} {booking.service_fee.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between border-t pt-2 font-medium">
+            <span>Customer Total</span>
+            <span>{booking.currency} {booking.customer_total.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between text-muted-foreground">
+            <span>Platform Commission</span>
+            <span>{booking.currency} {booking.platform_commission.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between font-medium">
+            <span>Owner Payout</span>
+            <span>{booking.currency} {booking.owner_payout.toFixed(2)}</span>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Details card (conditional) */}
       {hasDetails && (

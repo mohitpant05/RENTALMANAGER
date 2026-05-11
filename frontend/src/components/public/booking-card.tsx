@@ -9,6 +9,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { ResourceResponse } from "@/types/api";
+import {
+  useCurrencyStore,
+  useRates,
+  convertPrice,
+  formatPrice,
+} from "@/hooks/use-currency";
+import { CurrencySelect } from "@/components/ui/currency-select";
 
 interface BookingCardProps {
   resource: ResourceResponse;
@@ -32,6 +39,10 @@ export function BookingCard({ resource, availabilityModel }: BookingCardProps) {
   const router = useRouter();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const flow = useBookingFlow({ resourceId: resource.id, availabilityModel });
+  const { displayCurrency, setDisplayCurrency } = useCurrencyStore();
+  const { data: rates } = useRates();
+  const convertedBase = convertPrice(resource.base_price, resource.currency, displayCurrency, rates);
+  const convertedHold = convertPrice(flow.holdPrice, resource.currency, displayCurrency, rates);
 
   async function handleCheckAndHold() {
     if (!isAuthenticated) {
@@ -55,12 +66,17 @@ export function BookingCard({ resource, availabilityModel }: BookingCardProps) {
       <CardHeader className="pb-3">
         <CardTitle className="flex items-baseline gap-1">
           <span className="text-2xl font-bold">
-            {resource.currency} {resource.base_price.toFixed(2)}
+            {formatPrice(convertedBase, displayCurrency)}
           </span>
           <span className="text-sm font-normal text-muted-foreground">
             {priceUnit(availabilityModel)}
           </span>
         </CardTitle>
+        <CurrencySelect
+          value={displayCurrency}
+          onChange={setDisplayCurrency}
+          className="mt-2 w-[130px]"
+        />
       </CardHeader>
 
       <CardContent className="space-y-4">
@@ -139,7 +155,7 @@ export function BookingCard({ resource, availabilityModel }: BookingCardProps) {
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Total Price</span>
                 <span className="text-lg font-semibold">
-                  {resource.currency} {flow.holdPrice.toFixed(2)}
+                  {formatPrice(convertedHold, displayCurrency)}
                 </span>
               </div>
 

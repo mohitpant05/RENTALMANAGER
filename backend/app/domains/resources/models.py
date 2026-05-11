@@ -26,6 +26,7 @@ class ResourceType(SQLModel, table=True):
     slot_config: dict | None = Field(default=None, sa_column=Column(JSONB))
     pricing_config: dict | None = Field(default=None, sa_column=Column(JSONB))
     cancellation_defaults: dict | None = Field(default=None, sa_column=Column(JSONB))
+    commission_config: dict | None = Field(default=None, sa_column=Column(JSONB))
     requires_verification: bool = Field(default=False)
     is_active: bool = Field(default=True)
     created_at: datetime = Field(
@@ -55,6 +56,8 @@ class Resource(SQLModel, table=True):
     rating_avg: float = Field(default=0.0)
     rating_count: int = Field(default=0)
     owner_id: uuid.UUID = Field(foreign_key="users.id", index=True)
+    commission_config: dict | None = Field(default=None, sa_column=Column(JSONB))
+    suspension_reason: str | None = Field(default=None, max_length=50)
     version: int = Field(default=1)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(UTC),

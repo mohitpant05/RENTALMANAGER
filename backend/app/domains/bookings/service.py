@@ -7,6 +7,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.celery_app import task_send_email
+from app.core.commission.service import calculate_breakdown, resolve_commission
 from app.core.email.templates import (
     booking_confirmation_email,
     booking_status_change_email,
@@ -75,6 +76,7 @@ async def create_booking(
     session: AsyncSession,
     data: BookingCreate,
     user_id: uuid.UUID,
+    is_admin: bool = False,
 ) -> Booking:
     result = await session.exec(
         select(Resource).where(Resource.id == data.resource_id)
@@ -92,21 +94,37 @@ async def create_booking(
     if resource_type is None:
         raise HTTPException(status_code=404, detail="Resource type not found")
 
+    booking_user_id = user_id
+    if data.user_id is not None:
+        if not is_admin:
+            raise HTTPException(
+                status_code=403,
+                detail="Only admins can book on behalf of another user",
+            )
+        booking_user_id = data.user_id
+
     pricing = get_pricing_provider(resource_type.pricing_model)
     total_price = pricing.calculate(
         resource.base_price, data.start_time, data.end_time, resource_type.pricing_config
     )
 
+    commission_config = await resolve_commission(session, data.resource_id)
+    breakdown = calculate_breakdown(total_price, resource.currency, commission_config)
+
     cancellation_policy = resource_type.cancellation_defaults
 
     booking = Booking(
         resource_id=data.resource_id,
-        user_id=user_id,
+        user_id=booking_user_id,
         status="pending",
         start_time=data.start_time,
         end_time=data.end_time,
         total_price=total_price,
         currency=resource.currency,
+        service_fee=breakdown["service_fee"],
+        platform_commission=breakdown["platform_commission"],
+        owner_payout=breakdown["owner_payout"],
+        customer_total=breakdown["customer_total"],
         hold_token=data.hold_token,
         cancellation_policy=cancellation_policy,
         notes=data.notes,
@@ -129,7 +147,7 @@ async def create_booking(
     await session.refresh(booking)
 
     from app.core.auth.models import User
-    user_result = await session.exec(select(User).where(User.id == user_id))
+    user_result = await session.exec(select(User).where(User.id == booking_user_id))
     user = user_result.first()
     user_email = user.email if user else ""
     user_name = user.full_name if user else ""

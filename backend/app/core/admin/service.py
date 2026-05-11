@@ -6,7 +6,12 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.admin.models import TenantTheme
-from app.core.admin.schemas import DomainCreate, StaffInvite, ThemeUpdate
+from app.core.admin.schemas import (
+    DeactivationImpactResponse,
+    DomainCreate,
+    StaffInvite,
+    ThemeUpdate,
+)
 from app.core.auth.models import Role, User, UserRole
 from app.core.tenancy.models import Tenant, TenantDomain
 
@@ -60,7 +65,13 @@ async def update_tenant_config(
     if tz is not None:
         tenant.timezone = tz
     if config is not None:
-        tenant.config = config
+        from app.core.admin.schemas import SENSITIVE_CONFIG_KEYS
+        existing = tenant.config or {}
+        for k, v in config.items():
+            if k in SENSITIVE_CONFIG_KEYS and isinstance(v, str) and v.startswith("••••"):
+                continue
+            existing[k] = v
+        tenant.config = existing
     tenant.updated_at = datetime.now(UTC)
     session.add(tenant)
     await session.commit()
@@ -189,9 +200,100 @@ async def deactivate_user(session: AsyncSession, user_id: uuid.UUID) -> User:
     user = result.first()
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
+
     user.is_active = False
     user.updated_at = datetime.now(UTC)
     session.add(user)
+
+    from app.domains.bookings.models import Booking
+    from app.domains.resources.models import Resource
+
+    resource_result = await session.exec(
+        select(Resource).where(
+            Resource.owner_id == user_id, Resource.status == "active"
+        )
+    )
+    resources = list(resource_result.all())
+    resource_ids = []
+    for r in resources:
+        r.status = "suspended"
+        r.suspension_reason = "owner_deactivated"
+        session.add(r)
+        resource_ids.append(r.id)
+
+    if resource_ids:
+        booking_result = await session.exec(
+            select(Booking).where(
+                Booking.resource_id.in_(resource_ids),
+                Booking.status == "pending",
+            )
+        )
+        for booking in booking_result.all():
+            booking.status = "rejected"
+            booking.cancellation_reason = "Resource owner deactivated"
+            booking.updated_at = datetime.now(UTC)
+            booking.version += 1
+            session.add(booking)
+
     await session.commit()
     await session.refresh(user)
     return user
+
+
+async def activate_user(session: AsyncSession, user_id: uuid.UUID) -> User:
+    result = await session.exec(select(User).where(User.id == user_id))
+    user = result.first()
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user.is_active = True
+    user.updated_at = datetime.now(UTC)
+    session.add(user)
+
+    from app.domains.resources.models import Resource
+
+    resource_result = await session.exec(
+        select(Resource).where(
+            Resource.owner_id == user_id,
+            Resource.suspension_reason == "owner_deactivated",
+        )
+    )
+    for r in resource_result.all():
+        r.status = "active"
+        r.suspension_reason = None
+        session.add(r)
+
+    await session.commit()
+    await session.refresh(user)
+    return user
+
+
+async def get_deactivation_impact(
+    session: AsyncSession, user_id: uuid.UUID
+) -> DeactivationImpactResponse:
+    from app.domains.bookings.models import Booking
+    from app.domains.resources.models import Resource
+
+    resource_result = await session.exec(
+        select(Resource).where(
+            Resource.owner_id == user_id, Resource.status == "active"
+        )
+    )
+    resources = list(resource_result.all())
+    resource_ids = [r.id for r in resources]
+
+    pending_count = 0
+    if resource_ids:
+        from sqlmodel import func
+        count_result = await session.exec(
+            select(func.count(Booking.id)).where(
+                Booking.resource_id.in_(resource_ids),
+                Booking.status == "pending",
+            )
+        )
+        pending_count = count_result.one()
+
+    return DeactivationImpactResponse(
+        resources_count=len(resources),
+        pending_bookings_count=pending_count,
+    )

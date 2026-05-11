@@ -56,11 +56,20 @@ const STATIC_NAV_CONFIG: Record<string, SubNavSection> = {
       { href: "/admin/theming#components", label: "Components" },
     ],
   },
+  "/admin/payouts": {
+    title: "Payouts",
+    items: [
+      { href: "/admin/payouts", label: "Balances" },
+      { href: "/admin/payouts?tab=history", label: "History" },
+    ],
+  },
   "/admin/settings": {
     title: "Settings",
     items: [
       { href: "/admin/settings#general", label: "General" },
       { href: "/admin/settings#domains", label: "Domains" },
+      { href: "/admin/settings/commission", label: "Commission" },
+      { href: "/admin/settings/payments", label: "Payments" },
     ],
   },
 };

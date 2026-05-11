@@ -13,6 +13,7 @@ class BookingCreate(BaseModel):
     end_time: datetime
     notes: str | None = None
     auto_confirm: bool = True
+    user_id: uuid.UUID | None = None
 
 
 class BookingCancel(BaseModel):
@@ -32,6 +33,10 @@ class BookingResponse(BaseModel):
     end_time: datetime
     total_price: float
     currency: str
+    service_fee: float
+    platform_commission: float
+    owner_payout: float
+    customer_total: float
     hold_token: str | None
     cancellation_policy: dict | None
     notes: str | None

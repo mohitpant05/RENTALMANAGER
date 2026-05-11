@@ -27,6 +27,7 @@ def validate_attributes(
 
 _TYPE_CHECKS = {
     "string": lambda v: isinstance(v, str),
+    "text": lambda v: isinstance(v, str),
     "number": lambda v: isinstance(v, (int, float)) and not isinstance(v, bool),
     "boolean": lambda v: isinstance(v, bool),
     "tags": lambda v: isinstance(v, list) and all(isinstance(t, str) for t in v),

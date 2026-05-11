@@ -182,6 +182,10 @@ export interface BookingResponse {
   end_time: string;
   total_price: number;
   currency: string;
+  service_fee: number;
+  platform_commission: number;
+  owner_payout: number;
+  customer_total: number;
   hold_token: string | null;
   cancellation_policy: Record<string, unknown> | null;
   notes: string | null;
@@ -202,6 +206,7 @@ export interface BookingCreate {
   end_time: string;
   notes?: string;
   auto_confirm?: boolean;
+  user_id?: string;
 }
 
 export interface BookingCancel {

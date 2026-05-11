@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  Banknote,
   Bell,
   Box,
   CalendarDays,
@@ -24,6 +25,7 @@ const NAV_ITEMS = [
   { href: "/admin", icon: LayoutDashboard, label: "Dashboard" },
   { href: "/admin/resources", icon: Box, label: "Resources" },
   { href: "/admin/bookings", icon: CalendarDays, label: "Bookings" },
+  { href: "/admin/payouts", icon: Banknote, label: "Payouts" },
   { href: "/admin/reviews", icon: Star, label: "Reviews" },
   { href: "/admin/staff", icon: Users, label: "Staff" },
   { href: "/admin/notifications", icon: Bell, label: "Notifications" },
