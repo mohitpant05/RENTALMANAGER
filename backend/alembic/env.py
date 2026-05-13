@@ -1,18 +1,20 @@
 import asyncio
 from logging.config import fileConfig
 
-from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
 from sqlmodel import SQLModel
 
+from alembic import context
 from app.config import get_settings
+from app.core.auth.models import PlatformUser  # noqa: F401
+from app.core.payments.models import Payment  # noqa: F401
+from app.core.payouts.models import Payout, PayoutItem  # noqa: F401
 
 # Import all models so they register with SQLModel.metadata
 from app.core.tenancy.models import Tenant, TenantDomain  # noqa: F401
-from app.core.auth.models import PlatformUser  # noqa: F401
-from app.domains.resources.models import ResourceType, Resource, ResourceAvailability  # noqa: F401
 from app.domains.bookings.models import Booking  # noqa: F401
+from app.domains.resources.models import Resource, ResourceAvailability, ResourceType  # noqa: F401
 
 config = context.config
 if config.config_file_name is not None:

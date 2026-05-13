@@ -23,10 +23,12 @@ def test_hash_password_unique_salts():
     assert h1 != h2
 
 
+from datetime import UTC
+
 from jose import jwt
 
-from app.core.auth.jwt import create_access_token, create_refresh_token, decode_token
 from app.core.auth.dependencies import matches_permission
+from app.core.auth.jwt import create_access_token, create_refresh_token, decode_token
 
 
 def test_create_access_token_structure():
@@ -64,14 +66,14 @@ def test_decode_token_valid():
 
 
 def test_decode_token_expired():
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
     from jose import jwt as jose_jwt
 
     payload = {
         "sub": "user-123",
         "type": "access",
-        "exp": datetime.now(timezone.utc) - timedelta(hours=1),
+        "exp": datetime.now(UTC) - timedelta(hours=1),
     }
     token = jose_jwt.encode(payload, "dev-secret-key-change-in-production", algorithm="HS256")
     try:

@@ -9,8 +9,12 @@ from app import database as db_module
 from app.core.tenancy.context import TenantContext, set_current_tenant
 from app.core.tenancy.models import Tenant, TenantDomain
 
-TENANT_FREE_PATHS = {"/api/health", "/api/docs", "/api/openapi.json", "/api/redoc", "/api/tenancy/resolve"}
-TENANT_FREE_PREFIXES = ("/api/platform/", "/api/health/")
+TENANT_FREE_PATHS = {
+    "/api/health", "/api/docs", "/api/openapi.json", "/api/redoc", "/api/tenancy/resolve",
+}
+TENANT_FREE_PREFIXES = (
+    "/api/platform/", "/api/health/", "/api/currency/", "/api/payments/webhook/",
+)
 
 
 class TenantMiddleware(BaseHTTPMiddleware):

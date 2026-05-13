@@ -1,9 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.rate_limiter import limiter
-
 from app.core.auth.dependencies import get_current_user
+from app.core.auth.jwt import decode_token, revoke_refresh_token
 from app.core.auth.models import User
 from app.core.auth.schemas import (
     AcceptInviteRequest,
@@ -26,9 +25,9 @@ from app.core.auth.service import (
     update_profile,
     verify_invite_token,
 )
-from app.core.auth.jwt import decode_token, revoke_refresh_token
 from app.core.tenancy.context import get_current_tenant
 from app.database import get_db
+from app.rate_limiter import limiter
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -65,9 +64,7 @@ async def login(
     session: AsyncSession = Depends(get_db),
 ):
     tenant_ctx = get_current_tenant()
-    print('logging the tenant ctx', tenant_ctx);
     tenant_id = str(tenant_ctx.tenant.id)
-    print('logging the tenant_id here as', tenant_id)
     user = await authenticate_user(session, data)
     roles = await get_user_roles(session, str(user.id))
     return await create_tokens(user, tenant_id, roles)

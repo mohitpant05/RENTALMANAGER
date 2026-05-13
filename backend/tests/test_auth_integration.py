@@ -1,14 +1,13 @@
-import uuid
 
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import text
-from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.auth.models import Permission, Role, RolePermission, User, UserRole
+from app.core.auth.models import Permission, Role, User
 from app.core.auth.password import hash_password
-from app.core.auth.schemas import LoginRequest, RegisterRequest, TokenResponse
+from app.core.auth.schemas import LoginRequest, RegisterRequest
 from app.core.auth.seed import seed_default_roles
 from app.core.auth.service import authenticate_user, register_user
 from app.core.tenancy.models import Tenant

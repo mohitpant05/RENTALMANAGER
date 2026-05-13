@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import Column, DateTime, Text
 from sqlalchemy.dialects.postgresql import JSONB
@@ -18,11 +18,11 @@ class Tenant(SQLModel, table=True):
     base_currency: str = Field(default="USD", max_length=3)
     timezone: str = Field(default="UTC", max_length=50)
     created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
+        default_factory=lambda: datetime.now(UTC),
         sa_column=Column(DateTime(timezone=True), nullable=False),
     )
     updated_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
+        default_factory=lambda: datetime.now(UTC),
         sa_column=Column(DateTime(timezone=True), nullable=False),
     )
 
@@ -36,7 +36,7 @@ class TenantDomain(SQLModel, table=True):
     is_primary: bool = Field(default=False)
     is_verified: bool = Field(default=False)
     created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
+        default_factory=lambda: datetime.now(UTC),
         sa_column=Column(DateTime(timezone=True), nullable=False),
     )
 
@@ -49,6 +49,6 @@ class PlatformConfig(SQLModel, table=True):
     value: str = Field(sa_column=Column(Text))
     description: str | None = Field(default=None, max_length=500)
     updated_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
+        default_factory=lambda: datetime.now(UTC),
         sa_column=Column(DateTime(timezone=True), nullable=False),
     )

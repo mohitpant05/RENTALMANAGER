@@ -1,8 +1,8 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import HTTPException, status
-from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.celery_app import task_send_email
 from app.core.auth.invite import claim_invite_token, get_invite_data
@@ -54,8 +54,8 @@ async def register_user(
     try:
         body = welcome_email(user.full_name)
         task_send_email.delay(user.email, "Welcome to RentManager", body)
-    except Exception as e:
-        print(f"Failed to send welcome email: {e}")
+    except Exception:
+        pass
 
     return user
 
@@ -63,7 +63,6 @@ async def register_user(
 async def authenticate_user(session: AsyncSession, data: LoginRequest) -> User:
     result = await session.exec(select(User).where(User.email == data.email))
     user = result.first()
-    print('logging the user here as', user)
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -85,7 +84,7 @@ async def authenticate_user(session: AsyncSession, data: LoginRequest) -> User:
             detail="Account is deactivated",
         )
 
-    user.last_login = datetime.now(timezone.utc)
+    user.last_login = datetime.now(UTC)
     session.add(user)
     await session.commit()
     return user
@@ -156,7 +155,7 @@ async def refresh_tokens(session: AsyncSession, data: RefreshRequest) -> TokenRe
 async def update_profile(
     session: AsyncSession, user: User, data: ProfileUpdateRequest
 ) -> User:
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     update_data = data.model_dump(exclude_unset=True)
     if not update_data:
@@ -165,7 +164,7 @@ async def update_profile(
     for key, value in update_data.items():
         setattr(user, key, value)
 
-    user.updated_at = datetime.now(timezone.utc)
+    user.updated_at = datetime.now(UTC)
     session.add(user)
     await session.commit()
     await session.refresh(user)
@@ -221,15 +220,15 @@ async def accept_invite(
     user.password_hash = hash_password(password)
     user.is_active = True
     user.is_verified = True
-    user.updated_at = datetime.now(timezone.utc)
+    user.updated_at = datetime.now(UTC)
     session.add(user)
     await session.commit()
 
     try:
         body = welcome_email(user.full_name)
         task_send_email.delay(user.email, "Welcome to RentManager", body)
-    except Exception as e:
-        print(f"Failed to send welcome email: {e}")
+    except Exception:
+        pass
 
     roles = await get_user_roles(session, str(user.id))
     return user, roles

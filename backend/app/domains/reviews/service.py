@@ -161,7 +161,7 @@ async def moderate_review(
 async def get_resource_rating_summary(
     session: AsyncSession, resource_id: uuid.UUID
 ) -> dict:
-    result = await session.exec(
+    agg = await session.exec(
         select(
             func.avg(Review.rating).label("avg"),
             func.count(Review.id).label("count"),
@@ -171,10 +171,24 @@ async def get_resource_rating_summary(
             Review.status == "published",
         )
     )
-    row = result.first()
+    row = agg.first()
     avg_rating = float(row.avg) if row.avg else 0.0
-    count = row.count or 0
-    return {"rating_avg": round(avg_rating, 2), "rating_count": count}
+    total_count = row.count or 0
+
+    dist_rows = await session.exec(
+        select(Review.rating, func.count(Review.id).label("cnt"))
+        .where(
+            Review.resource_id == resource_id,
+            Review.direction == "customer_to_resource",
+            Review.status == "published",
+        )
+        .group_by(Review.rating)
+    )
+    distribution = {str(r.rating): r.cnt for r in dist_rows.all()}
+    for i in range(1, 6):
+        distribution.setdefault(str(i), 0)
+
+    return {"average": round(avg_rating, 2), "count": total_count, "distribution": distribution}
 
 
 async def _update_resource_rating(
@@ -189,8 +203,8 @@ async def _update_resource_rating(
     if resource is None:
         return
 
-    resource.rating_avg = summary["rating_avg"]
-    resource.rating_count = summary["rating_count"]
+    resource.rating_avg = summary["average"]
+    resource.rating_count = summary["count"]
     resource.updated_at = datetime.now(UTC)
     session.add(resource)
     await session.commit()

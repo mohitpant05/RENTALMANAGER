@@ -4,12 +4,12 @@ Run: docker compose exec backend python scripts/create_test_user.py
 Or: cd backend && uv run python scripts/create_test_user.py
 """
 import asyncio
-import sys
-from sqlmodel import select, SQLModel
-from sqlmodel.ext.asyncio.session import AsyncSession
-from sqlalchemy.ext.asyncio import create_async_engine
 from uuid import uuid4
+
 import bcrypt
+from sqlalchemy.ext.asyncio import create_async_engine
+from sqlmodel import SQLModel, select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 
 def hash_password(password: str) -> str:
@@ -23,7 +23,7 @@ async def create_test_user():
     engine = create_async_engine(db_url, echo=True)
 
     # Create tables if not exist (import all models)
-    from app.core.auth.models import User, Role, UserRole
+    from app.core.auth.models import User
     from app.core.tenancy.models import Tenant
 
     async with engine.begin() as conn:
@@ -37,8 +37,8 @@ async def create_test_user():
         existing = result.first()
 
         if existing:
-            print(f"Test user already exists: test@rentmanager.local")
-            print(f"Password: testpassword123")
+            print("Test user already exists: test@rentmanager.local")
+            print("Password: testpassword123")
             await session.close()
             return
 
@@ -69,8 +69,8 @@ async def create_test_user():
         print("=" * 50)
         print("TEST USER CREATED SUCCESSFULLY")
         print("=" * 50)
-        print(f"Email:    test@rentmanager.local")
-        print(f"Password: testpassword123")
+        print("Email:    test@rentmanager.local")
+        print("Password: testpassword123")
         print(f"User ID: {user.id}")
         print(f"Tenant:   {tenant.name} (slug: {tenant.slug})")
         print("=" * 50)

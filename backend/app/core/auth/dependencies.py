@@ -3,8 +3,8 @@ import uuid
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
-from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.auth.jwt import decode_token
 from app.core.auth.models import Permission, RolePermission, User, UserRole
@@ -25,7 +25,7 @@ def matches_permission(required: str, granted: set[str]) -> bool:
         f"{domain}:*:{action}",
         f"{domain}:{qualifier}:*",
         f"{domain}:*:*",
-        f"*:*:*",
+        "*:*:*",
     ]
     return any(c in granted for c in candidates)
 
@@ -99,3 +99,17 @@ def require_permission(permission: str):
         return user
 
     return _checker
+
+
+async def get_optional_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(
+        HTTPBearer(auto_error=False)
+    ),
+    session: AsyncSession = Depends(get_db),
+) -> User | None:
+    if credentials is None:
+        return None
+    try:
+        return await get_current_user(credentials, session)
+    except HTTPException:
+        return None

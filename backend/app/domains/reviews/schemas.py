@@ -85,5 +85,6 @@ class ReviewModerate(BaseModel):
 
 
 class ResourceRatingResponse(BaseModel):
-    rating_avg: float
-    rating_count: int
+    average: float
+    count: int
+    distribution: dict[str, int]

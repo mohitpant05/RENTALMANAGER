@@ -3,7 +3,7 @@ import uuid
 from fastapi import APIRouter, Depends, Query
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.auth.dependencies import get_current_user, require_permission
+from app.core.auth.dependencies import get_current_user, get_optional_user, require_permission
 from app.core.auth.models import User
 from app.database import get_db
 from app.domains.reviews.schemas import (
@@ -48,7 +48,7 @@ async def list_all_reviews(
     offset: int = Query(default=0, ge=0),
     limit: int = Query(default=20, ge=1, le=100),
     session: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User | None = Depends(get_optional_user),
 ):
     return await list_reviews(
         session,

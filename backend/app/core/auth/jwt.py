@@ -1,7 +1,7 @@
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
-from jose import JWTError, jwt
+from jose import jwt
 
 from app.config import get_settings
 from app.redis_client import get_redis
@@ -9,7 +9,7 @@ from app.redis_client import get_redis
 
 def create_access_token(user_id: str, tenant_id: str, roles: list[str]) -> str:
     settings = get_settings()
-    expire = datetime.now(timezone.utc) + timedelta(minutes=settings.access_token_expire_minutes)
+    expire = datetime.now(UTC) + timedelta(minutes=settings.access_token_expire_minutes)
     payload = {
         "sub": user_id,
         "tenant_id": tenant_id,
@@ -24,7 +24,7 @@ def create_access_token(user_id: str, tenant_id: str, roles: list[str]) -> str:
 def create_refresh_token(user_id: str, tenant_id: str) -> tuple[str, str]:
     settings = get_settings()
     jti = str(uuid.uuid4())
-    expire = datetime.now(timezone.utc) + timedelta(days=settings.refresh_token_expire_days)
+    expire = datetime.now(UTC) + timedelta(days=settings.refresh_token_expire_days)
     payload = {
         "sub": user_id,
         "tenant_id": tenant_id,

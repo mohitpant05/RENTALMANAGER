@@ -178,8 +178,12 @@ async def list_resources(
     stmt = select(Resource)
     if type_id:
         stmt = stmt.where(Resource.type_id == type_id)
-    if status_filter:
+    if status_filter == "all":
+        pass
+    elif status_filter:
         stmt = stmt.where(Resource.status == status_filter)
+    else:
+        stmt = stmt.where(Resource.status == "active")
     if owner_id:
         stmt = stmt.where(Resource.owner_id == owner_id)
     stmt = stmt.offset(offset).limit(limit).order_by(Resource.created_at.desc())
