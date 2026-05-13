@@ -291,8 +291,8 @@ async def test_rating_summary(
     )
     assert resp.status_code == 200
     data = resp.json()
-    assert data["rating_avg"] == 4.0
-    assert data["rating_count"] == 1
+    assert data["average"] == 4.0
+    assert data["count"] == 1
 
 
 @pytest.mark.asyncio
@@ -336,5 +336,5 @@ async def test_rating_avg_with_multiple_reviews(
         headers=customer_headers,
     )
     data = resp.json()
-    assert data["rating_avg"] == 3.0
-    assert data["rating_count"] == 2
+    assert data["average"] == 3.0
+    assert data["count"] == 2

@@ -23,7 +23,7 @@ from app.core.notifications.service import notify as notify_user
 logger = logging.getLogger(__name__)
 
 from app.domains.bookings.models import Booking
-from app.domains.bookings.schemas import BookingCreate
+from app.domains.bookings.schemas import AddAddonRequest, BookingCreate
 from app.domains.bookings.state_machine import (
     calculate_refund_percent,
     can_transition,
@@ -300,12 +300,104 @@ async def cancel_booking(
     await session.commit()
     await session.refresh(booking)
 
+    # Cascade cancel: if this is a primary booking, cancel all addons
+    if booking.parent_booking_id is None and booking.booking_group_id is not None:
+        addon_result = await session.exec(
+            select(Booking).where(
+                Booking.booking_group_id == booking.booking_group_id,
+                Booking.parent_booking_id == booking.id,
+                Booking.status.notin_(["cancelled", "completed"]),
+            )
+        )
+        for addon in addon_result.all():
+            if can_transition(addon.status, "cancelled"):
+                addon.status = "cancelled"
+                addon.cancelled_at = datetime.now(UTC)
+                addon.cancellation_reason = "Primary booking cancelled"
+                addon.refund_percent = 100.0
+                addon.updated_at = datetime.now(UTC)
+                addon.version += 1
+                if addon.hold_token:
+                    await release_hold(session, addon.hold_token)
+                session.add(addon)
+        await session.commit()
+
     res_name, user_email, user_name = await _load_booking_context(session, booking)
     await _dispatch_booking_event(
         session, booking, res_name, user_email, user_name,
         "booking.cancelled", "cancelled",
     )
     return booking
+
+
+async def create_bundled_booking(
+    session: AsyncSession,
+    primary_data: BookingCreate,
+    addon_data_list: list[BookingCreate],
+    user_id: uuid.UUID,
+    is_admin: bool = False,
+) -> dict:
+    group_id = uuid.uuid4()
+
+    primary_booking = await create_booking(session, primary_data, user_id, is_admin)
+    primary_booking.booking_group_id = group_id
+    primary_booking.parent_booking_id = None
+    session.add(primary_booking)
+    await session.commit()
+    await session.refresh(primary_booking)
+
+    addon_bookings = []
+    for addon_data in addon_data_list:
+        try:
+            addon_booking = await create_booking(session, addon_data, user_id, is_admin)
+            addon_booking.booking_group_id = group_id
+            addon_booking.parent_booking_id = primary_booking.id
+            session.add(addon_booking)
+            await session.commit()
+            await session.refresh(addon_booking)
+            addon_bookings.append(addon_booking)
+        except HTTPException:
+            if addon_data.hold_token:
+                await release_hold(session, addon_data.hold_token)
+            raise
+
+    return {"primary": primary_booking, "addons": addon_bookings}
+
+
+async def add_addon_to_booking(
+    session: AsyncSession,
+    primary_booking_id: uuid.UUID,
+    data: AddAddonRequest,
+    user_id: uuid.UUID,
+    is_admin: bool = False,
+) -> Booking:
+    primary = await get_booking(session, primary_booking_id)
+    if primary.parent_booking_id is not None:
+        raise HTTPException(status_code=400, detail="Cannot add addon to an addon booking")
+    if primary.status not in ("pending", "confirmed"):
+        raise HTTPException(status_code=400, detail="Primary booking must be pending or confirmed")
+
+    group_id = primary.booking_group_id or uuid.uuid4()
+    if primary.booking_group_id is None:
+        primary.booking_group_id = group_id
+        session.add(primary)
+        await session.commit()
+
+    addon_create = BookingCreate(
+        resource_id=data.resource_id,
+        hold_token=data.hold_token,
+        start_time=data.start_time,
+        end_time=data.end_time,
+        notes=data.notes,
+        auto_confirm=data.auto_confirm,
+    )
+    addon_booking = await create_booking(session, addon_create, primary.user_id, is_admin)
+    addon_booking.booking_group_id = group_id
+    addon_booking.parent_booking_id = primary_booking_id
+    session.add(addon_booking)
+    await session.commit()
+    await session.refresh(addon_booking)
+    return addon_booking
 
 
 async def mark_no_show(

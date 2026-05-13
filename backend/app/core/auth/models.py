@@ -25,6 +25,7 @@ class User(SQLModel, table=True):
     is_verified: bool = Field(default=False)
     user_type: str = Field(max_length=20)
     avatar_url: str | None = Field(default=None, max_length=500)
+    preferred_currency: str = Field(default="USD", max_length=3)
     last_login: datetime | None = Field(
         default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
     )

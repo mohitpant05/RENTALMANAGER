@@ -16,10 +16,9 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.auth.models import PlatformUser, Role, User, UserRole
-from app.core.auth.seed import seed_default_roles
 from app.core.notifications.models import Notification
 from app.core.tenancy.models import Tenant, TenantDomain
-from app.core.tenancy.provisioning import create_tenant_tables, provision_tenant_schema
+from app.core.tenancy.provisioning import provision_tenant_schema
 from app.domains.bookings.models import Booking
 from app.domains.resources.models import Resource, ResourceAvailability, ResourceType
 from app.domains.resources.templates import RESOURCE_TYPE_TEMPLATES
@@ -502,7 +501,7 @@ async def seed():
             await session.commit()
             print(f"  Created {len(all_avail)} availability slots")
         else:
-            print(f"  Availability slots already exist")
+            print("  Availability slots already exist")
 
         # -- 8. Bookings -------------------------------------------------------
         existing_bookings = (await session.exec(select(Booking).limit(1))).first()
@@ -557,7 +556,7 @@ async def seed():
             await session.commit()
             print(f"  Created {len(created_bookings)} bookings")
         else:
-            print(f"  Bookings already exist — skipping")
+            print("  Bookings already exist — skipping")
             result = await session.exec(select(Booking).order_by(Booking.created_at))
             created_bookings = list(result.all())
 
@@ -608,9 +607,9 @@ async def seed():
                         rsrc.rating_count = len(reviews_for)
                         session.add(rsrc)
             await session.commit()
-            print(f"  Updated resource ratings")
+            print("  Updated resource ratings")
         else:
-            print(f"  Reviews already exist (or no completed bookings)")
+            print("  Reviews already exist (or no completed bookings)")
 
         # -- 10. Notifications -------------------------------------------------
         existing_notifs = (await session.exec(select(Notification).limit(1))).first()
@@ -644,7 +643,16 @@ async def seed():
             await session.commit()
             print(f"  Created {len(notifications_data)} notifications")
         else:
-            print(f"  Notifications already exist")
+            print("  Notifications already exist")
+
+        # -- 11. Sync resources to Meilisearch ---------------------------------
+        try:
+            from app.core.search.tasks import full_reindex
+            count = await full_reindex(session, str(tenant_id_val))
+            if count:
+                print(f"  Synced {count} resources to Meilisearch")
+        except Exception as e:
+            print(f"  Meilisearch sync skipped ({e})")
 
         await session.execute(text("SET search_path TO public"))
 

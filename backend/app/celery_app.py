@@ -113,6 +113,12 @@ def task_full_reindex():
     return _run_async(_do_reindex())
 
 
+@celery.task(name="currency.refresh_rates")
+def task_refresh_currency_rates():
+    from app.core.currency.service import refresh_rates_cache
+    return _run_async(refresh_rates_cache())
+
+
 @celery.task(name="email.send", bind=True, max_retries=3, queue="email")
 def task_send_email(self, to: str, subject: str, body: str):
     provider = get_email_provider()
@@ -141,5 +147,9 @@ celery.conf.beat_schedule = {
     "search-full-reindex": {
         "task": "search.full_reindex",
         "schedule": 86400.0,
+    },
+    "refresh-currency-rates": {
+        "task": "currency.refresh_rates",
+        "schedule": 43200.0,  # 12 hours
     },
 }

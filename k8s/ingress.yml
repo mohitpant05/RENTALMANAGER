@@ -4,8 +4,9 @@ metadata:
   name: rentmanager-ingress
   namespace: rentmanager
   annotations:
-    traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
 spec:
+  ingressClassName: nginx
   rules:
     - http:
         paths:

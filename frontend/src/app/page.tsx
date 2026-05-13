@@ -59,7 +59,13 @@ export default function PublicHomePage() {
     enabled: tenantResolved,
   });
 
+  const visibleTypes = resourceTypes?.filter(
+    (t) => t.role === "primary" || t.role === "standalone",
+  );
+
   const filtered = resources?.filter((r) => {
+    const rt = resourceTypes?.find((t) => t.id === r.type_id);
+    if (rt && rt.role !== "primary" && rt.role !== "standalone") return false;
     if (selectedType !== "all" && r.type_id !== selectedType) return false;
     if (debouncedQuery) {
       const q = debouncedQuery.toLowerCase();
@@ -138,7 +144,7 @@ export default function PublicHomePage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All types</SelectItem>
-                  {resourceTypes?.map((t) => (
+                  {visibleTypes?.map((t) => (
                     <SelectItem key={t.id} value={t.id}>
                       {t.name}
                     </SelectItem>

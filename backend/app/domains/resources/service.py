@@ -13,7 +13,7 @@ from app.domains.resources.availability.strategy import (
     get_availability_provider,
     release_hold,
 )
-from app.domains.resources.models import Resource, ResourceType
+from app.domains.resources.models import Resource, ResourceAssignment, ResourceAvailability, ResourceType
 from app.domains.resources.pricing.strategy import get_pricing_provider
 from app.domains.resources.schemas import (
     ResourceCreate,
@@ -137,6 +137,11 @@ async def create_resource(
         if errors:
             raise HTTPException(status_code=422, detail={"attribute_errors": errors})
 
+    from app.core.currency.service import to_usd
+
+    input_currency = data.currency or "USD"
+    price_usd = await to_usd(data.base_price, input_currency)
+
     resource = Resource(
         type_id=data.type_id,
         name=data.name,
@@ -145,8 +150,8 @@ async def create_resource(
         location_lng=data.location_lng,
         location_address=data.location_address,
         attributes=data.attributes,
-        base_price=data.base_price,
-        currency=data.currency,
+        base_price=price_usd,
+        currency="USD",
         owner_id=owner_id,
     )
     session.add(resource)
@@ -222,6 +227,13 @@ async def update_resource(
                 )
 
     update_data = data.model_dump(exclude_unset=True)
+    if "base_price" in update_data:
+        from app.core.currency.service import to_usd
+        input_currency = update_data.pop("currency", None) or "USD"
+        update_data["base_price"] = await to_usd(update_data["base_price"], input_currency)
+        update_data["currency"] = "USD"
+    elif "currency" in update_data:
+        update_data.pop("currency")
     for key, value in update_data.items():
         setattr(resource, key, value)
     resource.updated_at = datetime.now(UTC)
@@ -325,3 +337,93 @@ async def release_resource_hold(session: AsyncSession, hold_token: str) -> bool:
     if not released:
         raise HTTPException(status_code=404, detail="Hold not found")
     return True
+
+
+# --- Resource Assignments ---
+
+async def list_assignments(
+    session: AsyncSession, primary_resource_id: uuid.UUID
+) -> list[ResourceAssignment]:
+    result = await session.exec(
+        select(ResourceAssignment)
+        .where(ResourceAssignment.primary_resource_id == primary_resource_id)
+        .order_by(ResourceAssignment.priority)
+    )
+    return list(result.all())
+
+
+async def create_assignment(
+    session: AsyncSession,
+    primary_resource_id: uuid.UUID,
+    addon_resource_id: uuid.UUID,
+    priority: int,
+    assigned_by: uuid.UUID,
+) -> ResourceAssignment:
+    if primary_resource_id == addon_resource_id:
+        raise HTTPException(status_code=400, detail="Cannot assign resource to itself")
+
+    primary = await get_resource(session, primary_resource_id)
+    primary_type_result = await session.exec(
+        select(ResourceType).where(ResourceType.id == primary.type_id)
+    )
+    primary_type = primary_type_result.first()
+    if primary_type is None or primary_type.role != "primary":
+        raise HTTPException(status_code=400, detail="Primary resource must have role 'primary'")
+
+    addon = await get_resource(session, addon_resource_id)
+    addon_type_result = await session.exec(
+        select(ResourceType).where(ResourceType.id == addon.type_id)
+    )
+    addon_type = addon_type_result.first()
+    if addon_type is None or addon_type.role != "addon":
+        raise HTTPException(status_code=400, detail="Addon resource must have role 'addon'")
+
+    existing = await session.exec(
+        select(ResourceAssignment).where(
+            ResourceAssignment.primary_resource_id == primary_resource_id,
+            ResourceAssignment.addon_resource_id == addon_resource_id,
+        )
+    )
+    if existing.first() is not None:
+        raise HTTPException(status_code=409, detail="Assignment already exists")
+
+    assignment = ResourceAssignment(
+        primary_resource_id=primary_resource_id,
+        addon_resource_id=addon_resource_id,
+        priority=priority,
+        assigned_by=assigned_by,
+    )
+    session.add(assignment)
+    await session.commit()
+    await session.refresh(assignment)
+    return assignment
+
+
+async def delete_assignment(
+    session: AsyncSession, assignment_id: uuid.UUID
+) -> None:
+    result = await session.exec(
+        select(ResourceAssignment).where(ResourceAssignment.id == assignment_id)
+    )
+    assignment = result.first()
+    if assignment is None:
+        raise HTTPException(status_code=404, detail="Assignment not found")
+    await session.delete(assignment)
+    await session.commit()
+
+
+async def update_assignment_priority(
+    session: AsyncSession, assignment_id: uuid.UUID, priority: int
+) -> ResourceAssignment:
+    result = await session.exec(
+        select(ResourceAssignment).where(ResourceAssignment.id == assignment_id)
+    )
+    assignment = result.first()
+    if assignment is None:
+        raise HTTPException(status_code=404, detail="Assignment not found")
+    assignment.priority = priority
+    assignment.updated_at = datetime.now(UTC)
+    session.add(assignment)
+    await session.commit()
+    await session.refresh(assignment)
+    return assignment

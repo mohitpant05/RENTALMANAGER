@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { create } from "zustand";
 import api from "@/lib/api";
+import { useAuthStore } from "@/lib/auth-store";
 
 interface CurrencyState {
   displayCurrency: string;
@@ -40,7 +41,7 @@ export function useRates(base: string = "USD") {
       );
       return data.rates;
     },
-    staleTime: 60 * 60 * 1000, // 1 hour
+    staleTime: 60 * 60 * 1000,
     gcTime: 2 * 60 * 60 * 1000,
   });
 }
@@ -54,6 +55,12 @@ export function useSupportedCurrencies() {
     },
     staleTime: 24 * 60 * 60 * 1000,
   });
+}
+
+export function useUserCurrency(): string {
+  const user = useAuthStore((s) => s.user);
+  const storeCurrency = useCurrencyStore((s) => s.displayCurrency);
+  return user?.preferred_currency ?? storeCurrency ?? "USD";
 }
 
 export function convertPrice(
@@ -70,6 +77,25 @@ export function convertPrice(
 }
 
 export function formatPrice(amount: number, currency: string): string {
-  const symbol = CURRENCY_SYMBOLS[currency] || currency;
-  return `${symbol}${amount.toFixed(2)}`;
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  } catch {
+    const symbol = CURRENCY_SYMBOLS[currency] || currency;
+    return `${symbol}${amount.toFixed(2)}`;
+  }
+}
+
+export function useFormatPrice() {
+  const { data: rates } = useRates();
+  const currency = useUserCurrency();
+
+  return (usdAmount: number): string => {
+    const converted = convertPrice(usdAmount, "USD", currency, rates);
+    return formatPrice(converted, currency);
+  };
 }

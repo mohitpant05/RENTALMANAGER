@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, Query, status
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -6,6 +7,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.auth.dependencies import get_current_user, require_permission
 from app.core.auth.models import User
 from app.database import get_db
+from app.domains.resources.discovery import discover_addons
 from app.domains.resources.schemas import (
     AvailabilityCheckRequest,
     AvailabilityCheckResponse,
@@ -13,6 +15,9 @@ from app.domains.resources.schemas import (
     HoldResponse,
     PriceCalculateRequest,
     ReleaseRequest,
+    ResourceAssignmentCreate,
+    ResourceAssignmentResponse,
+    ResourceAssignmentUpdate,
     ResourceCreate,
     ResourceResponse,
     ResourceTypeCreate,
@@ -22,17 +27,21 @@ from app.domains.resources.schemas import (
 )
 from app.domains.resources.service import (
     check_availability,
+    create_assignment,
     create_resource,
     create_resource_type,
+    delete_assignment,
     delete_resource,
     delete_resource_type,
     get_resource,
     get_resource_type,
     get_resource_type_by_slug,
     hold_resource,
+    list_assignments,
     list_resource_types,
     list_resources,
     release_resource_hold,
+    update_assignment_priority,
     update_resource,
     update_resource_type,
 )
@@ -219,3 +228,69 @@ async def calculate_price(
     pricing = get_pricing_provider(rt.pricing_model)
     price = pricing.calculate(resource.base_price, data.start, data.end, rt.pricing_config)
     return {"price": price, "currency": resource.currency}
+
+
+# --- Addon Discovery ---
+
+@resource_router.get("/{resource_id}/addons")
+async def discover_resource_addons(
+    resource_id: uuid.UUID,
+    start_date: datetime = Query(...),
+    end_date: datetime = Query(...),
+    session: AsyncSession = Depends(get_db),
+):
+    return await discover_addons(session, resource_id, start_date, end_date)
+
+
+# --- Resource Assignments ---
+
+@resource_router.get("/{resource_id}/assignments", response_model=list[ResourceAssignmentResponse])
+async def list_resource_assignments(
+    resource_id: uuid.UUID,
+    session: AsyncSession = Depends(get_db),
+    _user: User = Depends(require_permission("resources:*:manage")),
+):
+    return await list_assignments(session, resource_id)
+
+
+@resource_router.post(
+    "/{resource_id}/assignments",
+    response_model=ResourceAssignmentResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_resource_assignment(
+    resource_id: uuid.UUID,
+    data: ResourceAssignmentCreate,
+    session: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("resources:*:manage")),
+):
+    return await create_assignment(
+        session, resource_id, data.addon_resource_id, data.priority, user.id
+    )
+
+
+@resource_router.patch(
+    "/{resource_id}/assignments/{assignment_id}",
+    response_model=ResourceAssignmentResponse,
+)
+async def update_resource_assignment(
+    resource_id: uuid.UUID,
+    assignment_id: uuid.UUID,
+    data: ResourceAssignmentUpdate,
+    session: AsyncSession = Depends(get_db),
+    _user: User = Depends(require_permission("resources:*:manage")),
+):
+    return await update_assignment_priority(session, assignment_id, data.priority)
+
+
+@resource_router.delete(
+    "/{resource_id}/assignments/{assignment_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_resource_assignment(
+    resource_id: uuid.UUID,
+    assignment_id: uuid.UUID,
+    session: AsyncSession = Depends(get_db),
+    _user: User = Depends(require_permission("resources:*:manage")),
+):
+    await delete_assignment(session, assignment_id)

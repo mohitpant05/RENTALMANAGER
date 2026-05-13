@@ -13,6 +13,7 @@ export interface UserResponse {
   is_verified: boolean;
   user_type: string;
   avatar_url: string | null;
+  preferred_currency: string;
   created_at: string;
   roles: string[];
 }
@@ -68,6 +69,15 @@ export interface VerifyInviteResponse {
   full_name?: string;
 }
 
+export type ResourceTypeRole = "primary" | "addon" | "standalone" | "hidden";
+
+export const VALID_RESOURCE_TYPE_ROLES: ResourceTypeRole[] = [
+  "primary",
+  "addon",
+  "standalone",
+  "hidden",
+];
+
 export interface ResourceTypeResponse {
   id: string;
   name: string;
@@ -81,6 +91,9 @@ export interface ResourceTypeResponse {
   pricing_config: Record<string, unknown> | null;
   cancellation_defaults: Record<string, unknown> | null;
   requires_verification: boolean;
+  role: string;
+  discovery_radius_km: number | null;
+  display_order: number;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -106,6 +119,9 @@ export interface ResourceTypeCreate {
   pricing_config?: Record<string, unknown>;
   cancellation_defaults?: Record<string, unknown>;
   requires_verification?: boolean;
+  role?: string;
+  discovery_radius_km?: number | null;
+  display_order?: number;
 }
 
 export interface ResourceTypeUpdate {
@@ -118,6 +134,9 @@ export interface ResourceTypeUpdate {
   pricing_config?: Record<string, unknown>;
   cancellation_defaults?: Record<string, unknown>;
   requires_verification?: boolean;
+  role?: string;
+  discovery_radius_km?: number | null;
+  display_order?: number;
   is_active?: boolean;
 }
 
@@ -142,6 +161,7 @@ export interface ResourceResponse {
   rating_avg: number;
   rating_count: number;
   owner_id: string;
+  support_contact_id: string | null;
   version: number;
   created_at: string;
   updated_at: string;
@@ -157,6 +177,7 @@ export interface ResourceCreate {
   attributes?: Record<string, unknown>;
   base_price: number;
   currency?: string;
+  support_contact_id?: string;
 }
 
 export interface ResourceUpdate {
@@ -169,6 +190,7 @@ export interface ResourceUpdate {
   base_price?: number;
   currency?: string;
   status?: string;
+  support_contact_id?: string;
 }
 
 // ─── Bookings ───────────────────────────────────────────
@@ -190,6 +212,8 @@ export interface BookingResponse {
   cancellation_policy: Record<string, unknown> | null;
   notes: string | null;
   auto_confirm: boolean;
+  parent_booking_id: string | null;
+  booking_group_id: string | null;
   confirmed_at: string | null;
   cancelled_at: string | null;
   cancellation_reason: string | null;
@@ -384,4 +408,77 @@ export interface DomainResponse {
 
 export interface DomainCreate {
   domain: string;
+}
+
+// ─── Bundled Bookings & Addons ─────────────────────────
+
+export interface BookingItemCreate {
+  resource_id: string;
+  hold_token: string;
+  start_time: string;
+  end_time: string;
+  notes?: string;
+  auto_confirm?: boolean;
+}
+
+export interface BundledBookingCreate {
+  primary: BookingItemCreate;
+  addons: BookingItemCreate[];
+}
+
+export interface AddAddonRequest {
+  resource_id: string;
+  hold_token: string;
+  start_time: string;
+  end_time: string;
+  notes?: string;
+  auto_confirm?: boolean;
+}
+
+export interface BookingGroupResponse {
+  group_id: string;
+  primary: BookingResponse;
+  addons: BookingResponse[];
+}
+
+export interface AddonResourceItem {
+  id: string;
+  name: string;
+  description: string | null;
+  base_price: number;
+  currency: string;
+  rating_avg: number;
+  rating_count: number;
+  distance_km: number | null;
+  is_assigned: boolean;
+  available: boolean;
+  location_address: string | null;
+  attributes: Record<string, unknown> | null;
+}
+
+export interface AddonTypeGroup {
+  type_name: string;
+  type_slug: string;
+  resources: AddonResourceItem[];
+}
+
+// ─── Resource Assignments ──────────────────────────────
+
+export interface ResourceAssignmentResponse {
+  id: string;
+  primary_resource_id: string;
+  addon_resource_id: string;
+  priority: number;
+  assigned_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ResourceAssignmentCreate {
+  addon_resource_id: string;
+  priority?: number;
+}
+
+export interface ResourceAssignmentUpdate {
+  priority: number;
 }

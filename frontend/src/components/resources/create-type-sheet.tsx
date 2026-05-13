@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -36,8 +36,6 @@ const typeSchema = z.object({
   ]),
 });
 
-type TypeForm = z.infer<typeof typeSchema>;
-
 interface CreateTypeSheetProps {
   open: boolean;
   onClose: () => void;
@@ -48,6 +46,9 @@ export function CreateTypeSheet({ open, onClose, editingType }: CreateTypeSheetP
   const isEditing = !!editingType;
   const router = useRouter();
   const queryClient = useQueryClient();
+  const [formRole, setFormRole] = useState("standalone");
+  const [formRadius, setFormRadius] = useState("");
+  const [formDisplayOrder, setFormDisplayOrder] = useState("0");
 
   const {
     register,
@@ -56,7 +57,7 @@ export function CreateTypeSheet({ open, onClose, editingType }: CreateTypeSheetP
     setValue,
     reset,
     formState: { errors, isSubmitting },
-  } = useForm<TypeForm>({
+  } = useForm({
     resolver: zodResolver(typeSchema),
     defaultValues: {
       name: "",
@@ -76,6 +77,9 @@ export function CreateTypeSheet({ open, onClose, editingType }: CreateTypeSheetP
         availability_model: editingType.availability_model as "date_range" | "time_slot" | "hourly",
         pricing_model: editingType.pricing_model as "fixed_per_day" | "fixed_per_slot" | "per_hour" | "tiered",
       });
+      setFormRole(editingType.role ?? "standalone");
+      setFormRadius(editingType.discovery_radius_km?.toString() ?? "");
+      setFormDisplayOrder(editingType.display_order?.toString() ?? "0");
     } else {
       reset({
         name: "",
@@ -84,6 +88,9 @@ export function CreateTypeSheet({ open, onClose, editingType }: CreateTypeSheetP
         availability_model: "date_range",
         pricing_model: "fixed_per_day",
       });
+      setFormRole("standalone");
+      setFormRadius("");
+      setFormDisplayOrder("0");
     }
   }, [editingType, reset]);
 
@@ -102,17 +109,20 @@ export function CreateTypeSheet({ open, onClose, editingType }: CreateTypeSheetP
   }
 
   const mutation = useMutation({
-    mutationFn: async (data: TypeForm) => {
+    mutationFn: async (formData: { name: string; slug: string; availability_model: string; pricing_model: string; description?: string }) => {
+      const role = formRole as "primary" | "addon" | "standalone" | "hidden";
+      const display_order = Number(formDisplayOrder) || 0;
+      const discovery_radius_km = formRadius && formRadius !== "" ? Number(formRadius) : null;
       if (isEditing) {
         const { data: res } = await api.put<ResourceTypeResponse>(
           `/resource-types/${editingType.id}`,
-          data as ResourceTypeUpdate
+          { name: formData.name, slug: formData.slug, role, availability_model: formData.availability_model, pricing_model: formData.pricing_model, display_order, discovery_radius_km, description: formData.description }
         );
         return res;
       }
       const { data: res } = await api.post<ResourceTypeResponse>(
         "/resource-types",
-        data as ResourceTypeCreate
+        { name: formData.name, slug: formData.slug, role, availability_model: formData.availability_model, pricing_model: formData.pricing_model, display_order, discovery_radius_km, description: formData.description }
       );
       return res;
     },
@@ -198,6 +208,56 @@ export function CreateTypeSheet({ open, onClose, editingType }: CreateTypeSheetP
               <option value="per_hour">Per Hour</option>
               <option value="tiered">Tiered</option>
             </select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="type-role">Role</Label>
+            <select
+              id="type-role"
+              value={formRole}
+              onChange={(e) => setFormRole(e.target.value)}
+              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
+            >
+              <option value="standalone">Standalone</option>
+              <option value="primary">Primary Venue</option>
+              <option value="addon">Addon Service</option>
+              <option value="hidden">Hidden</option>
+            </select>
+            <p className="text-xs text-muted-foreground">
+              Primary venues show addon discovery. Addon services can be bundled with primary venues. Hidden types are excluded from public pages.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="type-radius">Discovery Radius (km)</Label>
+            <Input
+              id="type-radius"
+              type="number"
+              min="0"
+              step="0.1"
+              placeholder="e.g. 50"
+              value={formRadius}
+              onChange={(e) => setFormRadius(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              Only applies when role is "addon". Limits how far from a venue this service can be discovered.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="type-display-order">Display Order</Label>
+            <Input
+              id="type-display-order"
+              type="number"
+              min="0"
+              step="1"
+              placeholder="0"
+              value={formDisplayOrder}
+              onChange={(e) => setFormDisplayOrder(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              Lower values appear first in filters and listings.
+            </p>
           </div>
 
           <div className="flex gap-3 pt-4">

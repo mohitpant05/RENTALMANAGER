@@ -8,4 +8,4 @@ data:
   MEILI_URL: "http://meilisearch:7700"
   MINIO_ENDPOINT: "minio:9000"
   DEBUG: "false"
-  NEXT_PUBLIC_API_URL: "https://api.rentmanager.app"
+  PYTHONUNBUFFERED: "1"

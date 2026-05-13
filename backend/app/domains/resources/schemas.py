@@ -6,6 +6,7 @@ from pydantic import BaseModel, field_validator
 VALID_AVAILABILITY_MODELS = {"date_range", "time_slot", "hourly"}
 VALID_PRICING_MODELS = {"fixed_per_day", "fixed_per_slot", "per_hour", "tiered"}
 VALID_RESOURCE_STATUSES = {"draft", "active", "inactive", "archived"}
+VALID_RESOURCE_TYPE_ROLES = {"primary", "addon", "standalone", "hidden"}
 
 
 class ResourceTypeCreate(BaseModel):
@@ -20,6 +21,16 @@ class ResourceTypeCreate(BaseModel):
     pricing_config: dict | None = None
     cancellation_defaults: dict | None = None
     requires_verification: bool = False
+    role: str = "standalone"
+    discovery_radius_km: float | None = None
+    display_order: int = 0
+
+    @field_validator("role")
+    @classmethod
+    def check_role(cls, v: str) -> str:
+        if v not in VALID_RESOURCE_TYPE_ROLES:
+            raise ValueError(f"Must be one of {VALID_RESOURCE_TYPE_ROLES}")
+        return v
 
     @field_validator("availability_model")
     @classmethod
@@ -46,6 +57,9 @@ class ResourceTypeUpdate(BaseModel):
     pricing_config: dict | None = None
     cancellation_defaults: dict | None = None
     requires_verification: bool | None = None
+    role: str | None = None
+    discovery_radius_km: float | None = None
+    display_order: int | None = None
     is_active: bool | None = None
 
 
@@ -62,6 +76,9 @@ class ResourceTypeResponse(BaseModel):
     pricing_config: dict | None
     cancellation_defaults: dict | None
     requires_verification: bool
+    role: str
+    discovery_radius_km: float | None
+    display_order: int
     is_active: bool
     created_at: datetime
     updated_at: datetime
@@ -77,6 +94,7 @@ class ResourceCreate(BaseModel):
     attributes: dict | None = None
     base_price: float
     currency: str = "USD"
+    support_contact_id: uuid.UUID | None = None
 
     @field_validator("base_price")
     @classmethod
@@ -96,6 +114,7 @@ class ResourceUpdate(BaseModel):
     base_price: float | None = None
     currency: str | None = None
     status: str | None = None
+    support_contact_id: uuid.UUID | None = None
 
     @field_validator("status")
     @classmethod
@@ -127,6 +146,7 @@ class ResourceResponse(BaseModel):
     rating_avg: float
     rating_count: int
     owner_id: uuid.UUID
+    support_contact_id: uuid.UUID | None
     version: int
     created_at: datetime
     updated_at: datetime
@@ -161,3 +181,24 @@ class ReleaseRequest(BaseModel):
 class PriceCalculateRequest(BaseModel):
     start: datetime
     end: datetime
+
+
+class ResourceAssignmentCreate(BaseModel):
+    addon_resource_id: uuid.UUID
+    priority: int = 0
+
+
+class ResourceAssignmentUpdate(BaseModel):
+    priority: int
+
+
+class ResourceAssignmentResponse(BaseModel):
+    id: uuid.UUID
+    primary_resource_id: uuid.UUID
+    addon_resource_id: uuid.UUID
+    priority: int
+    assigned_by: uuid.UUID
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}

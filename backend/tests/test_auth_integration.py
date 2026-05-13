@@ -254,7 +254,7 @@ async def test_seed_default_roles(db_session: AsyncSession, test_tenant: Tenant)
 
     await seed_default_roles(db_session)
 
-    result = await db_session.exec(select(Role).where(Role.is_system == True))
+    result = await db_session.exec(select(Role).where(Role.is_system))
     roles = result.all()
     role_slugs = {r.slug for r in roles}
     assert "admin" in role_slugs

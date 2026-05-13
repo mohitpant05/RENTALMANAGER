@@ -41,6 +41,8 @@ class BookingResponse(BaseModel):
     cancellation_policy: dict | None
     notes: str | None
     auto_confirm: bool
+    parent_booking_id: uuid.UUID | None
+    booking_group_id: uuid.UUID | None
     confirmed_at: datetime | None
     cancelled_at: datetime | None
     cancellation_reason: str | None
@@ -71,3 +73,32 @@ class BookingListParams(BaseModel):
         if v < 1 or v > 100:
             raise ValueError("Limit must be between 1 and 100")
         return v
+
+
+class BookingItemCreate(BaseModel):
+    resource_id: uuid.UUID
+    hold_token: str
+    start_time: datetime
+    end_time: datetime
+    notes: str | None = None
+    auto_confirm: bool = True
+
+
+class BundledBookingCreate(BaseModel):
+    primary: BookingItemCreate
+    addons: list[BookingItemCreate] = []
+
+
+class AddAddonRequest(BaseModel):
+    resource_id: uuid.UUID
+    hold_token: str
+    start_time: datetime
+    end_time: datetime
+    notes: str | None = None
+    auto_confirm: bool = True
+
+
+class BookingGroupResponse(BaseModel):
+    group_id: uuid.UUID
+    primary: BookingResponse
+    addons: list[BookingResponse]

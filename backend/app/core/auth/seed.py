@@ -23,6 +23,7 @@ DEFAULT_PERMISSIONS = [
     ("theme:*:edit", "Edit theme"),
     ("analytics:*:read", "Read analytics"),
     ("settings:*:manage", "Manage tenant settings"),
+    ("resources:*:assign_for_customer", "Assign addon resources to bookings on behalf of customers"),
 ]
 
 DEFAULT_ROLES = {

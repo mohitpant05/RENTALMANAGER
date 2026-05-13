@@ -1,6 +1,10 @@
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException, Request
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.config import get_settings
 from app.core.auth.dependencies import get_current_user
 from app.core.auth.jwt import decode_token, revoke_refresh_token
 from app.core.auth.models import User
@@ -28,6 +32,8 @@ from app.core.auth.service import (
 from app.core.tenancy.context import get_current_tenant
 from app.database import get_db
 from app.rate_limiter import limiter
+
+settings = get_settings()
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -70,8 +76,8 @@ async def login(
     return await create_tokens(user, tenant_id, roles)
 
 
-@router.post("/register", response_model=TokenResponse)
-@limiter.limit("5/minute")
+@router.post("/register", response_model=TokenResponse, status_code=201)
+@limiter.limit(settings.register_rate_limit)
 async def register(
     request: Request,
     data: RegisterRequest,
@@ -125,3 +131,16 @@ async def update_me(
     updated = await update_profile(session, user, data)
     roles = await get_user_roles(session, str(updated.id))
     return build_user_response(updated, roles)
+
+
+@router.get("/user/{user_id}", response_model=UserResponse)
+async def get_user(
+    user_id: uuid.UUID,
+    session: AsyncSession = Depends(get_db),
+):
+    result = await session.exec(select(User).where(User.id == user_id))
+    user = result.first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    roles = await get_user_roles(session, str(user.id))
+    return build_user_response(user, roles)

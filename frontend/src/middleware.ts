@@ -34,6 +34,11 @@ export function middleware(request: NextRequest) {
     return response;
   }
 
+  // Superadmin routes — no tenant required, no admin cookie check
+  if (pathname.startsWith("/superadmin")) {
+    return NextResponse.next();
+  }
+
   // Auth gating for admin routes
   const authCookie = request.cookies.get("rm_auth")?.value;
 

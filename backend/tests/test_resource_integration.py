@@ -268,33 +268,39 @@ async def test_create_resource_invalid_attributes(
     assert "attribute_errors" in response.json()["detail"]
 
 
-@pytest.mark.asyncio
-async def test_list_resources(
-    client: AsyncClient, admin_headers: dict, venue_type_id: str
-):
-    await client.post(
-        "/api/resources/",
-        json={
-            "type_id": venue_type_id,
-            "name": "Mountain Cabin",
-            "base_price": 200.0,
-            "attributes": {
-                "property_type": "house",
-                "bedrooms": 2,
-                "bathrooms": 1,
-                "max_guests": 4,
+    @pytest.mark.asyncio
+    async def test_list_resources(
+        client: AsyncClient, admin_headers: dict, venue_type_id: str
+    ):
+        resp = await client.post(
+            "/api/resources/",
+            json={
+                "type_id": venue_type_id,
+                "name": "Mountain Cabin",
+                "base_price": 200.0,
+                "attributes": {
+                    "property_type": "house",
+                    "bedrooms": 2,
+                    "bathrooms": 1,
+                    "max_guests": 4,
+                },
             },
-        },
-        headers=admin_headers,
-    )
-    response = await client.get(
-        "/api/resources/",
-        params={"type_id": venue_type_id},
-        headers={"X-Tenant-ID": admin_headers["X-Tenant-ID"]},
-    )
-    assert response.status_code == 200
-    data = response.json()
-    assert len(data) >= 1
+            headers=admin_headers,
+        )
+        resource_id = resp.json()["id"]
+        await client.put(
+            f"/api/resources/{resource_id}",
+            json={"status": "active"},
+            headers=admin_headers,
+        )
+        response = await client.get(
+            "/api/resources/",
+            params={"type_id": venue_type_id},
+            headers={"X-Tenant-ID": admin_headers["X-Tenant-ID"]},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) >= 1
 
 
 @pytest.mark.asyncio

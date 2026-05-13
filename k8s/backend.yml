@@ -28,6 +28,9 @@ spec:
         - name: migrate
           image: rentmanager-backend:latest
           command: ["alembic", "upgrade", "head"]
+          env:
+            - name: PYTHONPATH
+              value: "/app"
           envFrom:
             - configMapRef:
                 name: rentmanager-config

@@ -51,7 +51,7 @@ async def db_session(db_engine) -> AsyncGenerator[AsyncSession, None]:
 @pytest.fixture
 async def client(db_engine) -> AsyncGenerator[AsyncClient, None]:
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+    async with AsyncClient(transport=transport, base_url="http://test", follow_redirects=True) as ac:
         yield ac
 
 
@@ -118,14 +118,23 @@ async def admin_headers(client: AsyncClient, test_tenant: Tenant, db_session: As
 
 
 @pytest.fixture
-async def customer_headers(client: AsyncClient, test_tenant: Tenant) -> dict:
+async def customer_headers(client: AsyncClient, test_tenant: Tenant, db_session: AsyncSession) -> dict:
+    schema_name = test_tenant.schema_name
+    await db_session.execute(text(f"SET search_path TO {schema_name}, public"))
+    customer = User(
+        email="customer@test.com",
+        password_hash=hash_password("customerpass1"),
+        full_name="Test Customer",
+        user_type="customer",
+    )
+    db_session.add(customer)
+    await db_session.commit()
+    await db_session.refresh(customer)
+    await db_session.execute(text("SET search_path TO public"))
+
     resp = await client.post(
-        "/api/auth/register",
-        json={
-            "email": "customer@test.com",
-            "password": "customerpass1",
-            "full_name": "Test Customer",
-        },
+        "/api/auth/login",
+        json={"email": "customer@test.com", "password": "customerpass1"},
         headers={"X-Tenant-ID": test_tenant.slug},
     )
     tokens = resp.json()

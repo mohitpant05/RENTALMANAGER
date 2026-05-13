@@ -130,3 +130,31 @@ class TenantCreate(BaseModel):
     slug: str
     base_currency: str = "USD"
     timezone: str = "UTC"
+
+
+class DashboardStatsResponse(BaseModel):
+    total_tenants: int
+    active_tenants: int
+    inactive_tenants: int
+    total_users: int
+    total_bookings: int
+    services: dict
+
+
+class PlatformSettingResponse(BaseModel):
+    id: uuid.UUID
+    key: str
+    value: str
+    description: str | None
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class PlatformSettingUpdate(BaseModel):
+    value: str
+    description: str | None = None
+
+
+class ValidateKeyRequest(BaseModel):
+    key: str

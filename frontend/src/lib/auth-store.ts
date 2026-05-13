@@ -24,6 +24,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   setAuth: (accessToken, refreshToken, user) => {
     localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
     document.cookie = `rm_auth=${user.user_type};path=/;max-age=604800;samesite=lax`;
+    if (user.preferred_currency) {
+      localStorage.setItem("rm_display_currency", user.preferred_currency);
+    }
     set({ accessToken, user, isAuthenticated: true, isLoading: false });
   },
 

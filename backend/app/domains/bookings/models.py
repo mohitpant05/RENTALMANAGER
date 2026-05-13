@@ -27,6 +27,8 @@ class Booking(SQLModel, table=True):
     cancellation_policy: dict | None = Field(default=None, sa_column=Column(JSONB))
     notes: str | None = Field(default=None, max_length=1000)
     auto_confirm: bool = Field(default=True)
+    parent_booking_id: uuid.UUID | None = Field(default=None, foreign_key="bookings.id", index=True)
+    booking_group_id: uuid.UUID | None = Field(default=None, index=True)
     confirmed_at: datetime | None = Field(
         default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
     )

@@ -69,7 +69,7 @@ def test_resource_availability_model_fields():
 
 
 def test_tenant_resource_tables_registry():
-    expected = {"resource_types", "resources", "resource_availability"}
+    expected = {"resource_types", "resources", "resource_availability", "resource_assignments"}
     assert TENANT_RESOURCE_TABLES == expected
 
 

@@ -3,12 +3,13 @@ from datetime import UTC, datetime
 
 from sqlalchemy import Column, DateTime, Text
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlmodel import Field, SQLModel
+from sqlmodel import Field, Relationship, SQLModel
 
 TENANT_RESOURCE_TABLES: set[str] = {
     "resource_types",
     "resources",
     "resource_availability",
+    "resource_assignments",
 }
 
 
@@ -28,6 +29,9 @@ class ResourceType(SQLModel, table=True):
     cancellation_defaults: dict | None = Field(default=None, sa_column=Column(JSONB))
     commission_config: dict | None = Field(default=None, sa_column=Column(JSONB))
     requires_verification: bool = Field(default=False)
+    role: str = Field(default="standalone", max_length=20)
+    discovery_radius_km: float | None = Field(default=None)
+    display_order: int = Field(default=0)
     is_active: bool = Field(default=True)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(UTC),
@@ -58,6 +62,7 @@ class Resource(SQLModel, table=True):
     owner_id: uuid.UUID = Field(foreign_key="users.id", index=True)
     commission_config: dict | None = Field(default=None, sa_column=Column(JSONB))
     suspension_reason: str | None = Field(default=None, max_length=50)
+    support_contact_id: uuid.UUID | None = Field(default=None, foreign_key="users.id")
     version: int = Field(default=1)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(UTC),
@@ -84,6 +89,24 @@ class ResourceAvailability(SQLModel, table=True):
     booking_id: uuid.UUID | None = Field(default=None)
     version: int = Field(default=1)
     created_at: datetime = Field(
+        default_factory=lambda: datetime.now(UTC),
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+
+
+class ResourceAssignment(SQLModel, table=True):
+    __tablename__ = "resource_assignments"
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    primary_resource_id: uuid.UUID = Field(foreign_key="resources.id", index=True)
+    addon_resource_id: uuid.UUID = Field(foreign_key="resources.id", index=True)
+    priority: int = Field(default=0)
+    assigned_by: uuid.UUID = Field(foreign_key="users.id")
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(UTC),
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+    updated_at: datetime = Field(
         default_factory=lambda: datetime.now(UTC),
         sa_column=Column(DateTime(timezone=True), nullable=False),
     )

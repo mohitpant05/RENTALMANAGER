@@ -9,6 +9,8 @@ import { useAttachments } from "@/hooks/use-storage";
 import { StarRating } from "@/components/reviews/star-rating";
 import { ImageCarousel } from "@/components/public/image-carousel";
 import { BookingCard } from "@/components/public/booking-card";
+import { AddonDiscoveredSection } from "@/components/public/addon-discovered-section";
+import { SupportContactCard } from "@/components/public/support-contact-card";
 import { ReviewList } from "@/components/public/review-list";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -18,6 +20,7 @@ import {
   formatPrice,
 } from "@/hooks/use-currency";
 import { CurrencySelect } from "@/components/ui/currency-select";
+import { Separator } from "@/components/ui/separator";
 
 export default function ResourceDetailPage({
   params,
@@ -48,6 +51,7 @@ export default function ResourceDetailPage({
   const { data: rates } = useRates();
 
   const resourceType = resourceTypes?.find((t) => t.id === resource?.type_id);
+  const isPrimaryVenue = resourceType?.role === "primary";
   const images = attachments?.map((a) => a.url) ?? [];
   const attributes = resource?.attributes as Record<string, unknown> | null;
   const convertedPrice = resource
@@ -134,14 +138,28 @@ export default function ResourceDetailPage({
             </div>
           )}
 
+          {isPrimaryVenue && (
+            <>
+              <Separator />
+              <AddonDiscoveredSection resourceId={id} startDate="" endDate="" />
+            </>
+          )}
+
           <ReviewList resourceId={id} />
         </div>
 
-        <div className="hidden lg:block">
-          <BookingCard
-            resource={resource}
-            availabilityModel={resourceType?.availability_model ?? "date_range"}
-          />
+        <div className="flex flex-col gap-4">
+          <div className="hidden lg:block">
+            <BookingCard
+              resource={resource}
+              availabilityModel={resourceType?.availability_model ?? "date_range"}
+            />
+          </div>
+          {resource.support_contact_id && (
+            <div className="hidden lg:block">
+              <SupportContactCard userId={resource.support_contact_id} />
+            </div>
+          )}
         </div>
       </div>
 
@@ -171,6 +189,11 @@ export default function ResourceDetailPage({
           resource={resource}
           availabilityModel={resourceType?.availability_model ?? "date_range"}
         />
+        {resource.support_contact_id && (
+          <div className="mt-4">
+            <SupportContactCard userId={resource.support_contact_id} />
+          </div>
+        )}
       </div>
 
       <div className="h-20 lg:hidden" />

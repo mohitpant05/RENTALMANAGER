@@ -104,6 +104,8 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin_dev}
       SECRET_KEY: ${SECRET_KEY:-dev-secret-key-change-in-production}
+      SUPERADMIN_SECRET_KEY: ${SUPERADMIN_SECRET_KEY:-change-me-in-production-min-32-chars!!}
+      ALLOWED_SUPERADMIN_IPS: ${ALLOWED_SUPERADMIN_IPS:-}
       PYTHONUNBUFFERED: "1"
     ports:
       - "${BACKEND_PORT:-8000}:8000"

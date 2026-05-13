@@ -5,9 +5,11 @@ import httpx
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
+from slowapi.middleware import SlowAPIMiddleware
 from sqlalchemy import text
 
 from app.config import get_settings
+from app.core.admin.ip_middleware import SuperadminIPMiddleware
 from app.core.admin.platform_router import router as platform_router
 from app.core.admin.router import router as admin_router
 from app.core.auth.router import router as auth_router
@@ -83,15 +85,21 @@ app = FastAPI(
     title="RentManager API",
     version="0.1.0",
     lifespan=lifespan,
+
 )
 
 app.state.limiter = limiter
 app.add_exception_handler(429, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
 
 origins = ["http://localhost:3000", "http://localhost:3001", "http://localhost:3002", "http://localhost:3003", "http://localhost"]
 
 app.add_middleware(CORSMiddleware, allow_origins=origins, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 app.add_middleware(TenantMiddleware)
+app.add_middleware(
+    SuperadminIPMiddleware,
+    allowed_ips=settings.allowed_superadmin_ips,
+)
 app.include_router(tenancy_router)
 app.include_router(auth_router)
 app.include_router(resource_type_router)

@@ -42,6 +42,7 @@ class UserResponse(BaseModel):
     is_verified: bool
     user_type: str
     avatar_url: str | None
+    preferred_currency: str
     created_at: datetime
     roles: list[str] = []
 
@@ -50,6 +51,7 @@ class ProfileUpdateRequest(BaseModel):
     full_name: str | None = None
     phone: str | None = None
     avatar_url: str | None = None
+    preferred_currency: str | None = None
 
 
 class AcceptInviteRequest(BaseModel):

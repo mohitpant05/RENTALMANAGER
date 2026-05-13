@@ -30,6 +30,11 @@ class Settings(BaseSettings):
     smtp_password: str = ""
     mandrill_api_key: str = ""
 
+    superadmin_secret_key: str = "change-me-in-production-min-32-chars!!"
+    allowed_superadmin_ips: str = ""
+
+    register_rate_limit: str = "30/minute"
+
     debug: bool = True
 
 
