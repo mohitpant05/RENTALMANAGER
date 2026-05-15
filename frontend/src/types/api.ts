@@ -379,20 +379,40 @@ export interface AttachmentResponse {
 // ─── Search ────────────────────────────────────────────
 
 export interface SearchRequest {
-  query: string;
-  type_slug?: string;
-  min_price?: number;
-  max_price?: number;
-  location?: string;
-  sort?: "relevance" | "price_asc" | "price_desc" | "rating";
+  q: string;
+  resource_type_slug?: string;
+  filters?: Record<string, unknown>;
+  geo_lat?: number;
+  geo_lng?: number;
+  geo_radius_km?: number;
+  sort_by?: string;
+  sort_order?: "asc" | "desc";
   offset?: number;
   limit?: number;
 }
 
+export interface SearchHit {
+  id: string;
+  name: string;
+  description: string;
+  location_address: string;
+  base_price: number;
+  currency: string;
+  status: string;
+  rating_avg: number;
+  rating_count: number;
+  type_slug: string;
+  geo: { lat: number; lng: number } | null;
+  attributes: Record<string, unknown> | null;
+}
+
 export interface SearchResponse {
-  hits: ResourceResponse[];
-  total: number;
+  hits: SearchHit[];
+  query: string;
   processing_time_ms: number;
+  estimated_total_hits: number;
+  offset: number;
+  limit: number;
 }
 
 // ─── Domains ───────────────────────────────────────────

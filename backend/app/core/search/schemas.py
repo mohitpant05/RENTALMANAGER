@@ -3,7 +3,7 @@ from pydantic import BaseModel, field_validator
 
 class SearchRequest(BaseModel):
     q: str = ""
-    resource_type_slug: str
+    resource_type_slug: str | None = None
     filters: dict | None = None
     geo_lat: float | None = None
     geo_lng: float | None = None
