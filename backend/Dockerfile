@@ -24,5 +24,9 @@ RUN mkdir -p app && echo '__version__ = "0.1.0"' > app/__init__.py && \
     uv pip install --system . && \
     rm app/__init__.py
 COPY . .
+RUN addgroup --system --gid 1000 appgroup && \
+    adduser --system --uid 1000 --ingroup appgroup appuser
+USER appuser
 EXPOSE 8000
+ENTRYPOINT ["/entrypoint.sh"]
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]

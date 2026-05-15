@@ -5,8 +5,17 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Only deploy if CI passes
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
   build-and-push:
+    needs: ci
     runs-on: ubuntu-latest
     outputs:
       registry: ${{ steps.ecr-login.outputs.registry }}
@@ -84,3 +93,6 @@ jobs:
             frontend=$ECR_REGISTRY/rentmanager-frontend:$IMAGE_TAG \
             -n rentmanager
           kubectl rollout status deployment/backend -n rentmanager --timeout=120s
+          kubectl rollout status deployment/celery-worker -n rentmanager --timeout=120s
+          kubectl rollout status deployment/frontend -n rentmanager --timeout=120s
+          rm -f /tmp/kubeconfig

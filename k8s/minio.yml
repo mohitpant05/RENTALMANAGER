@@ -11,13 +11,15 @@ spec:
       name: console
   selector:
     app: minio
+  clusterIP: None
 ---
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: minio
   namespace: rentmanager
 spec:
+  serviceName: minio
   replicas: 1
   selector:
     matchLabels:
@@ -27,10 +29,17 @@ spec:
       labels:
         app: minio
     spec:
+      serviceAccountName: rentmanager-data
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
       containers:
         - name: minio
           image: minio/minio:latest
-          command: ["server", "/data", "--console-address", ":9001"]
+          command: ["minio", "server", "/data", "--console-address", ":9001"]
           ports:
             - containerPort: 9000
             - containerPort: 9001
@@ -45,15 +54,31 @@ spec:
                 secretKeyRef:
                   name: rentmanager-secrets
                   key: MINIO_ROOT_PASSWORD
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           readinessProbe:
             httpGet:
               path: /minio/health/live
               port: 9000
             initialDelaySeconds: 5
             periodSeconds: 5
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "200m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
           volumeMounts:
             - name: minio-data
               mountPath: /data
-      volumes:
-        - name: minio-data
-          emptyDir: {}
+  volumeClaimTemplates:
+    - metadata:
+        name: minio-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 10Gi

@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-CLUSTER_NAME="${KIND_CLUSTER:-kind}"
+CLUSTER_NAME="${KIND_CLUSTER:-desktop}"
 NAMESPACE="rentmanager"
 
 echo "==> Building images..."
@@ -22,15 +22,20 @@ kubectl wait --namespace ingress-nginx \
 
 echo "==> Applying K8s manifests..."
 kubectl apply -f k8s/namespace.yml
+kubectl apply -f k8s/rbac.yml
 kubectl apply -f k8s/configmap.yml
 kubectl apply -f k8s/secrets.yml
+kubectl apply -f k8s/network-policies.yml
 kubectl apply -f k8s/postgres.yml
 kubectl apply -f k8s/redis.yml
 kubectl apply -f k8s/meilisearch.yml
 kubectl apply -f k8s/minio.yml
 
-echo "==> Waiting for postgres to be ready..."
+echo "==> Waiting for data services..."
 kubectl rollout status statefulset/postgres -n "$NAMESPACE" --timeout=120s
+kubectl rollout status statefulset/redis -n "$NAMESPACE" --timeout=60s
+kubectl rollout status statefulset/meilisearch -n "$NAMESPACE" --timeout=60s
+kubectl rollout status statefulset/minio -n "$NAMESPACE" --timeout=60s
 
 echo "==> Deploying application..."
 kubectl apply -f k8s/backend.yml
@@ -43,8 +48,12 @@ kubectl rollout status deployment/backend -n "$NAMESPACE" --timeout=120s
 kubectl rollout status deployment/frontend -n "$NAMESPACE" --timeout=120s
 
 echo ""
-echo "==> Done! Services:"
+echo "==> Done! Pods:"
 kubectl get pods -n "$NAMESPACE"
 echo ""
-echo "Access: http://localhost (requires Kind cluster with port mapping on 80/443)"
-echo "  To port-forward instead: kubectl port-forward svc/frontend 3000:3000 -n $NAMESPACE"
+echo "==> Services:"
+kubectl get svc -n "$NAMESPACE"
+echo ""
+echo "Access via port-forward:"
+echo "  kubectl port-forward svc/frontend 3000:3000 -n $NAMESPACE"
+echo "  kubectl port-forward svc/backend 8000:8000 -n $NAMESPACE"

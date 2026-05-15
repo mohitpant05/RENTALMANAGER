@@ -8,13 +8,15 @@ spec:
     - port: 7700
   selector:
     app: meilisearch
+  clusterIP: None
 ---
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: meilisearch
   namespace: rentmanager
 spec:
+  serviceName: meilisearch
   replicas: 1
   selector:
     matchLabels:
@@ -24,6 +26,13 @@ spec:
       labels:
         app: meilisearch
     spec:
+      serviceAccountName: rentmanager-data
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
       containers:
         - name: meilisearch
           image: getmeili/meilisearch:v1.12
@@ -37,15 +46,31 @@ spec:
                   key: MEILI_MASTER_KEY
             - name: MEILI_ENV
               value: production
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           readinessProbe:
             httpGet:
               path: /health
               port: 7700
             initialDelaySeconds: 5
             periodSeconds: 5
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "200m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
           volumeMounts:
             - name: meili-data
               mountPath: /meili_data
-      volumes:
-        - name: meili-data
-          emptyDir: {}
+  volumeClaimTemplates:
+    - metadata:
+        name: meili-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 5Gi

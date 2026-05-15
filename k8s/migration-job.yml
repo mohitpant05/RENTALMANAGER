@@ -1,3 +1,7 @@
+# Manual migration job — use when init container migration is insufficient
+# (e.g., running a one-off data migration or debugging).
+# Usage: kubectl apply -f k8s/migration-job.yml
+#        kubectl delete job alembic-migrate -n rentmanager  (cleanup after)
 apiVersion: batch/v1
 kind: Job
 metadata:
