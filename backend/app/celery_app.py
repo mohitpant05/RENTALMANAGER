@@ -36,31 +36,59 @@ def _run_async(coro):
         loop.close()
 
 
+def _make_task_session_factory():
+    """Create a fresh engine + session factory per task invocation.
+
+    Celery prefork workers inherit the parent's connection pool after fork.
+    Two workers sharing one asyncpg pool causes 'another operation is in
+    progress'. A fresh engine per task avoids this entirely.
+    """
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+    from sqlmodel.ext.asyncio.session import AsyncSession
+
+    task_engine = create_async_engine(
+        settings.database_url,
+        pool_size=5,
+        max_overflow=2,
+    )
+    factory = async_sessionmaker(
+        task_engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
+    return task_engine, factory
+
+
 async def _run_for_all_tenants(task_fn):
     from sqlalchemy import text as sa_text
     from sqlmodel import select
 
     from app.core.tenancy.context import validate_schema_name
     from app.core.tenancy.models import Tenant
-    from app.database import async_session_factory
 
-    async with async_session_factory() as session:
-        result = await session.exec(
-            select(Tenant).where(Tenant.is_active.is_(True))
-        )
-        tenants = list(result.all())
-
-    total = 0
-    for tenant in tenants:
-        validate_schema_name(tenant.schema_name)
-        async with async_session_factory() as session:
-            await session.execute(
-                sa_text(f"SET search_path TO {tenant.schema_name}, public")
+    task_engine, factory = _make_task_session_factory()
+    try:
+        async with factory() as session:
+            result = await session.exec(
+                select(Tenant).where(Tenant.is_active.is_(True))
             )
-            count = await task_fn(session)
-            total += count
-            await session.execute(sa_text("SET search_path TO public"))
-    return total
+            tenants = list(result.all())
+
+        total = 0
+        for tenant in tenants:
+            validate_schema_name(tenant.schema_name)
+            async with factory() as session:
+                await session.execute(
+                    sa_text(
+                        f"SET search_path TO {tenant.schema_name}, public"
+                    )
+                )
+                count = await task_fn(session)
+                total += count
+                await session.execute(sa_text("SET search_path TO public"))
+        return total
+    finally:
+        await task_engine.dispose()
 
 
 @celery.task(name="bookings.cleanup_expired_holds")
@@ -90,33 +118,43 @@ def task_full_reindex():
         from app.core.search.tasks import full_reindex
         from app.core.tenancy.context import validate_schema_name
         from app.core.tenancy.models import Tenant
-        from app.database import async_session_factory
 
-        async with async_session_factory() as session:
-            result = await session.exec(
-                select(Tenant).where(Tenant.is_active.is_(True))
-            )
-            tenants = list(result.all())
-
-        total = 0
-        for tenant in tenants:
-            validate_schema_name(tenant.schema_name)
-            async with async_session_factory() as session:
-                await session.execute(
-                    sa_text(f"SET search_path TO {tenant.schema_name}, public")
+        task_engine, factory = _make_task_session_factory()
+        try:
+            async with factory() as session:
+                result = await session.exec(
+                    select(Tenant).where(Tenant.is_active.is_(True))
                 )
-                count = await full_reindex(session, str(tenant.id))
-                total += count
-                await session.execute(sa_text("SET search_path TO public"))
-        return total
+                tenants = list(result.all())
+
+            total = 0
+            for tenant in tenants:
+                validate_schema_name(tenant.schema_name)
+                async with factory() as session:
+                    await session.execute(
+                        sa_text(
+                            f"SET search_path TO {tenant.schema_name}, public"
+                        )
+                    )
+                    count = await full_reindex(session, str(tenant.id))
+                    total += count
+                    await session.execute(
+                        sa_text("SET search_path TO public")
+                    )
+            return total
+        finally:
+            await task_engine.dispose()
 
     return _run_async(_do_reindex())
 
 
 @celery.task(name="currency.refresh_rates")
 def task_refresh_currency_rates():
-    from app.core.currency.service import refresh_rates_cache
-    return _run_async(refresh_rates_cache())
+    async def _do_refresh():
+        from app.core.currency.service import refresh_rates_cache
+        return await refresh_rates_cache()
+
+    return _run_async(_do_refresh())
 
 
 @celery.task(name="email.send", bind=True, max_retries=3, queue="email")

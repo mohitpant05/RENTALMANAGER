@@ -13,15 +13,27 @@ spec:
       labels:
         app: celery-worker
     spec:
+      serviceAccountName: rentmanager-app
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
       containers:
         - name: worker
           image: rentmanager-backend:latest
+          imagePullPolicy: IfNotPresent
           command: ["celery", "-A", "app.celery_app", "worker", "--loglevel=info", "--concurrency=4"]
           envFrom:
             - configMapRef:
                 name: rentmanager-config
             - secretRef:
                 name: rentmanager-secrets
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop: ["ALL"]
           resources:
             requests:
               memory: "256Mi"
@@ -45,15 +57,27 @@ spec:
       labels:
         app: celery-beat
     spec:
+      serviceAccountName: rentmanager-app
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
       containers:
         - name: beat
           image: rentmanager-backend:latest
-          command: ["celery", "-A", "app.celery_app", "beat", "--loglevel=info"]
+          imagePullPolicy: IfNotPresent
+          command: ["celery", "-A", "app.celery_app", "beat", "--loglevel=info", "--schedule=/tmp/celerybeat-schedule"]
           envFrom:
             - configMapRef:
                 name: rentmanager-config
             - secretRef:
                 name: rentmanager-secrets
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop: ["ALL"]
           resources:
             requests:
               memory: "128Mi"

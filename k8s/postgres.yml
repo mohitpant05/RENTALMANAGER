@@ -26,6 +26,12 @@ spec:
       labels:
         app: postgres
     spec:
+      serviceAccountName: rentmanager-data
+      automountServiceAccountToken: false
+      securityContext:
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
       containers:
         - name: postgres
           image: postgres:17-alpine
@@ -47,6 +53,12 @@ spec:
                 secretKeyRef:
                   name: rentmanager-secrets
                   key: POSTGRES_DB
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           volumeMounts:
             - name: postgres-data
               mountPath: /var/lib/postgresql/data
@@ -55,6 +67,13 @@ spec:
               command: ["pg_isready", "-U", "rentmanager"]
             initialDelaySeconds: 5
             periodSeconds: 5
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
   volumeClaimTemplates:
     - metadata:
         name: postgres-data

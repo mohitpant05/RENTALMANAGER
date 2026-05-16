@@ -24,9 +24,17 @@ spec:
       labels:
         app: backend
     spec:
+      serviceAccountName: rentmanager-app
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
       initContainers:
         - name: migrate
           image: rentmanager-backend:latest
+          imagePullPolicy: IfNotPresent
           command: ["alembic", "upgrade", "head"]
           env:
             - name: PYTHONPATH
@@ -36,9 +44,15 @@ spec:
                 name: rentmanager-config
             - secretRef:
                 name: rentmanager-secrets
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop: ["ALL"]
       containers:
         - name: backend
           image: rentmanager-backend:latest
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
           envFrom:
@@ -46,12 +60,23 @@ spec:
                 name: rentmanager-config
             - secretRef:
                 name: rentmanager-secrets
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop: ["ALL"]
           readinessProbe:
             httpGet:
               path: /api/health
               port: 8000
             initialDelaySeconds: 10
             periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 15
           resources:
             requests:
               memory: "256Mi"

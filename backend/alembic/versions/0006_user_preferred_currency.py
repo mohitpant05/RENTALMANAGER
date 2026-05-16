@@ -27,22 +27,22 @@ def _get_tenant_schemas(connection) -> list[str]:
     return [row[0] for row in result]
 
 
-def upgrade() -> None:
-    # public.users
-    op.add_column(
-        "users",
-        sa.Column(
-            "preferred_currency",
-            sa.String(3),
-            nullable=False,
-            server_default=sa.text("'USD'"),
+def _table_exists(connection, schema, table) -> bool:
+    result = connection.execute(
+        sa.text(
+            "SELECT EXISTS(SELECT 1 FROM information_schema.tables "
+            "WHERE table_schema = :schema AND table_name = :table)"
         ),
-        schema="public",
+        {"schema": schema, "table": table},
     )
+    return result.scalar()
 
-    # tenant schemas
+
+def upgrade() -> None:
     connection = op.get_bind()
-    for schema in _get_tenant_schemas(connection):
+
+    # public.users may not exist (it's created per-tenant, not by migrations)
+    if _table_exists(connection, "public", "users"):
         op.add_column(
             "users",
             sa.Column(
@@ -51,13 +51,29 @@ def upgrade() -> None:
                 nullable=False,
                 server_default=sa.text("'USD'"),
             ),
-            schema=schema,
+            schema="public",
         )
+
+    for schema in _get_tenant_schemas(connection):
+        if _table_exists(connection, schema, "users"):
+            op.add_column(
+                "users",
+                sa.Column(
+                    "preferred_currency",
+                    sa.String(3),
+                    nullable=False,
+                    server_default=sa.text("'USD'"),
+                ),
+                schema=schema,
+            )
 
 
 def downgrade() -> None:
-    op.drop_column("users", "preferred_currency", schema="public")
-
     connection = op.get_bind()
+
+    if _table_exists(connection, "public", "users"):
+        op.drop_column("users", "preferred_currency", schema="public")
+
     for schema in _get_tenant_schemas(connection):
-        op.drop_column("users", "preferred_currency", schema=schema)
+        if _table_exists(connection, schema, "users"):
+            op.drop_column("users", "preferred_currency", schema=schema)
