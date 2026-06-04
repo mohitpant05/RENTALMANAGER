@@ -44,7 +44,7 @@ async def release_hold(session: AsyncSession, hold_token: str) -> bool:
     if record is None:
         return False
     await session.delete(record)
-    await session.commit()
+    await session.flush()
     return True
 
 
@@ -61,14 +61,14 @@ async def confirm_hold(session: AsyncSession, hold_token: str, booking_id: uuid.
     now = datetime.now(UTC)
     if record.hold_expires and record.hold_expires < now:
         await session.delete(record)
-        await session.commit()
+        await session.flush()
         return False
     record.status = "booked"
     record.booking_id = booking_id
     record.hold_token = None
     record.hold_expires = None
     session.add(record)
-    await session.commit()
+    await session.flush()
     return True
 
 

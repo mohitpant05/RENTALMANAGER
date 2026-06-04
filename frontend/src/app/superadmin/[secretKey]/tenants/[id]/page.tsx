@@ -1,11 +1,40 @@
 "use client";
 
+import { useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { useTenant, useToggleTenant } from "@/hooks/use-platform";
+import {
+  useTenant,
+  useToggleTenant,
+  useTenantDomains,
+  useAddTenantDomain,
+  useDeleteTenantDomain,
+  type DomainResponse,
+} from "@/hooks/use-platform";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+
+function isIPAddress(value: string): boolean {
+  const ipv4 = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/;
+  if (ipv4.test(value)) {
+    return value.split(".").every((n) => {
+      const num = parseInt(n, 10);
+      return num >= 0 && num <= 255;
+    });
+  }
+  const ipv6 = /^[0-9a-fA-F:]+$/;
+  return ipv6.test(value) && value.includes(":");
+}
 
 export default function TenantDetailPage() {
   const params = useParams<{ secretKey: string; id: string }>();
@@ -67,6 +96,8 @@ export default function TenantDetailPage() {
         </Card>
       </div>
 
+      <DomainsAndIPs tenantId={tenant.id} />
+
       <Card>
         <CardHeader>
           <CardTitle className="text-sm">Quick Links</CardTitle>
@@ -80,6 +111,142 @@ export default function TenantDetailPage() {
           </Link>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function DomainsAndIPs({ tenantId }: { tenantId: string }) {
+  const { data: entries = [], isLoading } = useTenantDomains(tenantId);
+  const addDomain = useAddTenantDomain(tenantId);
+  const deleteDomain = useDeleteTenantDomain(tenantId);
+  const [newValue, setNewValue] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const domains = entries.filter((e) => !isIPAddress(e.domain));
+  const ips = entries.filter((e) => isIPAddress(e.domain));
+
+  function handleAdd() {
+    const value = newValue.trim();
+    if (!value) return;
+
+    setError(null);
+    addDomain.mutate(
+      { domain: value, is_primary: false },
+      {
+        onSuccess: () => setNewValue(""),
+        onError: (err: unknown) => {
+          const msg =
+            (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
+            "Failed to add entry";
+          setError(msg);
+        },
+      }
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-sm">Domains & IP Addresses</CardTitle>
+        <p className="text-xs text-muted-foreground">
+          Add domains or IP addresses that resolve to this tenant. Requests from these will auto-identify the tenant.
+        </p>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        <div className="flex gap-2">
+          <Input
+            placeholder="e.g. rentals.acme.com or 192.168.1.100"
+            value={newValue}
+            onChange={(e) => {
+              setNewValue(e.target.value);
+              setError(null);
+            }}
+            onKeyDown={(e) => e.key === "Enter" && handleAdd()}
+            className="max-w-md"
+          />
+          <Button onClick={handleAdd} disabled={addDomain.isPending || !newValue.trim()}>
+            {addDomain.isPending ? "Adding..." : "Add"}
+          </Button>
+        </div>
+        {error && <p className="text-sm text-destructive">{error}</p>}
+
+        {isLoading ? (
+          <div className="flex h-20 items-center justify-center">
+            <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          </div>
+        ) : entries.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No domains or IPs configured. Add one above.</p>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2">
+            <EntryTable
+              title="Domains"
+              entries={domains}
+              onDelete={(id) => deleteDomain.mutate(id)}
+              isDeleting={deleteDomain.isPending}
+            />
+            <EntryTable
+              title="IP Addresses"
+              entries={ips}
+              onDelete={(id) => deleteDomain.mutate(id)}
+              isDeleting={deleteDomain.isPending}
+            />
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function EntryTable({
+  title,
+  entries,
+  onDelete,
+  isDeleting,
+}: {
+  title: string;
+  entries: DomainResponse[];
+  onDelete: (id: string) => void;
+  isDeleting: boolean;
+}) {
+  if (entries.length === 0) return null;
+
+  return (
+    <div>
+      <h4 className="mb-2 text-xs font-medium text-muted-foreground">{title}</h4>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Value</TableHead>
+            <TableHead className="w-16">Primary</TableHead>
+            <TableHead className="w-20" />
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {entries.map((entry) => (
+            <TableRow key={entry.id}>
+              <TableCell className="font-mono text-sm">{entry.domain}</TableCell>
+              <TableCell>
+                {entry.is_primary && (
+                  <Badge variant="secondary" className="text-xs">
+                    Primary
+                  </Badge>
+                )}
+              </TableCell>
+              <TableCell>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs text-destructive hover:text-destructive"
+                  onClick={() => onDelete(entry.id)}
+                  disabled={isDeleting}
+                >
+                  Remove
+                </Button>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
     </div>
   );
 }

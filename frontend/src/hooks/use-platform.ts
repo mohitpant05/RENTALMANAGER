@@ -161,3 +161,44 @@ export function useTenantTheme(tenantId: string) {
     enabled: !!tenantId,
   });
 }
+
+export interface DomainResponse {
+  id: string;
+  tenant_id: string;
+  domain: string;
+  is_primary: boolean;
+  is_verified: boolean;
+  created_at: string;
+}
+
+export function useTenantDomains(tenantId: string) {
+  return useQuery({
+    queryKey: ["platform", "tenants", tenantId, "domains"],
+    queryFn: async () => {
+      const res = await platformApi().get(`/tenants/${tenantId}/domains`);
+      return res.data as DomainResponse[];
+    },
+    enabled: !!tenantId,
+  });
+}
+
+export function useAddTenantDomain(tenantId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: { domain: string; is_primary?: boolean }) => {
+      const res = await platformApi().post(`/tenants/${tenantId}/domains`, data);
+      return res.data as DomainResponse;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["platform", "tenants", tenantId, "domains"] }),
+  });
+}
+
+export function useDeleteTenantDomain(tenantId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (domainId: string) => {
+      await platformApi().delete(`/tenants/${tenantId}/domains/${domainId}`);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["platform", "tenants", tenantId, "domains"] }),
+  });
+}

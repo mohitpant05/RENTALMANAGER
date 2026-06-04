@@ -336,6 +336,7 @@ async def release_resource_hold(session: AsyncSession, hold_token: str) -> bool:
     released = await release_hold(session, hold_token)
     if not released:
         raise HTTPException(status_code=404, detail="Hold not found")
+    await session.commit()
     return True
 
 
