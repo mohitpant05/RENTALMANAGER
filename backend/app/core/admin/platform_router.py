@@ -15,19 +15,23 @@ from app.core.admin.platform_auth import (
 )
 from app.core.admin.schemas import (
     DashboardStatsResponse,
+    DomainCreate,
+    DomainResponse,
     PlatformLoginRequest,
     PlatformSettingResponse,
     PlatformSettingUpdate,
     PlatformTokenResponse,
+    StaffUserResponse,
     TenantCreate,
     TenantResponse,
     ThemeResponse,
     ThemeUpdate,
     ValidateKeyRequest,
 )
-from app.core.auth.models import PlatformUser
+from app.core.auth.models import PlatformUser, Role, User, UserRole
+from app.core.auth.password import hash_password
 from app.core.tenancy.context import validate_schema_name
-from app.core.tenancy.models import PlatformConfig, Tenant
+from app.core.tenancy.models import PlatformConfig, Tenant, TenantDomain
 from app.core.tenancy.provisioning import provision_tenant_schema
 from app.database import engine, get_session
 from app.rate_limiter import limiter
@@ -130,6 +134,97 @@ async def activate_tenant(
     await session.commit()
     await session.refresh(tenant)
     return TenantResponse.model_validate(tenant)
+
+
+@router.get("/tenants/{tenant_id}/domains", response_model=list[DomainResponse])
+async def list_tenant_domains(
+    tenant_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+    platform_user: PlatformUser = Depends(get_current_platform_user),
+):
+    result = await session.exec(select(Tenant).where(Tenant.id == tenant_id))
+    if result.first() is None:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    result = await session.exec(
+        select(TenantDomain).where(TenantDomain.tenant_id == tenant_id)
+    )
+    return [DomainResponse.model_validate(d) for d in result.all()]
+
+
+@router.post("/tenants/{tenant_id}/domains", response_model=DomainResponse, status_code=201)
+async def add_tenant_domain(
+    tenant_id: uuid.UUID,
+    data: DomainCreate,
+    session: AsyncSession = Depends(get_session),
+    platform_user: PlatformUser = Depends(get_current_platform_user),
+):
+    result = await session.exec(select(Tenant).where(Tenant.id == tenant_id))
+    if result.first() is None:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    result = await session.exec(
+        select(TenantDomain).where(TenantDomain.domain == data.domain)
+    )
+    if result.first() is not None:
+        raise HTTPException(status_code=409, detail="Domain already registered")
+    domain = TenantDomain(
+        tenant_id=tenant_id,
+        domain=data.domain,
+        is_primary=data.is_primary,
+    )
+    session.add(domain)
+    await session.commit()
+    await session.refresh(domain)
+    return DomainResponse.model_validate(domain)
+
+
+@router.put("/tenants/{tenant_id}/domains/{domain_id}", response_model=DomainResponse)
+async def update_tenant_domain(
+    tenant_id: uuid.UUID,
+    domain_id: uuid.UUID,
+    data: DomainCreate,
+    session: AsyncSession = Depends(get_session),
+    platform_user: PlatformUser = Depends(get_current_platform_user),
+):
+    result = await session.exec(
+        select(TenantDomain).where(
+            TenantDomain.id == domain_id, TenantDomain.tenant_id == tenant_id
+        )
+    )
+    domain = result.first()
+    if domain is None:
+        raise HTTPException(status_code=404, detail="Domain not found")
+    existing = await session.exec(
+        select(TenantDomain).where(
+            TenantDomain.domain == data.domain, TenantDomain.id != domain_id
+        )
+    )
+    if existing.first() is not None:
+        raise HTTPException(status_code=409, detail="Domain already registered")
+    domain.domain = data.domain
+    domain.is_primary = data.is_primary
+    session.add(domain)
+    await session.commit()
+    await session.refresh(domain)
+    return DomainResponse.model_validate(domain)
+
+
+@router.delete("/tenants/{tenant_id}/domains/{domain_id}", status_code=204)
+async def delete_tenant_domain(
+    tenant_id: uuid.UUID,
+    domain_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+    platform_user: PlatformUser = Depends(get_current_platform_user),
+):
+    result = await session.exec(
+        select(TenantDomain).where(
+            TenantDomain.id == domain_id, TenantDomain.tenant_id == tenant_id
+        )
+    )
+    domain = result.first()
+    if domain is None:
+        raise HTTPException(status_code=404, detail="Domain not found")
+    await session.delete(domain)
+    await session.commit()
 
 
 @router.get("/dashboard/stats", response_model=DashboardStatsResponse)

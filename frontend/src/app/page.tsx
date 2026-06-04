@@ -87,36 +87,36 @@ export default function PublicHomePage() {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
-          <Link href="/" className="text-xl font-bold">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-3 py-3 sm:px-4 sm:py-4">
+          <Link href="/" className="text-lg font-bold sm:text-xl">
             RentManager
           </Link>
-          <nav className="flex items-center gap-4">
+          <nav className="flex items-center gap-2 sm:gap-4">
             {isAuthenticated ? (
               <>
                 <Link
                   href="/bookings"
-                  className="text-sm text-muted-foreground hover:text-foreground"
+                  className="text-xs sm:text-sm text-muted-foreground hover:text-foreground"
                 >
-                  My Bookings
+                  Bookings
                 </Link>
                 <Link
                   href="/profile"
-                  className="text-sm text-muted-foreground hover:text-foreground"
+                  className="text-xs sm:text-sm text-muted-foreground hover:text-foreground"
                 >
                   Profile
                 </Link>
-                <span className="text-sm text-muted-foreground">
+                <span className="hidden sm:inline text-sm text-muted-foreground">
                   {user?.full_name}
                 </span>
               </>
             ) : (
               <>
-                <Link href="/login" className="text-sm font-medium hover:underline">
+                <Link href="/login" className="text-xs sm:text-sm font-medium hover:underline">
                   Sign in
                 </Link>
                 <Link href="/register">
-                  <Button size="sm">Sign up</Button>
+                  <Button size="sm" className="h-7 text-xs sm:h-9 sm:text-sm">Sign up</Button>
                 </Link>
               </>
             )}
@@ -125,68 +125,70 @@ export default function PublicHomePage() {
       </header>
 
       <main>
-        <section className="bg-muted/40 py-16">
-          <div className="mx-auto max-w-6xl px-4 text-center">
-            <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
+        <section className="bg-muted/40 py-4 sm:py-16">
+          <div className="mx-auto max-w-6xl px-3 sm:px-4 sm:text-center">
+            <h1 className="hidden sm:block text-4xl font-bold tracking-tight sm:text-5xl">
               Find your next rental
             </h1>
-            <p className="mt-4 text-lg text-muted-foreground">
+            <p className="hidden sm:block mt-4 text-lg text-muted-foreground">
               Browse available resources and book instantly
             </p>
 
-            <div className="mx-auto mt-8 flex max-w-3xl flex-col gap-3 sm:flex-row">
+            <div className="mx-auto sm:mt-8 flex max-w-3xl flex-col gap-2 sm:gap-3 sm:flex-row">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
-                  placeholder="Search by name, description, or location..."
-                  className="pl-10"
+                  placeholder="Search resources..."
+                  className="pl-10 h-9 text-sm sm:h-10 sm:text-base"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
               </div>
-              <Select value={selectedType} onValueChange={setSelectedType}>
-                <SelectTrigger className="w-full sm:w-[180px]">
-                  <SelectValue placeholder="All types" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All types</SelectItem>
-                  {visibleTypes?.map((t) => (
-                    <SelectItem key={t.id} value={t.id}>
-                      {t.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
-                <SelectTrigger className="w-full sm:w-[160px]">
-                  <SlidersHorizontal className="mr-2 h-3.5 w-3.5" />
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="relevance">Relevance</SelectItem>
-                  <SelectItem value="price_asc">Price: Low → High</SelectItem>
-                  <SelectItem value="price_desc">Price: High → Low</SelectItem>
-                  <SelectItem value="rating">Top Rated</SelectItem>
-                </SelectContent>
-              </Select>
-              <CurrencySelect
-                value={displayCurrency}
-                onChange={setDisplayCurrency}
-                className="w-full sm:w-[130px]"
-              />
+              <div className="grid grid-cols-3 gap-2 sm:contents">
+                <Select value={selectedType} onValueChange={setSelectedType}>
+                  <SelectTrigger className="w-full sm:w-[180px] h-9 text-xs sm:h-10 sm:text-sm">
+                    <SelectValue placeholder="All types" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All types</SelectItem>
+                    {visibleTypes?.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>
+                        {t.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
+                  <SelectTrigger className="w-full sm:w-[160px] h-9 text-xs sm:h-10 sm:text-sm">
+                    <SlidersHorizontal className="mr-1 h-3 w-3 sm:mr-2 sm:h-3.5 sm:w-3.5" />
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="relevance">Relevance</SelectItem>
+                    <SelectItem value="price_asc">Price: Low → High</SelectItem>
+                    <SelectItem value="price_desc">Price: High → Low</SelectItem>
+                    <SelectItem value="rating">Top Rated</SelectItem>
+                  </SelectContent>
+                </Select>
+                <CurrencySelect
+                  value={displayCurrency}
+                  onChange={setDisplayCurrency}
+                  className="w-full sm:w-[130px] h-9 text-xs sm:h-10 sm:text-sm"
+                />
+              </div>
             </div>
           </div>
         </section>
 
-        <section className="mx-auto max-w-6xl px-4 py-8">
+        <section className="mx-auto max-w-6xl px-3 sm:px-4 py-4 sm:py-8">
           {searchResult && (
-            <div className="mb-4 flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">
+            <div className="mb-3 sm:mb-4 flex items-center justify-between">
+              <p className="text-xs sm:text-sm text-muted-foreground">
                 {searchResult.estimated_total_hits} result{searchResult.estimated_total_hits !== 1 && "s"}
                 {debouncedQuery && (
                   <> for &ldquo;{searchResult.query}&rdquo;</>
                 )}
-                <span className="ml-2 text-xs">
+                <span className="ml-2 text-xs hidden sm:inline">
                   ({searchResult.processing_time_ms}ms)
                 </span>
               </p>
@@ -204,7 +206,7 @@ export default function PublicHomePage() {
               </p>
             </div>
           ) : (
-            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid grid-cols-2 gap-3 sm:gap-6 lg:grid-cols-3">
               {hits.map((hit) => (
                 <SearchHitCard
                   key={hit.id}
@@ -247,29 +249,31 @@ function SearchHitCard({ hit, displayCurrency, rates }: SearchHitCardProps) {
           />
         ) : (
           <div className="flex h-full items-center justify-center text-muted-foreground">
-            <span className="text-4xl">📷</span>
+            <span className="text-2xl sm:text-4xl">📷</span>
           </div>
         )}
       </div>
 
-      <div className="p-4">
-        <div className="flex items-start justify-between gap-2">
-          <h3 className="font-semibold group-hover:text-primary">{hit.name}</h3>
-          <Badge variant="outline" className="shrink-0 text-xs">
+      <div className="p-2.5 sm:p-4">
+        <div className="flex items-start justify-between gap-1 sm:gap-2">
+          <h3 className="text-xs sm:text-base font-semibold group-hover:text-primary line-clamp-2 leading-tight">
+            {hit.name}
+          </h3>
+          <Badge variant="outline" className="hidden sm:inline-flex shrink-0 text-xs">
             {hit.type_slug}
           </Badge>
         </div>
 
         {hit.location_address && (
-          <div className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
-            <MapPin className="h-3 w-3" />
+          <div className="mt-1 flex items-center gap-1 text-[11px] sm:text-sm text-muted-foreground">
+            <MapPin className="h-2.5 w-2.5 sm:h-3 sm:w-3 shrink-0" />
             <span className="truncate">{hit.location_address}</span>
           </div>
         )}
 
         {hit.rating_count > 0 && (
-          <div className="mt-2 flex items-center gap-1 text-sm">
-            <Star className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" />
+          <div className="mt-1 sm:mt-2 flex items-center gap-1 text-[11px] sm:text-sm">
+            <Star className="h-3 w-3 sm:h-3.5 sm:w-3.5 fill-yellow-400 text-yellow-400" />
             <span className="font-medium">{hit.rating_avg.toFixed(1)}</span>
             <span className="text-muted-foreground">
               ({hit.rating_count})
@@ -277,10 +281,10 @@ function SearchHitCard({ hit, displayCurrency, rates }: SearchHitCardProps) {
           </div>
         )}
 
-        <div className="mt-3 flex items-center justify-between">
+        <div className="mt-1.5 sm:mt-3 flex items-center justify-between">
           <div>
-            <span className="text-lg font-bold">{priceLabel}</span>
-            <span className="ml-1 text-sm text-muted-foreground">/day</span>
+            <span className="text-sm sm:text-lg font-bold">{priceLabel}</span>
+            <span className="ml-0.5 sm:ml-1 text-[10px] sm:text-sm text-muted-foreground">/day</span>
           </div>
         </div>
       </div>

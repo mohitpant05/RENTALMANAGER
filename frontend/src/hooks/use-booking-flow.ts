@@ -11,7 +11,7 @@ import type {
 } from "@/types/api";
 import { toast } from "sonner";
 
-type Step = "dates" | "held" | "booked";
+type Step = "dates" | "available" | "held" | "booked";
 
 function buildDatetime(date: string, time: string): string {
   return new Date(`${date}T${time}`).toISOString();
@@ -39,6 +39,7 @@ export function useBookingFlow({ resourceId, availabilityModel }: UseBookingFlow
 
   const [holdToken, setHoldToken] = useState("");
   const [holdPrice, setHoldPrice] = useState(0);
+  const [checkPrice, setCheckPrice] = useState(0);
   const [countdown, setCountdown] = useState(0);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -62,6 +63,7 @@ export function useBookingFlow({ resourceId, availabilityModel }: UseBookingFlow
     setIsPending(false);
     setHoldToken("");
     setHoldPrice(0);
+    setCheckPrice(0);
     setCountdown(0);
     clearTimer();
   }, [clearTimer]);
@@ -109,6 +111,69 @@ export function useBookingFlow({ resourceId, availabilityModel }: UseBookingFlow
     }
     const ed = hideEndDate ? startDate : endDate;
     return buildDatetime(ed, endTime);
+  }
+
+  async function checkAvailability(): Promise<boolean> {
+    if (!startDate) {
+      toast.error("Please select a start date");
+      return false;
+    }
+    if (!hideEndDate && !endDate) {
+      toast.error("Please select an end date");
+      return false;
+    }
+
+    setIsPending(true);
+    try {
+      const start = getStartDatetime();
+      const end = getEndDatetime();
+
+      const { data: check } = await api.post<AvailabilityCheckResponse>(
+        `/resources/${resourceId}/availability/check`,
+        { start, end }
+      );
+
+      if (!check.available) {
+        toast.error("Resource is not available for the selected dates");
+        return false;
+      }
+
+      setCheckPrice(check.price ?? 0);
+      setStep("available");
+      return true;
+    } catch {
+      toast.error("Failed to check availability");
+      return false;
+    } finally {
+      setIsPending(false);
+    }
+  }
+
+  async function holdResource(): Promise<boolean> {
+    setIsPending(true);
+    try {
+      const start = getStartDatetime();
+      const end = getEndDatetime();
+
+      const { data: hold } = await api.post<HoldResponse>(
+        `/resources/${resourceId}/availability/hold`,
+        { start, end }
+      );
+
+      setHoldToken(hold.hold_token);
+      setHoldPrice(hold.price);
+
+      const expiresAt = new Date(hold.expires).getTime();
+      const secondsLeft = Math.max(0, Math.floor((expiresAt - Date.now()) / 1000));
+      setCountdown(secondsLeft);
+      setStep("held");
+      return true;
+    } catch {
+      toast.error("Failed to hold resource");
+      return false;
+    } finally {
+      setIsPending(false);
+    }
   }
 
   async function checkAndHold(): Promise<boolean> {
@@ -190,6 +255,7 @@ export function useBookingFlow({ resourceId, availabilityModel }: UseBookingFlow
 
   return {
     step,
+    setStep,
     startDate,
     setStartDate,
     startTime,
@@ -202,10 +268,13 @@ export function useBookingFlow({ resourceId, availabilityModel }: UseBookingFlow
     setNotes,
     showTime,
     hideEndDate,
+    checkPrice,
     holdPrice,
     countdown,
     countdownFormatted: formatCountdown(countdown),
     isPending,
+    checkAvailability,
+    holdResource,
     checkAndHold,
     confirmBooking,
     cancel,

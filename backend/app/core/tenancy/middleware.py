@@ -60,6 +60,9 @@ class TenantMiddleware(BaseHTTPMiddleware):
 
     def _extract_subdomain(self, host: str) -> str | None:
         host_without_port = host.split(":")[0]
+        # Skip subdomain extraction for IP addresses
+        if re.match(r"^\d+\.\d+\.\d+\.\d+$", host_without_port):
+            return None
         parts = host_without_port.split(".")
         if len(parts) >= 3:
             return parts[0]

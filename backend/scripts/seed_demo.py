@@ -1,11 +1,12 @@
 """
 Seed development environment with demo tenant and dummy data.
-Creates tenant (localhost), resource types (vehicles/bikes, cooks, apartments),
-resources, users, bookings, reviews, and notifications.
 
-Run: docker compose exec backend python -m scripts.seed_demo
+Run:
+    docker compose exec backend python -m scripts.seed_demo
+    docker compose exec backend python -m scripts.seed_demo --reset
 """
 import asyncio
+import sys
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
@@ -32,21 +33,22 @@ def hash_pw(pw: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Seed data
+# Seed data constants
 # ---------------------------------------------------------------------------
 
 TENANT_SLUG = "demo"
 TENANT_NAME = "Demo Rentals"
 DOMAINS = ["localhost", "demo.localhost", "127.0.0.1"]
+
 PLATFORM_EMAIL = "platform@rentmanager.dev"
 PLATFORM_PASSWORD = "platform123"
-ADMIN_EMAIL = "admin@rentmanager.dev"
-ADMIN_PASSWORD = "admin123"
-LISTER_EMAIL = "lister@rentmanager.dev"
-LISTER_PASSWORD = "lister123"
-CUSTOMERS = [
-    ("alice@rentmanager.dev", "alice123", "Alice Johnson"),
-    ("bob@rentmanager.dev", "bob123", "Bob Smith"),
+
+USERS_DATA = [
+    # (email, password, full_name, user_type, role_slug, preferred_currency)
+    ("admin@rentmanager.dev", "admin123", "Demo Admin", "admin", "admin", "USD"),
+    ("lister@rentmanager.dev", "lister123", "Demo Lister", "lister", "lister", "USD"),
+    ("alice@rentmanager.dev", "alice123", "Alice Johnson", "customer", "customer", "USD"),
+    ("bob@rentmanager.dev", "bob123", "Bob Smith", "customer", "customer", "USD"),
 ]
 
 RESOURCE_TYPE_TEMPLATES_TO_CREATE = ["vehicles", "venues", "cooks"]
@@ -61,10 +63,7 @@ VEHICLES = [
             vehicle_number="HR26 BK 1234",
             engine_number="RE350EN2024001",
             chassis_number="RE350CH2024001",
-            year=2024,
-            seats=2,
-            fuel_type="petrol",
-            transmission="manual",
+            year=2024, seats=2, fuel_type="petrol", transmission="manual",
             features=["helmet_included", "phone_mount", "pannier_bags"],
         ),
     ),
@@ -77,10 +76,7 @@ VEHICLES = [
             vehicle_number="DL8S CBR 5678",
             engine_number="HON650EN2023002",
             chassis_number="HON650CH2023002",
-            year=2023,
-            seats=2,
-            fuel_type="petrol",
-            transmission="manual",
+            year=2023, seats=2, fuel_type="petrol", transmission="manual",
             features=["abs", "slipper_clutch", "traction_control"],
         ),
     ),
@@ -93,10 +89,7 @@ VEHICLES = [
             vehicle_number="NA",
             engine_number="TREKFXEN2024003",
             chassis_number="TREKFXCH2024003",
-            year=2024,
-            seats=1,
-            fuel_type="none",
-            transmission="manual",
+            year=2024, seats=1, fuel_type="none", transmission="manual",
             features=["electric_assist", "basket", "lights", "bell"],
         ),
     ),
@@ -108,13 +101,9 @@ APARTMENTS = [
         description="Modern studio in the heart of the city. Walking distance to metro.",
         base_price=120.0,
         location_address="42 Main Street, Downtown",
-        location_lat=40.7128,
-        location_lng=-74.0060,
+        location_lat=40.7128, location_lng=-74.0060,
         attributes=dict(
-            property_type="apartment",
-            bedrooms=0,
-            bathrooms=1,
-            max_guests=2,
+            property_type="apartment", bedrooms=0, bathrooms=1, max_guests=2,
             amenities=["wifi", "ac", "kitchen", "washing_machine", "elevator"],
             pet_friendly=False,
         ),
@@ -124,13 +113,9 @@ APARTMENTS = [
         description="Premium apartment with stunning river views. Full amenities.",
         base_price=250.0,
         location_address="100 River Road, Riverside",
-        location_lat=40.7282,
-        location_lng=-73.9942,
+        location_lat=40.7282, location_lng=-73.9942,
         attributes=dict(
-            property_type="apartment",
-            bedrooms=2,
-            bathrooms=2,
-            max_guests=6,
+            property_type="apartment", bedrooms=2, bathrooms=2, max_guests=6,
             amenities=["wifi", "ac", "kitchen", "parking", "gym", "pool", "doorman"],
             pet_friendly=True,
         ),
@@ -140,13 +125,9 @@ APARTMENTS = [
         description="Converted warehouse loft with high ceilings and natural light.",
         base_price=180.0,
         location_address="25 Gallery Row, Arts District",
-        location_lat=40.7209,
-        location_lng=-73.9814,
+        location_lat=40.7209, location_lng=-73.9814,
         attributes=dict(
-            property_type="apartment",
-            bedrooms=1,
-            bathrooms=1,
-            max_guests=3,
+            property_type="apartment", bedrooms=1, bathrooms=1, max_guests=3,
             amenities=["wifi", "ac", "kitchen", "bike_storage", "roof_access"],
             pet_friendly=True,
         ),
@@ -159,11 +140,9 @@ COOKS = [
         description="Italian chef with 15 years of experience. Specializes in handmade pasta.",
         base_price=80.0,
         attributes=dict(
-            cuisine_type=["italian", "mediterranean"],
-            experience_years=15,
+            cuisine_type=["italian", "mediterranean"], experience_years=15,
             specialties=["homemade_pasta", "risotto", "tiramisu", "seafood"],
-            max_guests_served=8,
-            brings_own_ingredients=True,
+            max_guests_served=8, brings_own_ingredients=True,
         ),
     ),
     dict(
@@ -171,11 +150,9 @@ COOKS = [
         description="North Indian cuisine expert. From street food to royal thalis.",
         base_price=70.0,
         attributes=dict(
-            cuisine_type=["indian", "punjabi", "mughlai"],
-            experience_years=10,
+            cuisine_type=["indian", "punjabi", "mughlai"], experience_years=10,
             specialties=["biryani", "butter_chicken", "naan", "dal_makhani"],
-            max_guests_served=12,
-            brings_own_ingredients=True,
+            max_guests_served=12, brings_own_ingredients=True,
         ),
     ),
     dict(
@@ -183,17 +160,14 @@ COOKS = [
         description="Japanese chef trained in Tokyo. Sushi, ramen, and kaiseki.",
         base_price=90.0,
         attributes=dict(
-            cuisine_type=["japanese", "sushi", "asian"],
-            experience_years=12,
+            cuisine_type=["japanese", "sushi", "asian"], experience_years=12,
             specialties=["sushi", "ramen", "tempura", "miso"],
-            max_guests_served=6,
-            brings_own_ingredients=True,
+            max_guests_served=6, brings_own_ingredients=True,
         ),
     ),
 ]
 
 BOOKINGS_DATA = [
-    # (resource_name, user_email, status, days_ago, start_hour, duration_hours)
     ("Royal Enfield Classic 350", "alice@rentmanager.dev", "completed", 10, 10, 4),
     ("Downtown Studio Apartment", "bob@rentmanager.dev", "completed", 8, 14, 24),
     ("Chef Marco Rossi", "alice@rentmanager.dev", "completed", 7, 13, 3),
@@ -209,11 +183,11 @@ BOOKINGS_DATA = [
 ]
 
 REVIEWS_DATA = [
-    # (booking_index_in_completed_list, rating, title, body)
     (0, 5, "Amazing bike!", "Smooth ride, excellent condition. Highly recommend!"),
     (1, 4, "Great location", "Clean and well-equipped studio. Would stay again."),
     (2, 5, "Fantastic chef!", "Chef Marco prepared an incredible 3-course Italian meal."),
 ]
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -258,26 +232,64 @@ def make_avail(resource_id, start_offset_hours, duration_hours):
 # ---------------------------------------------------------------------------
 
 
+async def reset_demo(engine):
+    """Drop everything related to demo tenant and platform user."""
+    async with AsyncSession(engine, expire_on_commit=False) as session:
+        tenant = (await session.exec(
+            select(Tenant).where(Tenant.slug == TENANT_SLUG)
+        )).first()
+        if tenant:
+            schema = tenant.schema_name
+            print(f"  Dropping schema {schema}...")
+            await session.execute(text(f"DROP SCHEMA IF EXISTS {schema} CASCADE"))
+            await session.execute(
+                text("DELETE FROM tenant_domains WHERE tenant_id = :tid"),
+                {"tid": str(tenant.id)},
+            )
+            await session.execute(
+                text("DELETE FROM tenants WHERE id = :tid"),
+                {"tid": str(tenant.id)},
+            )
+            await session.commit()
+            print("  Dropped tenant + schema + domains")
+        else:
+            print("  No existing demo tenant to drop")
+
+        pu = (await session.exec(
+            select(PlatformUser).where(PlatformUser.email == PLATFORM_EMAIL)
+        )).first()
+        if pu:
+            await session.delete(pu)
+            await session.commit()
+            print("  Dropped platform user")
+
+
 async def seed():
     engine = create_async_engine(DB_URL, echo=False)
 
+    if "--reset" in sys.argv:
+        print("\n=== RESET MODE ===\n")
+        await reset_demo(engine)
+
+    print("\n=== Seeding Demo Data ===\n")
+
     async with AsyncSession(engine, expire_on_commit=False) as session:
-        # -- 1. Platform user ---------------------------------------------------
+
+        # -- 1. Platform user --------------------------------------------------
         existing = (await session.exec(
             select(PlatformUser).where(PlatformUser.email == PLATFORM_EMAIL)
         )).first()
         if existing:
-            print(f"  Platform user exists: {PLATFORM_EMAIL}")
+            print(f"  [skip] Platform user: {PLATFORM_EMAIL}")
         else:
-            pu = PlatformUser(
+            session.add(PlatformUser(
                 id=uuid4(),
                 email=PLATFORM_EMAIL,
                 password_hash=hash_pw(PLATFORM_PASSWORD),
                 full_name="Platform Admin",
-            )
-            session.add(pu)
+            ))
             await session.commit()
-            print(f"  Created platform user: {PLATFORM_EMAIL}")
+            print(f"  [+] Platform user: {PLATFORM_EMAIL}")
 
         # -- 2. Tenant ---------------------------------------------------------
         existing_tenant = (await session.exec(
@@ -285,13 +297,11 @@ async def seed():
         )).first()
         if existing_tenant:
             tenant = existing_tenant
-            tenant_id_val = tenant.id
             schema_name = str(tenant.schema_name)
-            print(f"  Tenant exists: {TENANT_SLUG} (schema: {schema_name})")
+            print(f"  [skip] Tenant: {TENANT_SLUG} ({schema_name})")
         else:
             tenant_id_val = uuid4()
-            tenant_id = str(tenant_id_val)
-            schema_name = f"tenant_{tenant_id.replace('-', '_')}"
+            schema_name = f"tenant_{str(tenant_id_val).replace('-', '_')}"
             tenant = Tenant(
                 id=tenant_id_val,
                 name=TENANT_NAME,
@@ -302,26 +312,31 @@ async def seed():
             )
             session.add(tenant)
             await session.commit()
-            await provision_tenant_schema(engine, session, tenant_id)
-            print(f"  Created tenant: {TENANT_SLUG} (schema: {schema_name})")
+            await provision_tenant_schema(engine, session, str(tenant_id_val))
+            print(f"  [+] Tenant: {TENANT_SLUG} ({schema_name})")
 
-        # -- 3. Tenant domains for localhost ------------------------------------
-        await session.execute(text(f"SET search_path TO {schema_name}, public"))
+        tenant_id_val = tenant.id
+
+        # -- 3. Domains --------------------------------------------------------
         for domain in DOMAINS:
             existing_domain = (await session.exec(
                 select(TenantDomain).where(TenantDomain.domain == domain)
             )).first()
             if not existing_domain:
-                td = TenantDomain(
+                session.add(TenantDomain(
                     id=uuid4(),
                     tenant_id=tenant_id_val,
                     domain=domain,
                     is_primary=(domain == "localhost"),
                     is_verified=True,
-                )
-                session.add(td)
-                print(f"  Created domain: {domain}")
+                ))
+                print(f"  [+] Domain: {domain}")
+            else:
+                print(f"  [skip] Domain: {domain}")
         await session.commit()
+
+        # -- Switch to tenant schema -------------------------------------------
+        await session.execute(text(f"SET search_path TO {schema_name}, public"))
 
         # -- 4. Resource types -------------------------------------------------
         type_map = {}
@@ -332,7 +347,7 @@ async def seed():
             )).first()
             if existing_type:
                 type_map[slug] = existing_type
-                print(f"  Resource type exists: {slug}")
+                print(f"  [skip] Resource type: {slug}")
             else:
                 rt = ResourceType(
                     id=uuid4(),
@@ -351,98 +366,47 @@ async def seed():
                 session.add(rt)
                 await session.flush()
                 type_map[slug] = rt
-                print(f"  Created resource type: {slug}")
+                print(f"  [+] Resource type: {slug}")
         await session.commit()
 
         # -- 5. Users ----------------------------------------------------------
-        admin_id = uuid4()
-        lister_id = uuid4()
-        alice_id = uuid4()
-        bob_id = uuid4()
-
-        admin_user = (await session.exec(
-            select(User).where(User.email == ADMIN_EMAIL)
-        )).first()
-        if admin_user:
-            admin_id = admin_user.id
-            print(f"  Admin exists: {ADMIN_EMAIL}")
-        else:
-            admin_user = User(
-                id=admin_id,
-                email=ADMIN_EMAIL,
-                password_hash=hash_pw(ADMIN_PASSWORD),
-                full_name="Demo Admin",
-                is_active=True,
-                is_verified=True,
-                user_type="admin",
-            )
-            session.add(admin_user)
-            await session.commit()
-            admin_role = (await session.exec(
-                select(Role).where(Role.slug == "admin")
-            )).first()
-            if admin_role:
-                session.add(UserRole(user_id=admin_id, role_id=admin_role.id))
-                await session.commit()
-            print(f"  Created admin: {ADMIN_EMAIL}")
-
-        lister_user = (await session.exec(
-            select(User).where(User.email == LISTER_EMAIL)
-        )).first()
-        if lister_user:
-            lister_id = lister_user.id
-            print(f"  Lister exists: {LISTER_EMAIL}")
-        else:
-            lister_user = User(
-                id=lister_id,
-                email=LISTER_EMAIL,
-                password_hash=hash_pw(LISTER_PASSWORD),
-                full_name="Demo Lister",
-                is_active=True,
-                is_verified=True,
-                user_type="lister",
-            )
-            session.add(lister_user)
-            await session.commit()
-            lister_role = (await session.exec(
-                select(Role).where(Role.slug == "lister")
-            )).first()
-            if lister_role:
-                session.add(UserRole(user_id=lister_id, role_id=lister_role.id))
-                await session.commit()
-            print(f"  Created lister: {LISTER_EMAIL}")
-
-        customer_ids = {alice_id: alice_id, bob_id: bob_id}
-        for email, pw, name in CUSTOMERS:
-            cust = (await session.exec(
+        user_ids = {}
+        for email, pw, name, user_type, role_slug, pref_currency in USERS_DATA:
+            existing_user = (await session.exec(
                 select(User).where(User.email == email)
             )).first()
-            if cust:
-                customer_ids[email] = cust.id
-                print(f"  Customer exists: {email}")
+            if existing_user:
+                user_ids[email] = existing_user.id
+                print(f"  [skip] User: {email}")
             else:
-                cid = customer_ids[email]
-                cust = User(
-                    id=cid,
+                uid = uuid4()
+                user = User(
+                    id=uid,
                     email=email,
                     password_hash=hash_pw(pw),
                     full_name=name,
                     is_active=True,
                     is_verified=True,
-                    user_type="customer",
+                    user_type=user_type,
+                    preferred_currency=pref_currency,
                 )
-                session.add(cust)
+                session.add(user)
                 await session.commit()
-                customer_role = (await session.exec(
-                    select(Role).where(Role.slug == "customer")
-                )).first()
-                if customer_role:
-                    session.add(UserRole(user_id=cid, role_id=customer_role.id))
-                    await session.commit()
-                print(f"  Created customer: {email}")
 
-        alice_id = customer_ids["alice@rentmanager.dev"]
-        bob_id = customer_ids["bob@rentmanager.dev"]
+                role = (await session.exec(
+                    select(Role).where(Role.slug == role_slug)
+                )).first()
+                if role:
+                    session.add(UserRole(user_id=uid, role_id=role.id))
+                    await session.commit()
+
+                user_ids[email] = uid
+                print(f"  [+] User: {email} ({user_type})")
+
+        admin_id = user_ids["admin@rentmanager.dev"]
+        lister_id = user_ids["lister@rentmanager.dev"]
+        alice_id = user_ids["alice@rentmanager.dev"]
+        bob_id = user_ids["bob@rentmanager.dev"]
 
         # -- 6. Resources ------------------------------------------------------
         vehicles_type = type_map["vehicles"]
@@ -451,7 +415,7 @@ async def seed():
 
         res_by_name = {}
 
-        async def seed_resources(slug, type_id, entries):
+        async def seed_resources(type_id, entries):
             for entry in entries:
                 existing = (await session.exec(
                     select(Resource).where(
@@ -461,17 +425,17 @@ async def seed():
                 )).first()
                 if existing:
                     res_by_name[entry["name"]] = existing
-                    print(f"  Resource exists: {entry['name']}")
+                    print(f"  [skip] Resource: {entry['name']}")
                 else:
                     r = make_resource(type_id, entry, lister_id)
                     session.add(r)
                     await session.flush()
                     res_by_name[entry["name"]] = r
-                    print(f"  Created resource: {entry['name']}")
+                    print(f"  [+] Resource: {entry['name']}")
 
-        await seed_resources("vehicles", vehicles_type.id, VEHICLES)
-        await seed_resources("venues", venues_type.id, APARTMENTS)
-        await seed_resources("cooks", cooks_type.id, COOKS)
+        await seed_resources(vehicles_type.id, VEHICLES)
+        await seed_resources(venues_type.id, APARTMENTS)
+        await seed_resources(cooks_type.id, COOKS)
         await session.commit()
 
         # -- 7. Availability slots ---------------------------------------------
@@ -499,21 +463,17 @@ async def seed():
                             all_avail.append(make_avail(r.id, day_offset * 24 + hour, 2))
             session.add_all(all_avail)
             await session.commit()
-            print(f"  Created {len(all_avail)} availability slots")
+            print(f"  [+] {len(all_avail)} availability slots")
         else:
-            print("  Availability slots already exist")
+            print("  [skip] Availability slots")
 
         # -- 8. Bookings -------------------------------------------------------
         existing_bookings = (await session.exec(select(Booking).limit(1))).first()
 
         if not existing_bookings:
-            resource_by_name = {}
-            for name, r in res_by_name.items():
-                resource_by_name[name] = r
-
             created_bookings = []
             for res_name, user_email, status, days_ago, start_hour, duration_hours in BOOKINGS_DATA:
-                resource = resource_by_name[res_name]
+                resource = res_by_name[res_name]
                 uid = alice_id if user_email == "alice@rentmanager.dev" else bob_id
                 start = today() - timedelta(days=days_ago) + timedelta(hours=start_hour)
                 end = start + timedelta(hours=duration_hours)
@@ -554,9 +514,9 @@ async def seed():
                 created_bookings.append(booking)
 
             await session.commit()
-            print(f"  Created {len(created_bookings)} bookings")
+            print(f"  [+] {len(created_bookings)} bookings")
         else:
-            print("  Bookings already exist — skipping")
+            print("  [skip] Bookings")
             result = await session.exec(select(Booking).order_by(Booking.created_at))
             created_bookings = list(result.all())
 
@@ -568,34 +528,29 @@ async def seed():
             for idx, rating, title, body in REVIEWS_DATA:
                 if idx < len(completed_bookings):
                     b = completed_bookings[idx]
-                    existing = (await session.exec(
-                        select(Review).where(Review.booking_id == b.id)
-                    )).first()
-                    if not existing:
-                        review = Review(
-                            id=uuid4(),
-                            booking_id=b.id,
-                            resource_id=b.resource_id,
-                            reviewer_id=b.user_id,
-                            direction="customer_to_lister",
-                            rating=rating,
-                            title=title,
-                            body=body,
-                            status="published",
-                        )
-                        session.add(review)
+                    review = Review(
+                        id=uuid4(),
+                        booking_id=b.id,
+                        resource_id=b.resource_id,
+                        reviewer_id=b.user_id,
+                        direction="customer_to_lister",
+                        rating=rating,
+                        title=title,
+                        body=body,
+                        status="published",
+                    )
+                    session.add(review)
 
             await session.commit()
-            print(f"  Created {len(REVIEWS_DATA)} reviews")
+            print(f"  [+] {len(REVIEWS_DATA)} reviews")
 
-            # Update resource ratings
             for b in completed_bookings:
-                reviews_for = (await session.exec(
+                reviews_for = list((await session.exec(
                     select(Review).where(
                         Review.resource_id == b.resource_id,
                         Review.status == "published",
                     )
-                )).all()
+                )).all())
                 if reviews_for:
                     rsrc = (await session.exec(
                         select(Resource).where(Resource.id == b.resource_id)
@@ -607,9 +562,9 @@ async def seed():
                         rsrc.rating_count = len(reviews_for)
                         session.add(rsrc)
             await session.commit()
-            print("  Updated resource ratings")
+            print("  [+] Updated resource ratings")
         else:
-            print("  Reviews already exist (or no completed bookings)")
+            print("  [skip] Reviews")
 
         # -- 10. Notifications -------------------------------------------------
         existing_notifs = (await session.exec(select(Notification).limit(1))).first()
@@ -628,65 +583,73 @@ async def seed():
                 ("review.received", "New Review", "Bob left a 4-star review for Downtown Studio Apartment"),
             ]
 
-            for event_type, title, body in notifications_data:
-                n = Notification(
+            for i, (event_type, title, body) in enumerate(notifications_data):
+                session.add(Notification(
                     id=uuid4(),
                     user_id=admin_id,
                     event_type=event_type,
                     title=title,
                     body=body,
                     is_read=False,
-                    created_at=today() - timedelta(hours=len(notifications_data) - notifications_data.index((event_type, title, body))),
-                )
-                session.add(n)
+                    created_at=today() - timedelta(hours=len(notifications_data) - i),
+                ))
 
             await session.commit()
-            print(f"  Created {len(notifications_data)} notifications")
+            print(f"  [+] {len(notifications_data)} notifications")
         else:
-            print("  Notifications already exist")
+            print("  [skip] Notifications")
 
-        # -- 11. Sync resources to Meilisearch ---------------------------------
+        # -- 11. Meilisearch sync ----------------------------------------------
         try:
             from app.core.search.tasks import full_reindex
             count = await full_reindex(session, str(tenant_id_val))
             if count:
-                print(f"  Synced {count} resources to Meilisearch")
+                print(f"  [+] Synced {count} resources to Meilisearch")
         except Exception as e:
-            print(f"  Meilisearch sync skipped ({e})")
+            print(f"  [!] Meilisearch sync skipped ({e})")
 
         await session.execute(text("SET search_path TO public"))
 
     await engine.dispose()
 
     # -----------------------------------------------------------------------
-    # Print summary
-    # -----------------------------------------------------------------------
-    print()
-    print("=" * 55)
-    print("  DEMO SEED COMPLETE")
-    print("=" * 55)
-    print(f"  Tenant slug:  {TENANT_SLUG}")
-    print(f"  Domains:       {', '.join(DOMAINS)}")
-    print()
-    print("  USERS")
-    print(f"    Admin:      {ADMIN_EMAIL} / {ADMIN_PASSWORD}")
-    print(f"    Lister:     {LISTER_EMAIL} / {LISTER_PASSWORD}")
-    for email, pw, _ in CUSTOMERS:
-        print(f"    Customer:   {email} / {pw}")
-    print()
-    print("  RESOURCE TYPES: vehicles, venues, cooks")
-    print("  RESOURCES:")
-    for v in VEHICLES:
-        print(f"    - {v['name']} (${v['base_price']}/hr)")
-    for a in APARTMENTS:
-        print(f"    - {a['name']} (${a['base_price']}/night)")
-    for c in COOKS:
-        print(f"    - {c['name']} (${c['base_price']}/slot)")
-    print()
-    print("  Login at http://localhost:3000")
-    print("  (frontend auto-resolves tenant via localhost domain)")
-    print("=" * 55)
-    print()
+    print(f"""
+{'=' * 60}
+  DEMO SEED COMPLETE
+{'=' * 60}
+
+  Tenant:     {TENANT_NAME} (slug: {TENANT_SLUG})
+  Domains:    {', '.join(DOMAINS)}
+
+  PLATFORM SUPERADMIN
+    Email:    {PLATFORM_EMAIL}
+    Password: {PLATFORM_PASSWORD}
+    Login:    POST /api/platform/login
+    UI:       /superadmin/change-me-in-production-min-32-chars!!/login
+
+  TENANT USERS
+    Admin:    admin@rentmanager.dev / admin123
+    Lister:   lister@rentmanager.dev / lister123
+    Customer: alice@rentmanager.dev / alice123
+    Customer: bob@rentmanager.dev / bob123
+
+  RESOURCE TYPES: vehicles, venues, cooks
+  RESOURCES:
+    - Royal Enfield Classic 350 ($30/hr)
+    - Honda CBR 650R ($45/hr)
+    - Trek FX 3 Disc ($15/hr)
+    - Downtown Studio Apartment ($120/night)
+    - Luxury 2BR Riverside View ($250/night)
+    - Cozy Loft in Arts District ($180/night)
+    - Chef Marco Rossi ($80/slot)
+    - Chef Aisha Kapoor ($70/slot)
+    - Chef Yuki Tanaka ($90/slot)
+
+  12 bookings, 3 reviews, 10 notifications
+
+  Access: http://localhost/login
+{'=' * 60}
+""")
 
 
 if __name__ == "__main__":

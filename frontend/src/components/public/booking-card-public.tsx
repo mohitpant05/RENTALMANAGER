@@ -64,13 +64,18 @@ export function BookingCardPublic({
           <div className="flex flex-1 flex-col justify-between min-w-0">
             <div>
               <div className="flex items-center justify-between gap-2">
-                <Link
-                  href={`/resources/${booking.resource_id}`}
-                  className="truncate font-medium hover:underline"
-                  onClick={(e) => e.stopPropagation()}
+                <span
+                  role="link"
+                  tabIndex={0}
+                  className="truncate font-medium hover:underline cursor-pointer"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    window.location.href = `/resources/${booking.resource_id}`;
+                  }}
                 >
                   {resourceName}
-                </Link>
+                </span>
                 <Badge variant={STATUS_VARIANT[booking.status] ?? "muted"} className="shrink-0">
                   {booking.status.replace(/_/g, " ")}
                 </Badge>

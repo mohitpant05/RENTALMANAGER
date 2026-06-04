@@ -130,7 +130,7 @@ export function CreateTypeSheet({ open, onClose, editingType }: CreateTypeSheetP
       queryClient.invalidateQueries({ queryKey: ["resource-types"] });
       toast.success(isEditing ? `${data.name} updated` : `${data.name} created`);
       onClose();
-      router.push(`/resources/${data.slug}`);
+      router.push(`/admin/resources/${data.slug}`);
     },
     onError: () => {
       toast.error(isEditing ? "Failed to update" : "Failed to create resource type");
@@ -149,7 +149,7 @@ export function CreateTypeSheet({ open, onClose, editingType }: CreateTypeSheetP
 
         <form
           onSubmit={handleSubmit((d) => mutation.mutate(d))}
-          className="mt-6 space-y-4"
+          className="mt-6 space-y-4 px-6"
         >
           <div className="space-y-2">
             <Label htmlFor="type-name">Name</Label>

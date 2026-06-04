@@ -181,6 +181,7 @@ def build_user_response(user: User, roles: list[str]) -> UserResponse:
         is_verified=user.is_verified,
         user_type=user.user_type,
         avatar_url=user.avatar_url,
+        preferred_currency=user.preferred_currency,
         created_at=user.created_at,
         roles=roles,
     )

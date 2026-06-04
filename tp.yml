@@ -1,0 +1,40 @@
+let' start with pod at first 
+
+1. imperative way
+
+to run nginx image imperative way :- kubectl run nginx --image=nginx:alpine --port=80
+
+2. declarative way
+to run nginx image declarative way :- kubectl run nginx --image=nginx:alpine --port=80 -o yaml --dry-run=client > nginx-pod.yaml
+
+
+
+let's start with replicationController at first
+1. imperative way
+to run nginx image with replicationController imperative way :- kubectl create rc nginx --image=nginx:alpine --replicas=3 --port=80
+
+
+
+to run deployments 1. imperative way
+to run nginx image with deployment imperative way :- kubectl create deployment nginx --image=nginx:alpine --replicas=3 --port=80
+
+declarative way generate a deployment yaml file :- kubectl create deployment nginx --replicas=3 --image=nginx:alpine --port=80 -o yaml --dry-run=client > nginx-deployment.yaml
+
+now need to edit the deployment yaml file to add strategy and rolling update configuration
+4 things are static
+apiVersion:
+kind:
+metadata:
+spec:
+ then here we have template, strategy and rolling update configuration which we need to add
+
+
+then there are multiple commands to run and manage deployments
+
+1. kubectl apply -f deployment.yaml
+2. kubectl get deployments
+3. kubectl get pods
+4. kubectl describe deployment nginx
+5. kubectl rollout status deployment nginx
+6. kubectl rollout history deployment nginx
+7. kubectl rollout undo deployment nginx

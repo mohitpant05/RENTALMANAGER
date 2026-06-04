@@ -34,6 +34,8 @@ const resourceSchema = z.object({
   base_price: z.number().min(0, "Price must be non-negative"),
   currency: z.string().min(1),
   location_address: z.string().optional(),
+  location_lat: z.number().min(-90).max(90).optional(),
+  location_lng: z.number().min(-180).max(180).optional(),
 });
 
 type ResourceForm = z.infer<typeof resourceSchema>;
@@ -112,6 +114,8 @@ export function CreateResourceSheet({
       base_price: 0,
       currency: "USD",
       location_address: "",
+      location_lat: undefined,
+      location_lng: undefined,
     },
   });
 
@@ -123,6 +127,8 @@ export function CreateResourceSheet({
         base_price: editingResource.base_price,
         currency: editingResource.currency,
         location_address: editingResource.location_address ?? "",
+        location_lat: editingResource.location_lat ?? undefined,
+        location_lng: editingResource.location_lng ?? undefined,
       });
       setAttributes(editingResource.attributes ?? {});
     } else {
@@ -132,6 +138,8 @@ export function CreateResourceSheet({
         base_price: 0,
         currency: "USD",
         location_address: "",
+        location_lat: undefined,
+        location_lng: undefined,
       });
       setAttributes({});
       setImageFiles([]);
@@ -321,6 +329,29 @@ export function CreateResourceSheet({
             />
           </div>
 
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="location_lat">Latitude</Label>
+              <Input
+                id="location_lat"
+                type="number"
+                step="any"
+                placeholder="e.g. 12.9716"
+                {...register("location_lat", { setValueAs: (v: string) => v === "" ? undefined : parseFloat(v) })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="location_lng">Longitude</Label>
+              <Input
+                id="location_lng"
+                type="number"
+                step="any"
+                placeholder="e.g. 77.5946"
+                {...register("location_lng", { setValueAs: (v: string) => v === "" ? undefined : parseFloat(v) })}
+              />
+            </div>
+          </div>
+
           {attributeSchema && attributeSchema.length > 0 && (
             <div className="space-y-4 rounded-lg border p-5">
               <p className="text-sm font-medium">
@@ -406,7 +437,7 @@ export function CreateResourceSheet({
           )}
 
           <div className="space-y-2">
-            <Label>Vehicle Images</Label>
+            <Label>Images</Label>
             <input
               ref={fileInputRef}
               type="file"
