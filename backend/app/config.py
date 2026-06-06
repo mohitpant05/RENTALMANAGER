@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     meili_url: str = "http://localhost:7700"
     meili_master_key: str = "masterkey_dev"
     minio_endpoint: str = "localhost:9000"
+    minio_public_endpoint: str = ""
     minio_root_user: str = "minioadmin"
     minio_root_password: str = "minioadmin_dev"
     secret_key: str = "dev-secret-key-change-in-production"

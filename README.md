@@ -191,7 +191,7 @@ RM/
 | Search | `POST /api/search` (public, faceted, geo) |
 | Reviews | `POST /api/reviews` (guest→resource, lister→guest), moderation |
 | Notifications | `GET /api/notifications`, `POST /{id}/read`, `POST /read-all` |
-| Storage | `POST /api/storage/upload-url`, `/confirm`, `GET /attachments` |
+| Storage | `POST /api/storage/upload` (multipart, proxied), `GET /attachments`, `DELETE /attachments/{id}` |
 | Admin | `GET/PATCH /api/admin/tenant`, staff CRUD, domains, themes |
 | Platform | `GET/POST /api/platform/tenants`, dashboard stats, settings |
 

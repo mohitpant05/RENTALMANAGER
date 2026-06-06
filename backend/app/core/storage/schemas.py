@@ -1,15 +1,17 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 
 class UploadRequest(BaseModel):
     entity_type: str
     entity_id: uuid.UUID
-    file_name: str
-    mime_type: str = "application/octet-stream"
+    file_name: str = Field(alias="filename")
+    mime_type: str = Field(default="application/octet-stream", alias="content_type")
     purpose: str = "image"
+
+    model_config = {"populate_by_name": True}
 
     @field_validator("entity_type")
     @classmethod

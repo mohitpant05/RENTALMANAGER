@@ -62,9 +62,10 @@ function formatDateRange(start: string, end: string): string {
 interface BookingTableProps {
   bookings: BookingResponse[];
   resourceNames: Record<string, string>;
+  customerNames?: Record<string, string>;
 }
 
-export function BookingTable({ bookings, resourceNames }: BookingTableProps) {
+export function BookingTable({ bookings, resourceNames, customerNames }: BookingTableProps) {
   if (bookings.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-16">
@@ -80,6 +81,8 @@ export function BookingTable({ bookings, resourceNames }: BookingTableProps) {
     <Table>
       <TableHeader>
         <TableRow>
+          <TableHead>Booking ID</TableHead>
+          <TableHead>Customer</TableHead>
           <TableHead>Resource</TableHead>
           <TableHead>Status</TableHead>
           <TableHead>When</TableHead>
@@ -91,6 +94,12 @@ export function BookingTable({ bookings, resourceNames }: BookingTableProps) {
       <TableBody>
         {bookings.map((b) => (
           <TableRow key={b.id}>
+            <TableCell className="font-mono text-xs text-muted-foreground">
+              {b.id.slice(0, 8)}
+            </TableCell>
+            <TableCell>
+              <span className="text-sm">{customerNames?.[b.user_id] ?? b.user_id.slice(0, 8)}</span>
+            </TableCell>
             <TableCell className="font-medium">
               <Link
                 href={`/bookings/${b.id}`}

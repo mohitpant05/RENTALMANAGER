@@ -10,31 +10,25 @@ Bucket: rm-{tenant_slug}
 ```
 Per-tenant bucket isolation. Created on first upload via `ensure_bucket()`.
 
-### Upload Flow (Presigned URL)
+### Upload Flow (Backend-Proxied)
 ```
 Client                    Backend                    MinIO
-  │ POST /storage/upload-url │                         │
-  │ {entity_type, entity_id, │                         │
-  │  file_name, mime_type}   │                         │
-  │──────────────────────────►                         │
-  │                          │ Generate path:          │
-  │                          │ {entity_type}/{entity_id}/{uuid}_{file_name}
-  │                          │ presigned_put_object ───►│
-  │◄─────────────────────────│                         │
-  │ {upload_url, file_path}  │                         │
-  │                          │                         │
-  │ PUT upload_url ──────────────────────────────────── ►│ (direct upload)
-  │                          │                         │
-  │ POST /storage/confirm    │                         │
-  │ {file_path, file_name,   │                         │
-  │  mime_type, file_size,   │                         │
-  │  purpose, entity_*}      │                         │
-  │──────────────────────────►                         │
-  │                          │ INSERT Attachment       │
-  │                          │ presigned_get_object ───►│
-  │◄─────────────────────────│                         │
-  │ {attachment + download_url}                        │
+  │ POST /storage/upload    │                         │
+  │ (multipart: file,       │                         │
+  │  entity_type, entity_id)│                         │
+  │─────────────────────────►                         │
+  │                         │ Validate type + size    │
+  │                         │ Generate path:          │
+  │                         │ {type}/{id}/{uuid}_{name}│
+  │                         │ put_object ─────────────►│
+  │                         │ INSERT Attachment       │
+  │                         │ presigned_get_object ───►│
+  │◄────────────────────────│                         │
+  │ {attachment + download_url}                       │
 ```
+
+Uploads go through the backend (no direct browser-to-MinIO access).
+Downloads use presigned URLs (rewritten via `MINIO_PUBLIC_ENDPOINT`).
 
 ### URL Expiry
 - Upload URL: 15 minutes

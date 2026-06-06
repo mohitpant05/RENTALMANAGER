@@ -4,59 +4,42 @@ import pytest
 from httpx import AsyncClient
 
 
-@pytest.mark.asyncio
-async def test_request_upload_url(client: AsyncClient, admin_headers: dict):
-    resp = await client.post(
-        "/api/storage/upload-url",
-        json={
-            "entity_type": "resource",
-            "entity_id": str(uuid.uuid4()),
-            "file_name": "test-photo.jpg",
-            "mime_type": "image/jpeg",
-        },
-        headers=admin_headers,
-    )
-    assert resp.status_code == 200
-    data = resp.json()
-    assert "upload_url" in data
-    assert "file_path" in data
-    assert data["file_path"].startswith("resource/")
-    assert "bucket" in data
+def _upload_payload(entity_id: str, filename: str = "test.jpg", mime: str = "image/jpeg"):
+    return {
+        "file": (filename, b"fake-image-bytes", mime),
+        "entity_type": ("", "resource"),
+        "entity_id": ("", entity_id),
+    }
 
 
 @pytest.mark.asyncio
-async def test_confirm_upload_and_list(client: AsyncClient, admin_headers: dict):
+async def test_upload_file(client: AsyncClient, admin_headers: dict):
     entity_id = str(uuid.uuid4())
-
-    upload_resp = await client.post(
-        "/api/storage/upload-url",
-        json={
-            "entity_type": "resource",
-            "entity_id": entity_id,
-            "file_name": "villa.jpg",
-            "mime_type": "image/jpeg",
-        },
-        headers=admin_headers,
-    )
-    file_path = upload_resp.json()["file_path"]
-
     resp = await client.post(
-        "/api/storage/confirm",
-        json={
-            "file_path": file_path,
-            "file_name": "villa.jpg",
-            "mime_type": "image/jpeg",
-            "file_size": 5000,
-            "entity_type": "resource",
-            "entity_id": entity_id,
-        },
+        "/api/storage/upload",
+        files=_upload_payload(entity_id),
         headers=admin_headers,
     )
     assert resp.status_code == 201
     data = resp.json()
-    assert data["file_name"] == "villa.jpg"
-    assert data["file_size"] == 5000
+    assert data["file_name"] == "test.jpg"
+    assert data["mime_type"] == "image/jpeg"
+    assert data["file_size"] == 15
+    assert data["entity_type"] == "resource"
+    assert data["entity_id"] == entity_id
     assert data["download_url"] is not None
+
+
+@pytest.mark.asyncio
+async def test_upload_and_list(client: AsyncClient, admin_headers: dict):
+    entity_id = str(uuid.uuid4())
+
+    upload_resp = await client.post(
+        "/api/storage/upload",
+        files=_upload_payload(entity_id, "villa.jpg"),
+        headers=admin_headers,
+    )
+    assert upload_resp.status_code == 201
 
     resp = await client.get(
         f"/api/storage/attachments?entity_type=resource&entity_id={entity_id}",
@@ -73,32 +56,12 @@ async def test_get_attachment(client: AsyncClient, admin_headers: dict):
     entity_id = str(uuid.uuid4())
 
     upload_resp = await client.post(
-        "/api/storage/upload-url",
-        json={
-            "entity_type": "resource",
-            "entity_id": entity_id,
-            "file_name": "doc.pdf",
-            "mime_type": "application/pdf",
-            "purpose": "document",
-        },
-        headers=admin_headers,
+        "/api/storage/upload",
+        files=_upload_payload(entity_id, "doc.pdf", "application/pdf"),
+        headers=admin_headers | {"Content-Type": None},
     )
-    file_path = upload_resp.json()["file_path"]
-
-    confirm_resp = await client.post(
-        "/api/storage/confirm",
-        json={
-            "file_path": file_path,
-            "file_name": "doc.pdf",
-            "mime_type": "application/pdf",
-            "file_size": 10000,
-            "entity_type": "resource",
-            "entity_id": entity_id,
-            "purpose": "document",
-        },
-        headers=admin_headers,
-    )
-    attachment_id = confirm_resp.json()["id"]
+    assert upload_resp.status_code == 201
+    attachment_id = upload_resp.json()["id"]
 
     resp = await client.get(
         f"/api/storage/attachments/{attachment_id}",
@@ -114,30 +77,12 @@ async def test_delete_attachment(client: AsyncClient, admin_headers: dict):
     entity_id = str(uuid.uuid4())
 
     upload_resp = await client.post(
-        "/api/storage/upload-url",
-        json={
-            "entity_type": "resource",
-            "entity_id": entity_id,
-            "file_name": "temp.jpg",
-            "mime_type": "image/jpeg",
-        },
+        "/api/storage/upload",
+        files=_upload_payload(entity_id),
         headers=admin_headers,
     )
-    file_path = upload_resp.json()["file_path"]
-
-    confirm_resp = await client.post(
-        "/api/storage/confirm",
-        json={
-            "file_path": file_path,
-            "file_name": "temp.jpg",
-            "mime_type": "image/jpeg",
-            "file_size": 500,
-            "entity_type": "resource",
-            "entity_id": entity_id,
-        },
-        headers=admin_headers,
-    )
-    attachment_id = confirm_resp.json()["id"]
+    assert upload_resp.status_code == 201
+    attachment_id = upload_resp.json()["id"]
 
     resp = await client.delete(
         f"/api/storage/attachments/{attachment_id}",
@@ -153,13 +98,22 @@ async def test_delete_attachment(client: AsyncClient, admin_headers: dict):
 
 
 @pytest.mark.asyncio
-async def test_upload_url_without_auth_fails(client: AsyncClient):
+async def test_upload_without_auth_fails(client: AsyncClient):
+    entity_id = str(uuid.uuid4())
     resp = await client.post(
-        "/api/storage/upload-url",
-        json={
-            "entity_type": "resource",
-            "entity_id": str(uuid.uuid4()),
-            "file_name": "test.jpg",
-        },
+        "/api/storage/upload",
+        files=_upload_payload(entity_id),
     )
     assert resp.status_code in (400, 401, 403)
+
+
+@pytest.mark.asyncio
+async def test_unsupported_file_type_rejected(client: AsyncClient, admin_headers: dict):
+    entity_id = str(uuid.uuid4())
+    resp = await client.post(
+        "/api/storage/upload",
+        files=_upload_payload(entity_id, "malware.exe", "application/x-msdownload"),
+        headers=admin_headers,
+    )
+    assert resp.status_code == 400
+    assert "unsupported" in resp.json()["detail"].lower()

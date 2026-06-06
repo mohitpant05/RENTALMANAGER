@@ -27,6 +27,8 @@ import {
 interface BookingCardProps {
   resource: ResourceResponse;
   availabilityModel: string;
+  slotConfig?: Record<string, unknown> | null;
+  onDatesSelected?: (startDate: string, endDate: string) => void;
 }
 
 function priceUnit(model: string): string {
@@ -87,10 +89,10 @@ function StepIndicator({ currentStep }: { currentStep: string }) {
   );
 }
 
-export function BookingCard({ resource, availabilityModel }: BookingCardProps) {
+export function BookingCard({ resource, availabilityModel, slotConfig, onDatesSelected }: BookingCardProps) {
   const router = useRouter();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const flow = useBookingFlow({ resourceId: resource.id, availabilityModel });
+  const flow = useBookingFlow({ resourceId: resource.id, availabilityModel, slotConfig });
   const { displayCurrency, setDisplayCurrency } = useCurrencyStore();
   const { data: rates } = useRates();
   const convertedBase = convertPrice(
@@ -134,7 +136,16 @@ export function BookingCard({ resource, availabilityModel }: BookingCardProps) {
   }
 
   async function handleCheckAvailability() {
-    await flow.checkAvailability();
+    const available = await flow.checkAvailability();
+    if (available && onDatesSelected) {
+      const start = flow.hideEndDate
+        ? `${flow.startDate}T${flow.startTime}`
+        : `${flow.startDate}T${flow.startTime}`;
+      const end = flow.hideEndDate
+        ? `${flow.startDate}T${flow.endTime}`
+        : `${flow.endDate}T${flow.endTime}`;
+      onDatesSelected(start, end);
+    }
   }
 
   async function handleHoldAndConfirm() {
@@ -230,6 +241,13 @@ export function BookingCard({ resource, availabilityModel }: BookingCardProps) {
                     onChange={(e) => flow.setEndTime(e.target.value)}
                   />
                 </div>
+              )}
+
+              {flow.allowedDurations.length > 0 && flow.showTime && (
+                <p className="text-xs text-muted-foreground">
+                  Available slot durations:{" "}
+                  {(slotConfig?.duration_options as string[])?.join(", ")}
+                </p>
               )}
 
               <div className="space-y-1.5">

@@ -231,7 +231,7 @@ interface SearchHitCardProps {
 
 function SearchHitCard({ hit, displayCurrency, rates }: SearchHitCardProps) {
   const { data: attachments } = useAttachments("resource", hit.id);
-  const coverImage = attachments?.[0]?.url ?? null;
+  const coverImage = attachments?.find((a) => a.download_url)?.download_url ?? undefined;
   const converted = convertPrice(hit.base_price, hit.currency, displayCurrency, rates);
   const priceLabel = formatPrice(converted, displayCurrency);
 

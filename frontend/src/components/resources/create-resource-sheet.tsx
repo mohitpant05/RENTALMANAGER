@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import api from "@/lib/api";
-import { useAttachments } from "@/hooks/use-storage";
+import { useAttachments, useUpload } from "@/hooks/use-storage";
 import type {
   AttributeField,
   ResourceCreate,
@@ -98,6 +98,7 @@ export function CreateResourceSheet({
 
   const resourceId = editingResource?.id ?? "";
   const { data: existingAttachments } = useAttachments("resource", resourceId);
+  const { deleteAttachment, isDeleting } = useUpload("resource", resourceId);
 
   const {
     register,
@@ -189,22 +190,14 @@ export function CreateResourceSheet({
     return Object.keys(errors).length === 0;
   }
 
+  // Upload image via the backend proxy — no direct S3/MinIO from the browser.
+  // POST /storage/upload → Next.js rewrites to backend → internal put_object to MinIO.
   async function uploadImage(resourceId: string, file: File) {
-    const { data: urlData } = await api.post<{ upload_url: string; attachment_id: string }>(
-      "/storage/upload-url",
-      {
-        filename: file.name,
-        content_type: file.type,
-        entity_type: "resource",
-        entity_id: resourceId,
-      }
-    );
-    await fetch(urlData.upload_url, {
-      method: "PUT",
-      headers: { "Content-Type": file.type },
-      body: file,
-    });
-    await api.post("/storage/confirm", { attachment_id: urlData.attachment_id });
+    const form = new FormData();
+    form.append("file", file);
+    form.append("entity_type", "resource");
+    form.append("entity_id", resourceId);
+    await api.post("/storage/upload", form);
   }
 
   const createMutation = useMutation({
@@ -449,16 +442,28 @@ export function CreateResourceSheet({
 
             <div className="flex flex-wrap gap-2">
               {isEditing &&
-                existingAttachments?.map((att) => (
+                existingAttachments?.filter((a) => a.download_url).map((att) => (
                   <div
                     key={att.id}
                     className="relative h-20 w-20 overflow-hidden rounded-md border"
                   >
                     <img
-                      src={att.url}
-                      alt={att.filename}
+                      src={att.download_url!}
+                      alt={att.file_name}
                       className="h-full w-full object-cover"
                     />
+                    <button
+                      type="button"
+                      disabled={isDeleting}
+                      onClick={() => {
+                        if (window.confirm(`Remove "${att.file_name}"?`)) {
+                          deleteAttachment(att.id);
+                        }
+                      }}
+                      className="absolute right-0.5 top-0.5 rounded-full bg-background/80 p-0.5 hover:bg-destructive hover:text-destructive-foreground disabled:opacity-50"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
                   </div>
                 ))}
 
@@ -524,7 +529,7 @@ export function CreateResourceSheet({
         attributes,
         typeName,
         imagePreviews,
-        existingImages: existingAttachments?.map((a) => a.url) ?? [],
+        existingImages: existingAttachments?.map((a) => a.download_url).filter((u): u is string => u !== null) ?? [],
       }}
     />
     </>

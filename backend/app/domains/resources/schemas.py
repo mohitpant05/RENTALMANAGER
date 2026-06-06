@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel, field_validator
 
@@ -176,6 +176,45 @@ class HoldResponse(BaseModel):
 
 class ReleaseRequest(BaseModel):
     hold_token: str
+
+
+class ScheduleCheckItem(BaseModel):
+    date: date
+    start_time: str | None = None
+    end_time: str | None = None
+
+
+class SchedulesCheckRequest(BaseModel):
+    schedules: list[ScheduleCheckItem]
+    availability_model: str
+
+
+class ScheduleState(BaseModel):
+    date: date
+    start_time: str | None = None
+    end_time: str | None = None
+    available: bool
+
+
+class SchedulesCheckResponse(BaseModel):
+    available: bool
+    schedule_states: list[ScheduleState]
+
+
+class AvailabilitySlotResponse(BaseModel):
+    id: uuid.UUID
+    resource_id: uuid.UUID
+    resource_name: str
+    resource_type_name: str
+    start_time: datetime
+    end_time: datetime
+    status: str
+    hold_token: str | None = None
+    hold_expires: datetime | None = None
+    booking_id: uuid.UUID | None = None
+    customer_name: str | None = None
+
+    model_config = {"from_attributes": True, "arbitrary_types_allowed": True}
 
 
 class PriceCalculateRequest(BaseModel):

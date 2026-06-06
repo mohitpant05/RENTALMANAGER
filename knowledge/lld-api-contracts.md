@@ -310,18 +310,16 @@ Auth required. → `{ marked: int }`
 
 ## Storage Endpoints (`/api/storage`)
 
-### POST /api/storage/upload-url
-Auth required.
+### POST /api/storage/upload (201)
+Auth required. Backend-proxied (browser never contacts MinIO directly).
 ```
-Request:  { entity_type: str, entity_id: UUID, file_name: str, mime_type: str }
-Response: { upload_url: str, file_path: str, expires: datetime }
-```
-
-### POST /api/storage/confirm (201)
-Auth required.
-```
-Request:  { entity_type, entity_id, file_path, file_name, mime_type, file_size, purpose }
+Request:  multipart/form-data
+          file: File (image/jpeg, image/png, image/webp, image/gif, max 10MB)
+          entity_type: str
+          entity_id: UUID
+          purpose: str = "image"
 Response: AttachmentResponse with download_url
+Errors:   400 "Unsupported file type" | "File too large"
 ```
 
 ### GET /api/storage/attachments?entity_type=&entity_id=

@@ -1,68 +1,96 @@
+import logging
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Form, HTTPException, Query, UploadFile
+from fastapi.responses import Response
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.auth.dependencies import get_current_user
 from app.core.auth.models import User
-from app.core.storage.schemas import (
-    AttachmentResponse,
-    ConfirmUploadRequest,
-    UploadRequest,
-    UploadResponse,
-)
+from app.core.storage.schemas import AttachmentResponse
 from app.core.storage.service import (
     create_attachment,
     delete_attachment,
     generate_download_url,
-    generate_upload_url,
     get_attachment,
     list_attachments,
+    proxy_file,
+    upload_file,
 )
 from app.core.tenancy.context import get_current_tenant
 from app.database import get_db
 
+logger = logging.getLogger("app.storage.router")
+
+ALLOWED_MIME_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
+
 router = APIRouter(prefix="/api/storage", tags=["storage"])
 
 
-@router.post("/upload-url", response_model=UploadResponse)
-async def request_upload_url(
-    data: UploadRequest,
-    user: User = Depends(get_current_user),
-):
-    tenant_ctx = get_current_tenant()
-    if tenant_ctx is None:
-        raise HTTPException(status_code=400, detail="Tenant context required")
-    result = generate_upload_url(
-        tenant_ctx.tenant.slug,
-        data.entity_type,
-        str(data.entity_id),
-        data.file_name,
-        data.mime_type,
+@router.get("/proxy/{bucket}/{file_path:path}")
+def serve_proxied_file(bucket: str, file_path: str):
+    """Serve a file from MinIO through the backend — no direct browser-to-MinIO."""
+    slug = bucket.replace("tenant-", "", 1) if bucket.startswith("tenant-") else bucket
+    data, content_type, content_length = proxy_file(slug, file_path)
+    return Response(
+        content=data,
+        media_type=content_type,
+        headers={
+            "Content-Length": str(content_length),
+            "Cache-Control": "public, max-age=86400",
+        },
     )
-    return UploadResponse(**result)
 
 
-@router.post("/confirm", response_model=AttachmentResponse, status_code=201)
-async def confirm_upload(
-    data: ConfirmUploadRequest,
+@router.post("/upload", response_model=AttachmentResponse, status_code=201)
+async def direct_upload(
+    file: UploadFile,
+    entity_type: str = Form(...),
+    entity_id: str = Form(...),
+    purpose: str = Form("image"),
     session: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    print(f"=== UPLOAD DEBUG: file={file.filename} content_type={file.content_type} "
+          f"entity_type={entity_type} entity_id={entity_id} purpose={purpose} "
+          f"user={user.id}", flush=True)
+
     tenant_ctx = get_current_tenant()
     if tenant_ctx is None:
         raise HTTPException(status_code=400, detail="Tenant context required")
+
+    if file.content_type and file.content_type not in ALLOWED_MIME_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file type. Allowed: {', '.join(ALLOWED_MIME_TYPES)}",
+        )
+
+    data = await file.read()
+    if len(data) > MAX_FILE_SIZE:
+        raise HTTPException(status_code=400, detail="File too large. Maximum 10 MB.")
+
+    file_path = upload_file(
+        tenant_ctx.tenant.slug,
+        entity_type,
+        entity_id,
+        file.filename or "unnamed",
+        data,
+        file.content_type or "application/octet-stream",
+    )
+
     attachment = await create_attachment(
         session,
-        entity_type=data.entity_type,
-        entity_id=data.entity_id,
-        file_path=data.file_path,
-        file_name=data.file_name,
-        mime_type=data.mime_type,
-        file_size=data.file_size,
-        purpose=data.purpose,
+        entity_type=entity_type,
+        entity_id=uuid.UUID(entity_id),
+        file_path=file_path,
+        file_name=file.filename or "unnamed",
+        mime_type=file.content_type or "application/octet-stream",
+        file_size=len(data),
+        purpose=purpose,
         uploaded_by=user.id,
     )
+
     url = generate_download_url(tenant_ctx.tenant.slug, attachment.file_path)
     resp = AttachmentResponse.model_validate(attachment)
     resp.download_url = url

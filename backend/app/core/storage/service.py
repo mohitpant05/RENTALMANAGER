@@ -1,7 +1,8 @@
+import io
 import uuid
-from datetime import timedelta
 
 from fastapi import HTTPException
+from minio.error import S3Error
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -9,27 +10,51 @@ from app.core.storage.client import ensure_bucket, get_minio_client, get_tenant_
 from app.core.storage.models import Attachment
 
 
-def generate_upload_url(
+def proxy_url(tenant_slug: str, file_path: str) -> str:
+    """Return a backend-proxied URL for the file — no direct MinIO access."""
+    bucket = get_tenant_bucket(tenant_slug)
+    return f"/api/storage/proxy/{bucket}/{file_path}"
+
+
+def proxy_file(tenant_slug: str, file_path: str) -> tuple[bytes, str, int]:
+    """Fetch file bytes + content-type from MinIO (used by the proxy endpoint)."""
+    client = get_minio_client()
+    bucket = get_tenant_bucket(tenant_slug)
+    try:
+        response = client.get_object(bucket, file_path)
+        data = response.read()
+        content_type = response.headers.get("Content-Type", "application/octet-stream")
+        content_length = response.headers.get("Content-Length", "0")
+        response.close()
+        response.release_conn()
+        return data, content_type, int(content_length)
+    except S3Error as e:
+        if e.code == "NoSuchKey":
+            raise HTTPException(status_code=404, detail="File not found")
+        raise HTTPException(status_code=500, detail="Storage error")
+
+
+def upload_file(
     tenant_slug: str,
     entity_type: str,
     entity_id: str,
     file_name: str,
-    mime_type: str = "application/octet-stream",
-    expires_minutes: int = 15,
-) -> dict:
+    file_data: bytes,
+    mime_type: str,
+) -> str:
     client = get_minio_client()
     bucket = get_tenant_bucket(tenant_slug)
     ensure_bucket(client, bucket)
 
     file_path = f"{entity_type}/{entity_id}/{uuid.uuid4().hex}_{file_name}"
-    url = client.presigned_put_object(
-        bucket, file_path, expires=timedelta(minutes=expires_minutes)
+    client.put_object(
+        bucket,
+        file_path,
+        io.BytesIO(file_data),
+        length=len(file_data),
+        content_type=mime_type,
     )
-    return {
-        "upload_url": url,
-        "file_path": file_path,
-        "bucket": bucket,
-    }
+    return file_path
 
 
 def generate_download_url(
@@ -37,11 +62,10 @@ def generate_download_url(
     file_path: str,
     expires_minutes: int = 60,
 ) -> str:
-    client = get_minio_client()
-    bucket = get_tenant_bucket(tenant_slug)
-    return client.presigned_get_object(
-        bucket, file_path, expires=timedelta(minutes=expires_minutes)
-    )
+    # Return a backend-proxied URL instead of a presigned MinIO URL.
+    # The proxy endpoint streams the file through the backend,
+    # so the browser never connects to MinIO directly.
+    return proxy_url(tenant_slug, file_path)
 
 
 def delete_file(tenant_slug: str, file_path: str) -> None:

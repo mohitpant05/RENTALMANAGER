@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.auth.dependencies import get_current_user, require_permission
@@ -47,33 +47,40 @@ async def list_my_bookings_endpoint(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
-    return await list_bookings(
+    bookings, _ = await list_bookings(
         session,
         user_id=user.id,
         status_filter=status,
         offset=offset,
         limit=limit,
     )
+    return bookings
 
 
-@router.get("", response_model=list[BookingResponse])
+@router.get("", response_model=None)
 async def list_bookings_endpoint(
     status: str | None = None,
     resource_id: uuid.UUID | None = None,
+    search: str | None = None,
     offset: int = 0,
     limit: int = 50,
+    response: Response = None,
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
     user_filter = None if user.user_type == "admin" else user.id
-    return await list_bookings(
+    bookings, total = await list_bookings(
         session,
         user_id=user_filter,
         status_filter=status,
         resource_id=resource_id,
+        search=search,
         offset=offset,
         limit=limit,
     )
+    response.headers["X-Total-Count"] = str(total)
+    from fastapi.encoders import jsonable_encoder
+    return jsonable_encoder(bookings)
 
 
 @router.get("/{booking_id}", response_model=BookingResponse)
@@ -142,6 +149,7 @@ async def create_bundled_booking_endpoint(
         end_time=data.primary.end_time,
         notes=data.primary.notes,
         auto_confirm=data.primary.auto_confirm,
+        schedules=data.primary.schedules,
     )
     addon_data_list = [
         BookingCreate(
@@ -151,6 +159,7 @@ async def create_bundled_booking_endpoint(
             end_time=a.end_time,
             notes=a.notes,
             auto_confirm=a.auto_confirm,
+            schedules=a.schedules,
         )
         for a in data.addons
     ]

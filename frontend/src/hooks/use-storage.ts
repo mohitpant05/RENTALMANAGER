@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import axios from "axios";
 import api from "@/lib/api";
-import type { AttachmentResponse, UploadUrlRequest, UploadUrlResponse } from "@/types/api";
+import type { AttachmentResponse } from "@/types/api";
 
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const MAX_SIZE = 10 * 1024 * 1024; // 10MB
@@ -20,6 +19,17 @@ export function useAttachments(entityType: string, entityId: string) {
   });
 }
 
+/**
+ * Upload a file to MinIO via the backend proxy.
+ *
+ * Flow: browser → Next.js rewrite (/api/:path* → backend:8000/:path*) → backend → MinIO (internal)
+ *
+ * The relative path ("/api" baseURL) works in all environments:
+ * - Dev:  Next.js rewrites /api/* → http://localhost:8000/api/*
+ * - Prod: Ingress routes /api/* → backend Service:8000
+ *
+ * No presigned URLs or direct S3 access from the browser.
+ */
 export function useUpload(entityType: string, entityId: string) {
   const queryClient = useQueryClient();
   const [isUploading, setIsUploading] = useState(false);
@@ -34,23 +44,18 @@ export function useUpload(entityType: string, entityId: string) {
 
     setIsUploading(true);
     try {
-      const { data: urlData } = await api.post<UploadUrlResponse>("/storage/upload-url", {
-        filename: file.name,
-        content_type: file.type,
-        entity_type: entityType,
-        entity_id: entityId,
-      } as UploadUrlRequest);
+      // Multipart POST to the backend-proxied upload endpoint.
+      // Backend validates type/size, uploads to MinIO internally,
+      // creates the Attachment record, and returns it with a presigned download URL.
+      const form = new FormData();
+      form.append("file", file);
+      form.append("entity_type", entityType);
+      form.append("entity_id", entityId);
 
-      await axios.put(urlData.upload_url, file, {
-        headers: { "Content-Type": file.type },
-      });
-
-      const { data: attachment } = await api.post<AttachmentResponse>("/storage/confirm", {
-        attachment_id: urlData.attachment_id,
-      });
+      const { data } = await api.post<AttachmentResponse>("/storage/upload", form);
 
       queryClient.invalidateQueries({ queryKey: ["attachments", entityType, entityId] });
-      return attachment;
+      return data;
     } finally {
       setIsUploading(false);
     }

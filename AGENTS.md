@@ -62,6 +62,7 @@ cd backend && uv pip install --system ".[dev]"
 | Test (single) | `cd backend && pytest tests/test_auth_unit.py -v` |
 | Migrate | `docker compose exec backend alembic upgrade head` |
 | New migration | `docker compose exec backend alembic revision --autogenerate -m "message"` |
+| Seed addons | `docker compose exec backend python -m scripts.seed_addons` |
 
 ## Testing Prerequisites
 Integration tests need: postgres, redis, meilisearch, minio. CI runs them as services (see `.github/workflows/ci.yml`). Local: `make up` then `cd backend && pytest`.
@@ -142,174 +143,119 @@ Login at: `http://localhost:3000/login`
 
 ---
 
-# Implementation Plan (OpenCode)
+# Goal
+- Build and maintain a multi-tenant rental management platform (RentManager).
 
-Work through phases sequentially. Each task has acceptance criteria — don't move on until met. Commit after each phase completes.
+## Constraints & Preferences
+- All uploads go through the backend proxy — no direct browser-to-MinIO access.
+- All image downloads also go through the backend proxy (`/api/storage/proxy/{bucket}/{file_path}`) — no direct browser-to-MinIO.
+- Use relative `/api` baseURL in frontend — works via Next.js rewrites (dev) or Ingress (prod).
+- JWT access tokens have 15 min TTL, refresh tokens 7 days.
+- Python-jose decodes tokens and enforces `exp` claim.
+- Addon discovery for venues (cooks, vehicles) shows on the public resource detail page when dates are selected in booking flow.
 
-## Phase 1: Rework Uncommitted Changes & Clean Commit
+## Progress
+### Done
+- **Addon per-day scheduling** — Full end-to-end flow for selecting addons with per-day breakdowns:
+  - Backend: `schedules` JSONB column on `Booking` model; `AddonSchedule` schema; schedule-based pricing (`base_price × len(schedules)`) for `fixed_per_slot`/`fixed_per_day` models; `max_daily_servings: 4` in cook template.
+  - New `POST /resources/{id}/availability/check-schedules` endpoint for per-window availability validation.
+  - Extended `discover_addons` response to include `availability_model`, `pricing_model`, `slot_config` per type group.
+  - Frontend: `AddonSchedulePicker` component — day checkboxes for vehicles, per-day time slot inputs for cooks.
+  - Rewritten `AddonDiscoveredSection` — dropdown selector when >3 addon types, resource toggle expands schedule picker, structured selection state.
+  - Booking detail page: "Add Add-ons" card after booking confirmation, calls hold + add-addon per selection.
+  - `useAddons` hook: `checkSchedules()` and `holdAndAddAddon()` helper.
 
-Current branch `feat/auth-email-invite` has ~34 modified/new files. Four areas need rework before committing.
+- Request-scoped logging (`app/core/logging.py` with `RequestLogger`, `ContextVar` for correlation ID).
+- Step-by-step AUTH STEP 1/6 → 6/6 logging to `get_current_user()`.
+- Fixed logging not showing in container output.
+- Fixed upload 422: backend endpoint changed from `Query()` to `Form()` for `entity_type`/`entity_id`.
+- Fixed image display: null-safe filtering, `download_url`/`file_name` mapping.
+- Backend proxy for image downloads (`GET /api/storage/proxy/{bucket}/{file_path:path}`).
+- Image delete button on attachment thumbnails.
+- Back button on public resource detail page.
+- Auth persistence on browser reload (`AuthInitializer` in root `Providers`).
+- Resource table → detail sheet on row click.
+- Booking slot validation UX with client-side duration check.
+- Addon discovery wiring into booking card.
+- **Admin bookings search & filter** — Search bar (by booking ID, resource name, customer name) + status filter tabs (All/Pending/Confirmed/Active/Completed/Cancelled/Rejected).
+  - Backend: `search` parameter added to `list_bookings` service (joins `User` and `Resource` for ILIKE search across `Booking.id`, `User.email`, `User.full_name`, `Resource.name`).
+  - Frontend: Admin bookings page has search input with Enter/key press, clearable, plus pill-style status filter buttons; table shows Customer column from `/api/auth/user/{id}` fetch.
+- **Admin booking slots page** — Daily agenda view of all booked/held time slots across resources.
+  - Backend: `GET /api/resources/availability/slots?start_date=&end_date=&resource_type_id=` endpoint returns availability records with resource name and type.
+  - Frontend: `/admin/booking-slots` page with date navigation (prev/next/today), resource type filter, table view grouped by resource showing time ranges, status (booked/held), booking link, and hold token.
+  - Slots icon in admin icon rail.
 
-### 1.1 — Route Restructure
+### In Progress
+- (none)
 
-Old `(admin)/` route group was deleted, replaced by `/admin/` path segment. Public pages in `(public)/` group.
+### Blocked
+- (none)
 
-- [ ] Ensure `/admin/*` routes are auth-gated in `frontend/src/middleware.ts` — redirect to `/login` if no token or if user is not admin/staff
-- [ ] Create `frontend/src/app/(public)/layout.tsx` with shared public header (nav with logo, sign-in/sign-up links, user menu when authenticated) and footer
-- [ ] Verify root `page.tsx` (public homepage) renders without authentication
-- [ ] Verify `frontend/src/app/admin/layout.tsx` includes shell (icon-rail, sub-nav) and admin auth check
-- [ ] Delete leftover `(admin)/` references if any remain in imports or configs
+## Key Recent Decisions
+- Per-day addon schedules stored as JSONB on `Booking` — avoids separate table, simple metadata approach.
+- Addon hold = single hold for overall booking period, schedules = metadata (not per-slot holds). Coarse overlap check during discovery, per-window check available via dedicated endpoint.
+- Addon selection happens post-venue-confirmation on booking detail page (primary flow), with bundled option also available.
+- Vehicles: per-day checkbox (no time slots). Cooks: per-day time slot pickers matching `duration_options`.
+- More than 3 addon type groups → dropdown selector; ≤3 types → all shown expanded.
 
-**Done when:** `npm run build` succeeds. Unauthenticated user sees homepage. `/admin` redirects to `/login`. Authenticated admin reaches admin dashboard.
+## Relevant Files
 
-### 1.2 — API baseURL
+### Backend
+| File | Purpose |
+|------|---------|
+| `app/domains/bookings/models.py` | `Booking` model with `schedules` JSONB column |
+| `app/domains/bookings/schemas.py` | `AddonSchedule`, updated `BookingCreate`/`BookingItemCreate`/`AddAddonRequest`/`BookingResponse` |
+| `app/domains/bookings/service.py` | `create_booking` persists schedules, schedule-based pricing override |
+| `app/domains/bookings/router.py` | Passes schedules through bundled/add-addon routes |
+| `app/domains/resources/schemas.py` | `ScheduleCheckItem`, `SchedulesCheckRequest`, `SchedulesCheckResponse` |
+| `app/domains/resources/service.py` | `check_schedule_availability()` — per-window validation |
+| `app/domains/resources/router.py` | `POST /{id}/availability/check-schedules` endpoint |
+| `app/domains/resources/discovery.py` | Returns `availability_model`, `pricing_model`, `slot_config` in addon type groups |
+| `app/domains/resources/templates.py` | Cook template with `max_daily_servings: 4` |
 
-Changed from hardcoded `http://localhost:8000/api` to relative `/api`. Breaks dev without proxy.
+### Frontend
+| File | Purpose |
+|------|---------|
+| `components/public/addon-schedule-picker.tsx` | Per-day schedule configuration (vehicle checkboxes, cook time slots) |
+| `components/public/addon-discovered-section.tsx` | Full addon discovery UI with dropdown grouping, expandable schedule pickers |
+| `hooks/use-addons.ts` | `checkSchedules()`, `holdAndAddAddon()` helpers |
+| `types/api.ts` | All addon/schedule types |
+| `app/(public)/bookings/[id]/page.tsx` | Post-booking "Add Add-ons" card |
 
-- [ ] Add `NEXT_PUBLIC_API_URL` env var to `frontend/src/lib/api.ts`, default `http://localhost:8000/api`
-- [ ] Add Next.js rewrites in `next.config.ts` to proxy `/api/:path*` → `http://localhost:8000/api/:path*` in dev
-- [ ] Update `.env.example` (or create one) with `NEXT_PUBLIC_API_URL`
-- [ ] Ensure token refresh in `api.ts` interceptor uses same base URL
+## Addon Booking Flow
+1. Customer books a venue (existing `BookingCard` flow)
+2. Redirected to `/bookings/{id}`  
+3. If venue resource type has `role="primary"`, "Add Add-ons" card appears
+4. `AddonDiscoveredSection` fetches available addons for the booking dates
+5. If >3 addon types, dropdown selector shown
+6. Customer toggles desired addons → expands per-day schedule picker:
+   - **Vehicles**: checkbox each day of stay (no time slots)
+   - **Cooks**: per-day time inputs matching `duration_options`
+7. "Add Selected Add-ons" creates a hold for each addon (full period) + calls `POST /bookings/{id}/add-addon` with schedules
+8. Addon bookings created with same `booking_group_id`, linked via `parent_booking_id`
 
-**Done when:** Frontend works in dev with `npm run dev` + backend on port 8000. No hardcoded localhost in source.
+## API Endpoints (Addon-specific)
+| Method | Path | Purpose |
+|--------|------|---------|
+| `GET` | `/resources/{id}/addons?start_date=&end_date=` | Discover available addons for a venue |
+| `POST` | `/resources/{id}/availability/check-schedules` | Validate per-day/time slot windows |
+| `POST` | `/bookings/{id}/add-addon` | Add an addon to an existing booking |
+| `POST` | `/bookings/bundled` | Create venue + addons in one bundled booking |
 
-### 1.3 — Public Registration
+## Next Steps
+- Wire selected addon IDs from `AddonDiscoveredSection` into the bundled booking creation flow (pre-checkout).
+- Show existing addon bookings (siblings via `booking_group_id`) on booking detail page.
+- Build ResourceAssignment admin UI for linking addon resources to venues.
+- Allow admins to set `role` and `discovery_radius_km` on ResourceType settings in admin panel.
 
-`register_user` and `RegisterRequest` added to backend. Was previously removed (commit `69b58a8`). Needs safety measures.
-
-- [ ] Add rate limiting to `POST /api/auth/register` — use `slowapi` library with Redis backend (5 requests/min per IP, keyed by `request.client.host`)
-- [ ] Add email uniqueness check per tenant in `register_user` service (return 409 if exists)
-- [ ] Add password strength validation in `RegisterRequest` schema (min 8 chars)
-- [ ] Frontend `/register` page: add form validation (email format, password match, min length)
-- [ ] Registration should create user with `user_type="customer"` and no admin roles
-
-**Done when:** Registration works end-to-end. Duplicate email returns error. Weak password rejected. Rate limit triggers after 5 rapid attempts.
-
-### 1.4 — Public Pages & Components
-
-New public-facing pages in `(public)/` group. Need review and fixes.
-
-- [ ] `(public)/resources/[id]/page.tsx` — verify resource detail loads, image carousel works, booking card renders
-- [ ] `(public)/bookings/page.tsx` — verify customer bookings list filters work (upcoming/active/past/cancelled)
-- [ ] `(public)/bookings/[id]/page.tsx` — verify booking detail page loads with timeline
-- [ ] `(public)/profile/page.tsx` — verify profile form renders (backend endpoint added in Phase 3)
-- [ ] `(public)/notifications/page.tsx` — verify notifications list renders
-- [ ] Homepage (`page.tsx`) — verify search/filter, resource cards, image loading via `useAttachments`
-- [ ] Review all hooks: `use-booking-flow.ts`, `use-reviews.ts`, `use-notifications.ts`, `use-search.ts`, `use-storage.ts` — ensure API paths match backend routes
-- [ ] Fix any TypeScript errors in `frontend/src/types/api.ts` for new types (`RegisterRequest`, `BookingResponse` fields, etc.)
-
-**Done when:** `npm run build` passes with zero errors. All public pages render (may show empty data without backend, but no crashes).
-
-### Phase 1 Commit
-
-After all 1.x tasks pass:
-- Stage all modified + new frontend and backend files
-- Do NOT stage `frontend/tsconfig.tsbuildinfo`
-- Commit message: `feat: add public-facing pages, registration, and route restructure`
-
----
-
-## Phase 2: Docker Dev Environment
-
-`docker-compose.yml` has infra only (Postgres, Redis, Meilisearch, MinIO, Traefik). Need app containers.
-
-### 2.1 — Backend Dockerfile
-
-- [ ] Create `backend/Dockerfile` — Python 3.12 slim, copy `pyproject.toml` + source, install with `uv pip install`
-- [ ] Dev target: `uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload`
-- [ ] Add to `docker-compose.yml` as `backend` service with volume mount `./backend:/app` for hot-reload
-- [ ] Depends on: postgres, redis
-- [ ] Healthcheck: `curl -f http://localhost:8000/api/health`
-
-### 2.2 — Frontend Dockerfile
-
-- [ ] Create `frontend/Dockerfile` — Node 22 alpine, copy `package.json` + `package-lock.json`, `npm ci`, copy source
-- [ ] Dev target: `next dev --hostname 0.0.0.0`
-- [ ] Add to `docker-compose.yml` as `frontend` service with volume mount `./frontend:/app` (exclude `node_modules`)
-- [ ] Set `NEXT_PUBLIC_API_URL=http://backend:8000/api` in container env
-
-### 2.3 — Traefik Routing Rules
-
-Traefik already in compose. Add routing labels:
-
-- [ ] Frontend: default route, `Host` match on `localhost` and `*.localhost`
-- [ ] Backend: `PathPrefix(/api)` routes to backend:8000
-- [ ] Remove port mappings for backend/frontend (Traefik handles ingress on port 80)
-
-### 2.4 — Celery Worker
-
-- [ ] Add `celery-worker` service using same backend image
-- [ ] Command: `celery -A app.celery_app worker --loglevel=info`
-- [ ] Depends on: redis, postgres, backend (for migrations)
-
-### 2.5 — Init & Migrations
-
-- [ ] Add entrypoint script to backend: run `alembic upgrade head` then start uvicorn
-- [ ] Add `seed` service or make target: `python scripts/seed_dev.py` (one-shot, runs after migrations)
-- [ ] Document in AGENTS.md: `docker compose up` → full dev stack
-
-**Done when:** `docker compose up` starts everything. `http://localhost` shows frontend. `http://localhost/api/health/all` returns all services OK. Tenant subdomain routing works via `*.localhost`.
-
----
-
-## Phase 3: Missing Backend Endpoints & Wiring
-
-### 3.1 — Profile Update Endpoint
-
-- [ ] Add `PATCH /api/auth/me` in `backend/app/core/auth/router.py`
-- [ ] Accept: `full_name`, `phone`, `avatar_url` (all optional)
-- [ ] Require authentication (current user only)
-- [ ] Add `ProfileUpdateRequest` schema in `backend/app/core/auth/schemas.py`
-- [ ] Add `update_profile` function in `backend/app/core/auth/service.py`
-
-**Done when:** Authenticated user can update profile fields. Changes persist. Unauthenticated request returns 401.
-
-### 3.2 — Customer-Scoped Booking Endpoints
-
-Current booking router is admin-oriented. Customers need their own views.
-
-- [ ] Add `GET /api/bookings/mine` — returns bookings where `user_id` = current authenticated user
-- [ ] Add ownership check to `GET /api/bookings/{id}` — admin sees all, customer sees only own
-- [ ] Ensure `POST /api/bookings/` (create booking) works for customers, auto-sets `user_id` from token
-- [ ] Verify booking state machine transitions are correct for customer-initiated flows (hold → confirm → complete)
-
-**Done when:** Customer can list own bookings, view booking detail, create new booking. Cannot see other users' bookings.
-
-### 3.3 — Email Wiring
-
-Email factory exists (`backend/app/core/email/`) with Gmail and Mandrill providers. Not called anywhere.
-
-- [ ] Wire invite acceptance → send welcome/confirmation email via Celery task
-- [ ] Wire booking confirmation → send confirmation email with booking details
-- [ ] Wire booking status change (confirmed, cancelled) → send notification email
-- [ ] Add email templates as simple HTML strings in `backend/app/core/email/templates.py`
-- [ ] Add `EMAIL_PROVIDER` env var (default: `console` for dev — just print to stdout)
-
-**Done when:** Booking creation triggers email task. Invite acceptance triggers email. Dev mode prints emails to console. No external email service required for dev.
-
-### 3.4 — Notification Endpoints
-
-Backend notification module exists but may need fixes.
-
-- [ ] Verify `GET /api/notifications` returns user-scoped notifications (not all tenants' notifications)
-- [ ] Add `PATCH /api/notifications/{id}/read` — mark single notification as read
-- [ ] Add `POST /api/notifications/read-all` — mark all as read for current user
-- [ ] Ensure notification events fire on: booking created, booking status changed, review received
-- [ ] Frontend `use-notifications.ts` hook must match these endpoint paths
-
-**Done when:** Notifications appear for booking/review events. User can mark read. List is scoped to current user.
-
----
-
-## Out of Scope (Claude Code / Later)
-
-These are NOT part of this plan. Do not work on them:
-
-- CI/CD pipeline configuration
-- Production deployment config
-- Frontend test suite (Jest/Playwright)
-- WebSocket real-time notifications
-- CSRF protection
-- CORS env-based config for production
-- Search (Meilisearch) full integration
-- Theming applied to public pages
+## Critical Context
+- **Access token TTL**: 15 minutes. **Refresh token TTL**: 7 days. Auth init runs on every page load via `AuthInitializer`.
+- **Tenant resolution**: `X-Tenant-ID: demo` → `_get_tenant_by_slug("demo")` → public `tenants` table query.
+- **Middleware order**: `SuperadminIPMiddleware` → `TenantMiddleware` → `CORSMiddleware` → `SlowAPIMiddleware` → Router.
+- **MinIO admin**: user `minioadmin`, password `minioadmin_dev`, console `http://localhost:9001`.
+- **Slot config format**: `{"duration_options": ["1h", "1.5h", "2h", "3h"], "max_daily_servings": 4}` — stored on `ResourceType.slot_config` as JSONB.
+- **Addon discovery**: `GET /resources/{id}/addons?start_date=...&end_date=...` — returns assigned + nearby addons grouped by type, with availability per window.
+- **Resource roles**: `primary` (venue that can have addons), `addon` (cook/vehicle linked to a venue), `standalone` (default), `hidden`.
+- **ResourceAssignment**: links `addon_resource_id` to `primary_resource_id` with a `priority`. Addons must be assigned to a venue to appear in discovery. No admin UI yet — use seed script or API directly.
+- **seed_demo.py**: Creates resource types from templates + demo resources + bookings + reviews. Does NOT set roles or create ResourceAssignments.
+- **seed_addons.py**: Post-seed script that sets roles (venues→primary, cooks/vehicles→addon), creates ResourceAssignments linking all cooks/vehicles to all venues, and creates 30 days of availability. Run: `docker compose exec backend python -m scripts.seed_addons`.

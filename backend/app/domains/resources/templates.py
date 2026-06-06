@@ -70,6 +70,7 @@ RESOURCE_TYPE_TEMPLATES: dict[str, dict] = {
         "slot_config": {
             "duration_options": ["1h", "1.5h", "2h", "3h"],
             "buffer_between": "30min",
+            "max_daily_servings": 4,
         },
         "attribute_schema": [
             {"name": "cuisine_type", "type": "tags", "required": True, "filterable": True},

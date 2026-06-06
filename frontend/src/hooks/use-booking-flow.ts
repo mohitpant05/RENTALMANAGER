@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import api from "@/lib/api";
 import type {
   AvailabilityCheckResponse,
@@ -23,12 +23,31 @@ function formatCountdown(seconds: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
+function parseDuration(s: string): number {
+  const m = s.match(/^(\d+(?:\.\d+)?)\s*(h|min)$/);
+  if (!m) return 0;
+  return m[2] === "h" ? parseFloat(m[1]) * 60 : parseFloat(m[1]);
+}
+
+function formatDuration(minutes: number): string {
+  if (minutes >= 60) {
+    const h = minutes / 60;
+    return h % 1 === 0 ? `${h}h` : `${h.toFixed(1)}h`;
+  }
+  return `${minutes}min`;
+}
+
 interface UseBookingFlowOptions {
   resourceId: string;
   availabilityModel: string;
+  slotConfig?: Record<string, unknown> | null;
 }
 
-export function useBookingFlow({ resourceId, availabilityModel }: UseBookingFlowOptions) {
+export function useBookingFlow({ resourceId, availabilityModel, slotConfig }: UseBookingFlowOptions) {
+  const allowedDurations = useMemo(() => {
+    if (!slotConfig?.duration_options) return [];
+    return (slotConfig.duration_options as string[]).map(parseDuration);
+  }, [slotConfig]);
   const [step, setStep] = useState<Step>("dates");
   const [startDate, setStartDate] = useState("");
   const [startTime, setStartTime] = useState("09:00");
@@ -123,6 +142,20 @@ export function useBookingFlow({ resourceId, availabilityModel }: UseBookingFlow
       return false;
     }
 
+    // Client-side slot duration validation
+    if (allowedDurations.length > 0 && showTime && startTime && endTime) {
+      const start = new Date(`${startDate}T${startTime}`);
+      const end = new Date(`${hideEndDate ? startDate : endDate}T${endTime}`);
+      const durationMin = (end.getTime() - start.getTime()) / 60000;
+      if (durationMin > 0 && !allowedDurations.some((a) => Math.abs(durationMin - a) < 1)) {
+        const opts = slotConfig!.duration_options as string[];
+        toast.error(
+          `This resource is available in slots of ${opts.join(", ")}`
+        );
+        return false;
+      }
+    }
+
     setIsPending(true);
     try {
       const start = getStartDatetime();
@@ -141,8 +174,13 @@ export function useBookingFlow({ resourceId, availabilityModel }: UseBookingFlow
       setCheckPrice(check.price ?? 0);
       setStep("available");
       return true;
-    } catch {
-      toast.error("Failed to check availability");
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === "object" && "response" in err
+          ? (err as { response: { data: { detail?: { validation_errors?: string[] } } } }).response
+              ?.data?.detail?.validation_errors?.join(". ")
+          : null;
+      toast.error(msg ?? "Failed to check availability");
       return false;
     } finally {
       setIsPending(false);
@@ -268,6 +306,7 @@ export function useBookingFlow({ resourceId, availabilityModel }: UseBookingFlow
     setNotes,
     showTime,
     hideEndDate,
+    allowedDurations,
     checkPrice,
     holdPrice,
     countdown,

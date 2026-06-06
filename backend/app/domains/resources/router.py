@@ -11,6 +11,7 @@ from app.domains.resources.discovery import discover_addons
 from app.domains.resources.schemas import (
     AvailabilityCheckRequest,
     AvailabilityCheckResponse,
+    AvailabilitySlotResponse,
     HoldRequest,
     HoldResponse,
     PriceCalculateRequest,
@@ -24,9 +25,12 @@ from app.domains.resources.schemas import (
     ResourceTypeResponse,
     ResourceTypeUpdate,
     ResourceUpdate,
+    SchedulesCheckRequest,
+    SchedulesCheckResponse,
 )
 from app.domains.resources.service import (
     check_availability,
+    check_schedule_availability,
     create_assignment,
     create_resource,
     create_resource_type,
@@ -38,6 +42,7 @@ from app.domains.resources.service import (
     get_resource_type_by_slug,
     hold_resource,
     list_assignments,
+    list_availability_slots,
     list_resource_types,
     list_resources,
     release_resource_hold,
@@ -192,6 +197,23 @@ async def check_resource_availability(
     return AvailabilityCheckResponse(available=available, price=price)
 
 
+@resource_router.post(
+    "/{resource_id}/availability/check-schedules",
+    response_model=SchedulesCheckResponse,
+)
+async def check_resource_schedules_availability(
+    resource_id: uuid.UUID,
+    data: SchedulesCheckRequest,
+    session: AsyncSession = Depends(get_db),
+):
+    available, schedule_states = await check_schedule_availability(
+        session, resource_id,
+        [s.model_dump() for s in data.schedules],
+        data.availability_model,
+    )
+    return SchedulesCheckResponse(available=available, schedule_states=schedule_states)
+
+
 @resource_router.post("/{resource_id}/availability/hold", response_model=HoldResponse)
 async def hold_resource_availability(
     resource_id: uuid.UUID,
@@ -228,6 +250,32 @@ async def calculate_price(
     pricing = get_pricing_provider(rt.pricing_model)
     price = pricing.calculate(resource.base_price, data.start, data.end, rt.pricing_config)
     return {"price": price, "currency": resource.currency}
+
+
+# --- Admin: Availability Slots ---
+
+@resource_router.get("/availability/slots", response_model=list[AvailabilitySlotResponse])
+async def list_availability_slots_endpoint(
+    start_date: datetime = Query(...),
+    end_date: datetime = Query(...),
+    resource_type_id: uuid.UUID | None = Query(None),
+    resource_id: uuid.UUID | None = Query(None),
+    status: str | None = Query(None),
+    search: str | None = Query(None),
+    offset: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
+    session: AsyncSession = Depends(get_db),
+    _user: User = Depends(require_permission("resources:*:manage")),
+):
+    return await list_availability_slots(
+        session, start_date, end_date,
+        resource_type_id=resource_type_id,
+        resource_id=resource_id,
+        status_filter=status,
+        search=search,
+        offset=offset,
+        limit=limit,
+    )
 
 
 # --- Addon Discovery ---

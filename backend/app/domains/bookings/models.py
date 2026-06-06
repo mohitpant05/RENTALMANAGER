@@ -26,6 +26,7 @@ class Booking(SQLModel, table=True):
     hold_token: str | None = Field(default=None, max_length=100)
     cancellation_policy: dict | None = Field(default=None, sa_column=Column(JSONB))
     notes: str | None = Field(default=None, max_length=1000)
+    schedules: list[dict] | None = Field(default=None, sa_column=Column(JSONB))
     auto_confirm: bool = Field(default=True)
     parent_booking_id: uuid.UUID | None = Field(default=None, foreign_key="bookings.id", index=True)
     booking_group_id: uuid.UUID | None = Field(default=None, index=True)

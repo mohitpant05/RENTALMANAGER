@@ -108,10 +108,20 @@ async def create_booking(
         resource.base_price, data.start_time, data.end_time, resource_type.pricing_config
     )
 
+    if data.schedules:
+        if resource_type.pricing_model == "fixed_per_slot":
+            total_price = resource.base_price * len(data.schedules)
+        elif resource_type.pricing_model == "fixed_per_day":
+            total_price = resource.base_price * len(data.schedules)
+
     commission_config = await resolve_commission(session, data.resource_id)
     breakdown = calculate_breakdown(total_price, resource.currency, commission_config)
 
     cancellation_policy = resource_type.cancellation_defaults
+
+    schedules_dicts = None
+    if data.schedules:
+        schedules_dicts = [s.model_dump() for s in data.schedules]
 
     booking = Booking(
         resource_id=data.resource_id,
@@ -128,15 +138,18 @@ async def create_booking(
         hold_token=data.hold_token,
         cancellation_policy=cancellation_policy,
         notes=data.notes,
+        schedules=schedules_dicts,
         auto_confirm=data.auto_confirm,
     )
 
-    confirmed = await confirm_hold(session, data.hold_token, booking.id)
-    if not confirmed:
-        raise HTTPException(
-            status_code=409,
-            detail="Hold token invalid or expired — please create a new hold",
-        )
+    all_tokens = list({data.hold_token, *data.hold_tokens})
+    for token in all_tokens:
+        confirmed = await confirm_hold(session, token, booking.id)
+        if not confirmed:
+            raise HTTPException(
+                status_code=409,
+                detail="Hold token invalid or expired — please create a new hold",
+            )
 
     if data.auto_confirm:
         booking.status = "confirmed"
@@ -178,19 +191,50 @@ async def list_bookings(
     user_id: uuid.UUID | None = None,
     status_filter: str | None = None,
     resource_id: uuid.UUID | None = None,
+    search: str | None = None,
     offset: int = 0,
     limit: int = 50,
-) -> list[Booking]:
-    stmt = select(Booking)
+) -> tuple[list[Booking], int]:
+    from sqlalchemy import String, cast, func, or_
+    from app.core.auth.models import User
+
+    base = select(Booking)
+    count_base = select(func.count(Booking.id))
+    if search:
+        condition = or_(
+            cast(Booking.id, String).ilike(f"%{search}%"),
+            User.email.ilike(f"%{search}%"),
+            User.full_name.ilike(f"%{search}%"),
+            Resource.name.ilike(f"%{search}%"),
+        )
+        base = (
+            select(Booking)
+            .join(User, Booking.user_id == User.id)
+            .join(Resource, Booking.resource_id == Resource.id)
+            .where(condition)
+        )
+        count_base = (
+            select(func.count(Booking.id))
+            .join(User, Booking.user_id == User.id)
+            .join(Resource, Booking.resource_id == Resource.id)
+            .where(condition)
+        )
     if user_id:
-        stmt = stmt.where(Booking.user_id == user_id)
+        base = base.where(Booking.user_id == user_id)
+        count_base = count_base.where(Booking.user_id == user_id)
     if status_filter:
-        stmt = stmt.where(Booking.status == status_filter)
+        base = base.where(Booking.status == status_filter)
+        count_base = count_base.where(Booking.status == status_filter)
     if resource_id:
-        stmt = stmt.where(Booking.resource_id == resource_id)
-    stmt = stmt.offset(offset).limit(limit).order_by(Booking.created_at.desc())
-    result = await session.exec(stmt)
-    return list(result.all())
+        base = base.where(Booking.resource_id == resource_id)
+        count_base = count_base.where(Booking.resource_id == resource_id)
+
+    total_row = (await session.exec(count_base)).one()
+    total = total_row[0] if isinstance(total_row, (tuple, list)) else total_row
+
+    base = base.offset(offset).limit(limit).order_by(Booking.created_at.desc())
+    result = await session.exec(base)
+    return list(result.all()), total
 
 
 async def _load_booking_context(
@@ -386,10 +430,12 @@ async def add_addon_to_booking(
     addon_create = BookingCreate(
         resource_id=data.resource_id,
         hold_token=data.hold_token,
+        hold_tokens=data.hold_tokens,
         start_time=data.start_time,
         end_time=data.end_time,
         notes=data.notes,
         auto_confirm=data.auto_confirm,
+        schedules=data.schedules,
     )
     addon_booking = await create_booking(session, addon_create, primary.user_id, is_admin)
     addon_booking.booking_group_id = group_id

@@ -1,14 +1,18 @@
 "use client";
 
-import { use, useState } from "react";
+import { use, useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, CalendarDays, Loader2, Image as ImageIcon } from "lucide-react";
+import { ArrowLeft, CalendarDays, Loader2, Image as ImageIcon, PackagePlus } from "lucide-react";
 import Link from "next/link";
 import api from "@/lib/api";
 import { useAuthStore } from "@/lib/auth-store";
-import type { BookingResponse, ResourceResponse, AttachmentResponse } from "@/types/api";
+import type { BookingResponse, ResourceResponse, AttachmentResponse, ResourceTypeResponse } from "@/types/api";
 import { BookingTimeline } from "@/components/public/booking-timeline";
+import { AddonDiscoveredSection } from "@/components/public/addon-discovered-section";
+import type { AddonSelections } from "@/components/public/addon-discovered-section";
+import { useAddons } from "@/hooks/use-addons";
+import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -54,6 +58,8 @@ export default function CustomerBookingDetailPage({
   const authLoading = useAuthStore((s) => s.isLoading);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
+  const [addonSelections, setAddonSelections] = useState<AddonSelections>({});
+  const [addingAddons, setAddingAddons] = useState(false);
 
   if (!authLoading && !isAuthenticated) {
     router.push(`/login?returnUrl=/bookings/${id}`);
@@ -91,6 +97,46 @@ export default function CustomerBookingDetailPage({
     enabled: !!booking?.resource_id,
   });
 
+  const { data: resourceTypes } = useQuery({
+    queryKey: ["resource-types"],
+    queryFn: async () => {
+      const { data } = await api.get<ResourceTypeResponse[]>("/resource-types");
+      return data;
+    },
+  });
+
+  const { holdAndAddAddon } = useAddons();
+
+  const resourceType = resourceTypes?.find((t) => t.id === resource?.type_id);
+  const isPrimaryVenue = resourceType?.role === "primary";
+  const canAddAddons = isPrimaryVenue && (booking?.status === "pending" || booking?.status === "confirmed");
+
+  const handleAddAddons = useCallback(async () => {
+    const entries = Object.entries(addonSelections);
+    if (entries.length === 0) return;
+
+    setAddingAddons(true);
+    let successCount = 0;
+    const bookingStart = booking!.start_time;
+    const bookingEnd = booking!.end_time;
+
+    for (const [resourceId, item] of entries) {
+      const result = await holdAndAddAddon(
+        id, resourceId, bookingStart, bookingEnd,
+        item.schedules.length > 0 ? item.schedules : undefined,
+        item.availabilityModel,
+      );
+      if (result) successCount++;
+    }
+
+    setAddingAddons(false);
+    if (successCount > 0) {
+      toast.success(`${successCount} addon(s) added successfully`);
+      setAddonSelections({});
+      queryClient.invalidateQueries({ queryKey: ["booking", id] });
+    }
+  }, [addonSelections, booking, id, holdAndAddAddon, queryClient]);
+
   const cancelMutation = useMutation({
     mutationFn: async (reason: string) => {
       const { data } = await api.post<BookingResponse>(
@@ -111,7 +157,7 @@ export default function CustomerBookingDetailPage({
     },
   });
 
-  const imageUrl = attachments?.[0]?.url;
+  const imageUrl = attachments?.find((a) => a.download_url)?.download_url;
   const canCancel = booking?.status === "pending" || booking?.status === "confirmed";
 
   if (authLoading || isLoading) {
@@ -221,6 +267,38 @@ export default function CustomerBookingDetailPage({
           )}
         </CardContent>
       </Card>
+
+      {canAddAddons && (
+        <Card className="mb-6">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <PackagePlus className="h-5 w-5" />
+              Add Add-ons
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <AddonDiscoveredSection
+              resourceId={booking.resource_id}
+              startDate={booking.start_time.slice(0, 10)}
+              endDate={booking.end_time.slice(0, 10)}
+              onSelectionChange={setAddonSelections}
+            />
+            {Object.keys(addonSelections).length > 0 && (
+              <div className="mt-4">
+                <Separator className="mb-4" />
+                <Button
+                  className="w-full"
+                  onClick={handleAddAddons}
+                  disabled={addingAddons}
+                >
+                  {addingAddons && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Add Selected Add-ons
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <div className="flex gap-3">
         {canCancel && (

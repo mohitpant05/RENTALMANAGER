@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/select";
 import { ResourceTable } from "@/components/resources/resource-table";
 import { CreateResourceSheet } from "@/components/resources/create-resource-sheet";
+import { BookResourceSheet } from "@/components/bookings/book-resource-sheet";
 import { useCreateTypeSheetStore } from "@/lib/create-type-sheet-store";
 import { CreateTypeSheet } from "@/components/resources/create-type-sheet";
 
@@ -26,6 +27,7 @@ export default function ResourceTypePage() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editingResource, setEditingResource] =
     useState<ResourceResponse | null>(null);
+  const [bookResource, setBookResource] = useState<ResourceResponse | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [editTypeOpen, setEditTypeOpen] = useState(false);
@@ -159,7 +161,9 @@ export default function ResourceTypePage() {
           resources={filteredResources}
           typeId={currentType.id}
           typeSlug={typeSlug}
+          typeName={currentType.name}
           onEdit={openEdit}
+          onBook={(r) => setBookResource(r)}
         />
       )}
 
@@ -173,6 +177,15 @@ export default function ResourceTypePage() {
         typeName={currentType.name}
         attributeSchema={currentType.attribute_schema}
         editingResource={editingResource}
+      />
+
+      <BookResourceSheet
+        open={!!bookResource}
+        onClose={() => setBookResource(null)}
+        resourceId={bookResource?.id ?? ""}
+        resourceName={bookResource?.name ?? ""}
+        availabilityModel={currentType?.availability_model ?? "date_range"}
+        slotConfig={currentType?.slot_config}
       />
 
       <CreateTypeSheet

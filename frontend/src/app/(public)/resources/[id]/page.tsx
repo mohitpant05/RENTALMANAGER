@@ -1,8 +1,9 @@
 "use client";
 
-import { use } from "react";
+import { use, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { MapPin } from "lucide-react";
+import { ArrowLeft, MapPin } from "lucide-react";
+import { useRouter } from "next/navigation";
 import api from "@/lib/api";
 import type { ResourceResponse, ResourceTypeResponse } from "@/types/api";
 import { useAttachments } from "@/hooks/use-storage";
@@ -38,11 +39,14 @@ export default function ResourceDetailPage({
     },
   });
 
+  const router = useRouter();
   const { data: attachments } = useAttachments("resource", id);
+  const [selectedStart, setSelectedStart] = useState("");
+  const [selectedEnd, setSelectedEnd] = useState("");
 
   const resourceType = resourceTypes?.find((t) => t.id === resource?.type_id);
   const isPrimaryVenue = resourceType?.role === "primary";
-  const images = attachments?.map((a) => a.url) ?? [];
+  const images = attachments?.map((a) => a.download_url).filter((u): u is string => u !== null) ?? [];
   const attributes = resource?.attributes as Record<string, unknown> | null;
 
   if (resourceLoading) {
@@ -64,6 +68,13 @@ export default function ResourceDetailPage({
 
   return (
     <div className="mx-auto max-w-6xl px-3 sm:px-4 py-4 sm:py-6">
+      <button
+        onClick={() => router.back()}
+        className="mb-4 flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        Back
+      </button>
       <ImageCarousel images={images} alt={resource.name} />
 
       <div className="mt-4 sm:mt-6 grid gap-6 sm:gap-8 lg:grid-cols-[1fr_380px]">
@@ -129,7 +140,7 @@ export default function ResourceDetailPage({
           {isPrimaryVenue && (
             <>
               <Separator />
-              <AddonDiscoveredSection resourceId={id} startDate="" endDate="" />
+              <AddonDiscoveredSection resourceId={id} startDate={selectedStart} endDate={selectedEnd} />
             </>
           )}
 
@@ -140,6 +151,11 @@ export default function ResourceDetailPage({
           <BookingCard
             resource={resource}
             availabilityModel={resourceType?.availability_model ?? "date_range"}
+            slotConfig={resourceType?.slot_config}
+            onDatesSelected={(start, end) => {
+              setSelectedStart(start);
+              setSelectedEnd(end);
+            }}
           />
           {resource.support_contact_id && (
             <SupportContactCard userId={resource.support_contact_id} />

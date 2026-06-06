@@ -1,9 +1,12 @@
+import logging
 import uuid
 from datetime import UTC, datetime
 
 from fastapi import HTTPException, status
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
+
+logger = logging.getLogger("app.resources.service")
 
 from app.core.search.indexing import create_resource_type_index, delete_resource_type_index
 from app.core.search.sync import build_document, remove_resource, sync_resource
@@ -213,35 +216,64 @@ async def update_resource(
     user_id: uuid.UUID,
     is_admin: bool = False,
 ) -> Resource:
+    logger.info("RESOURCE UPDATE STEP 1/7: load resource id=%s", resource_id)
     resource = await get_resource(session, resource_id)
+    if resource is None:
+        logger.warning("RESOURCE UPDATE STEP 1/7 FAILED — resource %s not found", resource_id)
+        raise HTTPException(status_code=404, detail="Resource not found")
+    logger.info("RESOURCE UPDATE STEP 1/7 OK — type_id=%s owner_id=%s status=%s",
+                 resource.type_id, resource.owner_id, resource.status)
+
+    logger.info("RESOURCE UPDATE STEP 2/7: permission check (is_admin=%s, owner=%s, caller=%s)",
+                 is_admin, resource.owner_id, user_id)
     if not is_admin and resource.owner_id != user_id:
+        logger.warning("RESOURCE UPDATE STEP 2/7 FAILED — user %s is not admin and not owner",
+                        user_id)
         raise HTTPException(status_code=403, detail="Not the resource owner")
+    logger.info("RESOURCE UPDATE STEP 2/7 OK")
 
     if data.attributes is not None:
+        logger.info("RESOURCE UPDATE STEP 3/7: validating attributes against schema")
         rt = await get_resource_type(session, resource.type_id)
         if rt.attribute_schema:
             errors = validate_attributes(data.attributes, rt.attribute_schema)
             if errors:
+                logger.warning("RESOURCE UPDATE STEP 3/7 FAILED — validation errors: %s", errors)
                 raise HTTPException(
                     status_code=422, detail={"attribute_errors": errors}
                 )
+        logger.info("RESOURCE UPDATE STEP 3/7 OK")
+    else:
+        logger.info("RESOURCE UPDATE STEP 3/7: no attributes to validate (skipping)")
 
+    logger.info("RESOURCE UPDATE STEP 4/7: build update_data from request")
     update_data = data.model_dump(exclude_unset=True)
+    logger.info("RESOURCE UPDATE STEP 4/7: update fields: %s", list(update_data.keys()))
+
+    logger.info("RESOURCE UPDATE STEP 5/7: currency conversion if base_price present")
     if "base_price" in update_data:
         from app.core.currency.service import to_usd
         input_currency = update_data.pop("currency", None) or "USD"
+        logger.info("Converting base_price %s %s to USD", update_data["base_price"], input_currency)
         update_data["base_price"] = await to_usd(update_data["base_price"], input_currency)
         update_data["currency"] = "USD"
+        logger.info("Converted base_price to %s USD", update_data["base_price"])
     elif "currency" in update_data:
+        logger.info("currency present without base_price — popping currency field")
         update_data.pop("currency")
+
+    logger.info("RESOURCE UPDATE STEP 6/7: apply update_data and commit")
     for key, value in update_data.items():
+        logger.debug("  set %s = %s", key, value)
         setattr(resource, key, value)
     resource.updated_at = datetime.now(UTC)
     resource.version += 1
     session.add(resource)
     await session.commit()
     await session.refresh(resource)
+    logger.info("RESOURCE UPDATE STEP 6/7 OK — version=%s", resource.version)
 
+    logger.info("RESOURCE UPDATE STEP 7/7: sync to Meilisearch")
     tenant_ctx = get_current_tenant()
     if tenant_ctx:
         rt_for_sync = await get_resource_type(session, resource.type_id)
@@ -253,6 +285,9 @@ async def update_resource(
             rt_for_sync.slug, resource.created_at,
         )
         sync_resource(str(tenant_ctx.tenant.id), rt_for_sync.slug, doc)
+        logger.info("RESOURCE UPDATE STEP 7/7 OK — synced to meilisearch")
+    else:
+        logger.info("RESOURCE UPDATE STEP 7/7: no tenant context — skipping meilisearch sync")
 
     return resource
 
@@ -300,6 +335,42 @@ async def check_availability(
         price = pricing.calculate(resource.base_price, start, end, rt.pricing_config)
 
     return available, price
+
+
+async def check_schedule_availability(
+    session: AsyncSession,
+    resource_id: uuid.UUID,
+    schedules: list[dict],
+    availability_model: str,
+) -> tuple[bool, list[dict]]:
+    resource = await get_resource(session, resource_id)
+    provider = get_availability_provider(availability_model)
+    schedule_states: list[dict] = []
+    all_available = True
+
+    for item in schedules:
+        d = item["date"]
+        if availability_model == "time_slot":
+            st = item.get("start_time", "00:00")
+            et = item.get("end_time", "23:59")
+            start = datetime.strptime(f"{d} {st}", "%Y-%m-%d %H:%M").replace(tzinfo=UTC)
+            end = datetime.strptime(f"{d} {et}", "%Y-%m-%d %H:%M").replace(tzinfo=UTC)
+        else:
+            start = datetime.strptime(f"{d} 00:00", "%Y-%m-%d %H:%M").replace(tzinfo=UTC)
+            end = datetime.strptime(f"{d} 23:59", "%Y-%m-%d %H:%M").replace(tzinfo=UTC)
+
+        available = await provider.check(session, resource.id, start, end)
+        if not available:
+            all_available = False
+
+        schedule_states.append({
+            "date": d,
+            "start_time": item.get("start_time"),
+            "end_time": item.get("end_time"),
+            "available": available,
+        })
+
+    return all_available, schedule_states
 
 
 async def hold_resource(
@@ -428,3 +499,81 @@ async def update_assignment_priority(
     await session.commit()
     await session.refresh(assignment)
     return assignment
+
+
+async def list_availability_slots(
+    session: AsyncSession,
+    start_date: datetime,
+    end_date: datetime,
+    resource_type_id: uuid.UUID | None = None,
+    resource_id: uuid.UUID | None = None,
+    status_filter: str | None = None,
+    search: str | None = None,
+    offset: int = 0,
+    limit: int = 100,
+) -> list[dict]:
+    from sqlalchemy import or_, select as sa_select
+    from app.domains.bookings.models import Booking
+    from app.core.auth.models import User
+
+    stmt = (
+        sa_select(ResourceAvailability)
+        .join(Resource, ResourceAvailability.resource_id == Resource.id)
+        .join(ResourceType, Resource.type_id == ResourceType.id)
+        .outerjoin(Booking, ResourceAvailability.booking_id == Booking.id)
+        .outerjoin(User, Booking.user_id == User.id)
+        .where(
+            ResourceAvailability.start_time < end_date,
+            ResourceAvailability.end_time > start_date,
+        )
+    )
+    if search:
+        stmt = stmt.where(
+            or_(
+                Resource.name.ilike(f"%{search}%"),
+                User.full_name.ilike(f"%{search}%"),
+                User.email.ilike(f"%{search}%"),
+            )
+        )
+    if resource_type_id:
+        stmt = stmt.where(Resource.type_id == resource_type_id)
+    if resource_id:
+        stmt = stmt.where(ResourceAvailability.resource_id == resource_id)
+    if status_filter:
+        if status_filter == "active":
+            stmt = stmt.where(
+                ResourceAvailability.status == "held",
+                ResourceAvailability.hold_expires > datetime.now(UTC),
+            )
+        else:
+            stmt = stmt.where(ResourceAvailability.status == status_filter)
+
+    stmt = stmt.offset(offset).limit(limit).order_by(
+        Resource.name, ResourceAvailability.start_time
+    )
+    result = await session.exec(stmt)
+    rows = []
+    for ra in result.all():
+        resource = await session.get(Resource, ra.resource_id)
+        if resource is None:
+            continue
+        rt = await session.get(ResourceType, resource.type_id)
+        booking_user = None
+        if ra.booking_id:
+            booking = await session.get(Booking, ra.booking_id)
+            if booking:
+                booking_user = await session.get(User, booking.user_id)
+        rows.append({
+            "id": ra.id,
+            "resource_id": ra.resource_id,
+            "resource_name": resource.name,
+            "resource_type_name": rt.name if rt else "",
+            "start_time": ra.start_time,
+            "end_time": ra.end_time,
+            "status": ra.status,
+            "hold_token": ra.hold_token,
+            "hold_expires": ra.hold_expires,
+            "booking_id": ra.booking_id,
+            "customer_name": booking_user.full_name if booking_user else None,
+        })
+    return rows

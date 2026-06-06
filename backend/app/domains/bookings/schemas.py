@@ -1,19 +1,27 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel, field_validator
 
 from app.domains.bookings.state_machine import ALL_STATUSES
 
 
+class AddonSchedule(BaseModel):
+    date: date
+    start_time: str | None = None
+    end_time: str | None = None
+
+
 class BookingCreate(BaseModel):
     resource_id: uuid.UUID
     hold_token: str
+    hold_tokens: list[str] = []
     start_time: datetime
     end_time: datetime
     notes: str | None = None
     auto_confirm: bool = True
     user_id: uuid.UUID | None = None
+    schedules: list[AddonSchedule] | None = None
 
 
 class BookingCancel(BaseModel):
@@ -40,6 +48,7 @@ class BookingResponse(BaseModel):
     hold_token: str | None
     cancellation_policy: dict | None
     notes: str | None
+    schedules: list[dict] | None
     auto_confirm: bool
     parent_booking_id: uuid.UUID | None
     booking_group_id: uuid.UUID | None
@@ -82,6 +91,7 @@ class BookingItemCreate(BaseModel):
     end_time: datetime
     notes: str | None = None
     auto_confirm: bool = True
+    schedules: list[AddonSchedule] | None = None
 
 
 class BundledBookingCreate(BaseModel):
@@ -92,13 +102,20 @@ class BundledBookingCreate(BaseModel):
 class AddAddonRequest(BaseModel):
     resource_id: uuid.UUID
     hold_token: str
+    hold_tokens: list[str] = []
     start_time: datetime
     end_time: datetime
     notes: str | None = None
     auto_confirm: bool = True
+    schedules: list[AddonSchedule] | None = None
 
 
 class BookingGroupResponse(BaseModel):
     group_id: uuid.UUID
     primary: BookingResponse
     addons: list[BookingResponse]
+
+
+class PagedBookingResponse(BaseModel):
+    data: list[BookingResponse]
+    total: int

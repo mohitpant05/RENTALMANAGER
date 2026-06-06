@@ -1,3 +1,4 @@
+import logging
 import uuid
 
 from fastapi import Depends, HTTPException, status
@@ -10,6 +11,8 @@ from app.core.auth.jwt import decode_token
 from app.core.auth.models import Permission, RolePermission, User, UserRole
 from app.core.tenancy.context import get_current_tenant
 from app.database import get_db
+
+logger = logging.getLogger("app.auth.dependencies")
 
 _security = HTTPBearer()
 
@@ -44,41 +47,72 @@ async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(_security),
     session: AsyncSession = Depends(get_db),
 ) -> User:
+    logger.info("AUTH STEP 1/6: decode token")
     try:
         payload = decode_token(credentials.credentials)
-    except JWTError:
+        logger.info("AUTH STEP 1/6 OK — sub=%s tenant_id=%s type=%s exp=%s",
+                     payload.get("sub"), payload.get("tenant_id"),
+                     payload.get("type"), payload.get("exp"))
+    except JWTError as e:
+        logger.warning("AUTH STEP 1/6 FAILED — JWT decode error: %s", e)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token",
         )
 
+    logger.info("AUTH STEP 2/6: check token type == 'access'")
     if payload.get("type") != "access":
+        logger.warning("AUTH STEP 2/6 FAILED — token type is '%s'", payload.get("type"))
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token type",
         )
+    logger.info("AUTH STEP 2/6 OK")
 
+    logger.info("AUTH STEP 3/6: get tenant context")
     tenant_ctx = get_current_tenant()
     if tenant_ctx is None:
+        logger.warning("AUTH STEP 3/6 FAILED — no tenant context (middleware didn't set it)")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="No tenant context",
         )
+    logger.info("AUTH STEP 3/6 OK — tenant.id=%s tenant.slug=%s",
+                 tenant_ctx.tenant.id, tenant_ctx.tenant.slug)
 
+    logger.info("AUTH STEP 4/6: check tenant_id match (token=%s vs context=%s)",
+                 payload.get("tenant_id"), str(tenant_ctx.tenant.id))
     if payload.get("tenant_id") != str(tenant_ctx.tenant.id):
+        logger.warning("AUTH STEP 4/6 FAILED — token tenant_id=%s != context tenant.id=%s",
+                        payload.get("tenant_id"), tenant_ctx.tenant.id)
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Token tenant mismatch",
         )
+    logger.info("AUTH STEP 4/6 OK — tenant match")
 
     user_id = payload.get("sub")
+    logger.info("AUTH STEP 5/6: load user id=%s from DB (search_path=%s)",
+                 user_id, tenant_ctx.schema_name)
     result = await session.exec(select(User).where(User.id == user_id))
     user = result.first()
-    if user is None or not user.is_active:
+    if user is None:
+        logger.warning("AUTH STEP 5/6 FAILED — user %s not found in schema %s",
+                        user_id, tenant_ctx.schema_name)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found or inactive",
         )
+    if not user.is_active:
+        logger.warning("AUTH STEP 5/6 FAILED — user %s is inactive", user_id)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found or inactive",
+        )
+    logger.info("AUTH STEP 5/6 OK — user=%s email=%s user_type=%s",
+                 user.id, user.email, user.user_type)
+
+    logger.info("AUTH STEP 6/6 — authentication successful, returning user")
     return user
 
 

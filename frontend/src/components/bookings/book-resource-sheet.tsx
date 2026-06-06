@@ -21,6 +21,7 @@ interface BookResourceSheetProps {
   resourceId: string;
   resourceName: string;
   availabilityModel: string;
+  slotConfig?: Record<string, unknown> | null;
 }
 
 export function BookResourceSheet({
@@ -29,9 +30,10 @@ export function BookResourceSheet({
   resourceId,
   resourceName,
   availabilityModel,
+  slotConfig,
 }: BookResourceSheetProps) {
   const router = useRouter();
-  const flow = useBookingFlow({ resourceId, availabilityModel });
+  const flow = useBookingFlow({ resourceId, availabilityModel, slotConfig });
 
   function handleOpenChange(isOpen: boolean) {
     if (!isOpen) {
@@ -119,6 +121,13 @@ export function BookResourceSheet({
                     onChange={(e) => flow.setEndTime(e.target.value)}
                   />
                 </div>
+              )}
+
+              {flow.allowedDurations.length > 0 && flow.showTime && (
+                <p className="text-xs text-muted-foreground">
+                  Available slot durations:{" "}
+                  {(slotConfig?.duration_options as string[])?.join(", ")}
+                </p>
               )}
 
               <div className="space-y-2">

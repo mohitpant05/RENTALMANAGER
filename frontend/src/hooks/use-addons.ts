@@ -4,14 +4,17 @@ import { useCallback, useState } from "react";
 import api from "@/lib/api";
 import type {
   AddAddonRequest,
+  AddonSchedule,
   AddonTypeGroup,
   BookingGroupResponse,
   BookingItemCreate,
   BookingResponse,
   BundledBookingCreate,
+  HoldResponse,
   ResourceAssignmentCreate,
   ResourceAssignmentResponse,
   ResourceAssignmentUpdate,
+  SchedulesCheckResponse,
 } from "@/types/api";
 import { toast } from "sonner";
 
@@ -142,6 +145,88 @@ export function useAddons() {
     [],
   );
 
+  const checkSchedules = useCallback(
+    async (
+      resourceId: string,
+      schedules: AddonSchedule[],
+      availabilityModel: string,
+    ): Promise<boolean> => {
+      try {
+        const { data } = await api.post<SchedulesCheckResponse>(
+          `/resources/${resourceId}/availability/check-schedules`,
+          { schedules, availability_model: availabilityModel },
+        );
+        if (!data.available) {
+          const unavailable = data.schedule_states
+            .filter((s) => !s.available)
+            .map((s) => `${s.date} ${s.start_time ?? ""} ${s.end_time ?? ""}`.trim());
+          toast.error(`Unavailable slots: ${unavailable.join(", ")}`);
+        }
+        return data.available;
+      } catch {
+        toast.error("Failed to check schedule availability");
+        return false;
+      }
+    },
+    [],
+  );
+
+  const holdAndAddAddon = useCallback(
+    async (
+      bookingId: string,
+      resourceId: string,
+      startTime: string,
+      endTime: string,
+      schedules: AddonSchedule[] | undefined,
+      availabilityModel?: string,
+    ): Promise<BookingResponse | null> => {
+      setLoading(true);
+      try {
+        // For time_slot resources, create holds per schedule item instead of the full window
+        let holdTokens: string[] = [];
+        if (availabilityModel === "time_slot" && schedules && schedules.length > 0) {
+          for (const s of schedules) {
+            const slotStart = `${s.date}T${s.start_time ?? "00:00"}:00Z`;
+            const slotEnd = `${s.date}T${s.end_time ?? "23:59"}:00Z`;
+            const { data: hold } = await api.post<HoldResponse>(
+              `/resources/${resourceId}/availability/hold`,
+              { start: slotStart, end: slotEnd },
+            );
+            holdTokens.push(hold.hold_token);
+          }
+        } else {
+          const { data: hold } = await api.post<HoldResponse>(
+            `/resources/${resourceId}/availability/hold`,
+            { start: startTime, end: endTime },
+          );
+          holdTokens = [hold.hold_token];
+        }
+
+        const payload: AddAddonRequest = {
+          resource_id: resourceId,
+          hold_token: holdTokens[0],
+          hold_tokens: holdTokens.length > 1 ? holdTokens : undefined,
+          start_time: startTime,
+          end_time: endTime,
+          schedules,
+        };
+
+        const { data: booking } = await api.post<BookingResponse>(
+          `/bookings/${bookingId}/add-addon`,
+          payload,
+        );
+        toast.success("Addon added to booking!");
+        return booking;
+      } catch {
+        toast.error("Failed to add addon");
+        return null;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [],
+  );
+
   const deleteAssignment = useCallback(
     async (resourceId: string, assignmentId: string): Promise<boolean> => {
       setLoading(true);
@@ -164,6 +249,8 @@ export function useAddons() {
     discoverAddons,
     createBundledBooking,
     addAddonToBooking,
+    checkSchedules,
+    holdAndAddAddon,
     listAssignments,
     createAssignment,
     updateAssignment,

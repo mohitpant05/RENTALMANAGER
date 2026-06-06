@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from contextlib import asynccontextmanager
 
 import httpx
@@ -71,14 +72,33 @@ async def _sync_template_schemas():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print(f"Starting RentManager backend (debug={settings.debug})")
+    # Configure logging AFTER uvicorn's dictConfig so our handlers stick
+    _reconfigure_logging()
+    _log = logging.getLogger("app.main")
+    _log.info("Starting RentManager backend (debug=%s)", settings.debug)
     try:
         await _sync_template_schemas()
     except Exception as e:
-        print(f"Template schema sync skipped: {e}")
+        _log.warning("Template schema sync skipped: %s", e)
     yield
     await engine.dispose()
-    print("Shutting down RentManager backend")
+    _log.info("Shutting down RentManager backend")
+
+
+def _reconfigure_logging() -> None:
+    root = logging.getLogger()
+    # Remove existing uvicorn handlers to avoid duplicates
+    for h in list(root.handlers):
+        root.removeHandler(h)
+    handler = logging.StreamHandler()
+    handler.setLevel(logging.DEBUG)
+    handler.setFormatter(logging.Formatter(
+        "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+    ))
+    root.setLevel(logging.DEBUG)
+    root.addHandler(handler)
+    # Also ensure SQLAlchemy engine logs are visible
+    logging.getLogger("sqlalchemy.engine").setLevel(logging.INFO)
 
 
 app = FastAPI(

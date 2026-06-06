@@ -104,8 +104,9 @@ export default function CustomerBookingsPage() {
   });
 
   allAttachments?.forEach(({ resourceId, attachments }) => {
-    if (attachments.length > 0) {
-      resourceImages[resourceId] = attachments[0].url;
+    const first = attachments.find((a) => a.download_url);
+    if (first?.download_url) {
+      resourceImages[resourceId] = first.download_url;
     }
   });
 

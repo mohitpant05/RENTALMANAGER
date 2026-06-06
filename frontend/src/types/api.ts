@@ -211,6 +211,7 @@ export interface BookingResponse {
   hold_token: string | null;
   cancellation_policy: Record<string, unknown> | null;
   notes: string | null;
+  schedules: AddonSchedule[] | null;
   auto_confirm: boolean;
   parent_booking_id: string | null;
   booking_group_id: string | null;
@@ -251,6 +252,29 @@ export interface AvailabilityCheckRequest {
 export interface AvailabilityCheckResponse {
   available: boolean;
   price: number | null;
+}
+
+export interface ScheduleCheckItem {
+  date: string;
+  start_time?: string;
+  end_time?: string;
+}
+
+export interface SchedulesCheckRequest {
+  schedules: ScheduleCheckItem[];
+  availability_model: string;
+}
+
+export interface ScheduleState {
+  date: string;
+  start_time?: string;
+  end_time?: string;
+  available: boolean;
+}
+
+export interface SchedulesCheckResponse {
+  available: boolean;
+  schedule_states: ScheduleState[];
 }
 
 export interface HoldRequest {
@@ -352,27 +376,21 @@ export interface RatingSummaryResponse {
 }
 
 // ─── Storage ───────────────────────────────────────────
-
-export interface UploadUrlRequest {
-  filename: string;
-  content_type: string;
-  entity_type: string;
-  entity_id: string;
-}
-
-export interface UploadUrlResponse {
-  upload_url: string;
-  attachment_id: string;
-}
+// Uploads go through the backend proxy at POST /api/storage/upload.
+// No direct browser-to-MinIO access. Downloads use presigned URLs
+// (rewritten via MINIO_PUBLIC_ENDPOINT on the backend).
 
 export interface AttachmentResponse {
   id: string;
   entity_type: string;
   entity_id: string;
-  filename: string;
-  content_type: string;
-  size_bytes: number;
-  url: string;
+  file_path: string;
+  file_name: string;
+  mime_type: string;
+  file_size: number;
+  purpose: string;
+  uploaded_by: string;
+  download_url: string | null;
   created_at: string;
 }
 
@@ -432,6 +450,12 @@ export interface DomainCreate {
 
 // ─── Bundled Bookings & Addons ─────────────────────────
 
+export interface AddonSchedule {
+  date: string;
+  start_time?: string;
+  end_time?: string;
+}
+
 export interface BookingItemCreate {
   resource_id: string;
   hold_token: string;
@@ -439,6 +463,7 @@ export interface BookingItemCreate {
   end_time: string;
   notes?: string;
   auto_confirm?: boolean;
+  schedules?: AddonSchedule[];
 }
 
 export interface BundledBookingCreate {
@@ -449,10 +474,12 @@ export interface BundledBookingCreate {
 export interface AddAddonRequest {
   resource_id: string;
   hold_token: string;
+  hold_tokens?: string[];
   start_time: string;
   end_time: string;
   notes?: string;
   auto_confirm?: boolean;
+  schedules?: AddonSchedule[];
 }
 
 export interface BookingGroupResponse {
@@ -479,6 +506,9 @@ export interface AddonResourceItem {
 export interface AddonTypeGroup {
   type_name: string;
   type_slug: string;
+  availability_model: string;
+  pricing_model: string;
+  slot_config: Record<string, unknown> | null;
   resources: AddonResourceItem[];
 }
 
@@ -492,6 +522,20 @@ export interface ResourceAssignmentResponse {
   assigned_by: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface AvailabilitySlotResponse {
+  id: string;
+  resource_id: string;
+  resource_name: string;
+  resource_type_name: string;
+  start_time: string;
+  end_time: string;
+  status: string;
+  hold_token: string | null;
+  hold_expires: string | null;
+  booking_id: string | null;
+  customer_name: string | null;
 }
 
 export interface ResourceAssignmentCreate {

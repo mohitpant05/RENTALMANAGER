@@ -154,6 +154,9 @@ async def discover_addons(
             result[addon_type.slug] = {
                 "type_name": addon_type.name,
                 "type_slug": addon_type.slug,
+                "availability_model": addon_type.availability_model,
+                "pricing_model": addon_type.pricing_model,
+                "slot_config": addon_type.slot_config,
                 "resources": items,
             }
 

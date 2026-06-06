@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { MoreHorizontal, Pencil, Trash2, ExternalLink, CheckCircle, XCircle, Archive } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
@@ -19,6 +20,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ResourceDetailSheet } from "@/components/resources/resource-detail-sheet";
 import api from "@/lib/api";
 import type { ResourceResponse } from "@/types/api";
 import { toast } from "sonner";
@@ -37,16 +39,21 @@ interface ResourceTableProps {
   resources: ResourceResponse[];
   typeId: string;
   typeSlug: string;
+  typeName: string;
   onEdit: (resource: ResourceResponse) => void;
+  onBook: (resource: ResourceResponse) => void;
 }
 
 export function ResourceTable({
   resources,
   typeId,
   typeSlug,
+  typeName,
   onEdit,
+  onBook,
 }: ResourceTableProps) {
   const queryClient = useQueryClient();
+  const [detailResource, setDetailResource] = useState<ResourceResponse | null>(null);
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -86,101 +93,118 @@ export function ResourceTable({
   }
 
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Name</TableHead>
-          <TableHead>Status</TableHead>
-          <TableHead>Price</TableHead>
-          <TableHead>Rating</TableHead>
-          <TableHead>Created</TableHead>
-          <TableHead className="w-[50px]" />
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {resources.map((r) => (
-          <TableRow key={r.id}>
-            <TableCell className="font-medium">
-              <Link
-                href={`/admin/resources/${typeSlug}/${r.id}`}
-                className="hover:underline"
-              >
-                {r.name}
-              </Link>
-            </TableCell>
-            <TableCell>
-              <Badge variant={STATUS_VARIANT[r.status] ?? "muted"}>
-                {r.status}
-              </Badge>
-            </TableCell>
-            <TableCell>
-              {r.base_price.toFixed(2)} {r.currency}
-            </TableCell>
-            <TableCell>
-              {r.rating_count > 0
-                ? `${r.rating_avg.toFixed(1)} (${r.rating_count})`
-                : "—"}
-            </TableCell>
-            <TableCell className="text-muted-foreground">
-              {new Date(r.created_at).toLocaleDateString()}
-            </TableCell>
-          <TableCell>
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={<Button variant="ghost" size="icon" className="h-8 w-8" />}
-              >
-                <MoreHorizontal className="h-4 w-4" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem
-                  render={
-                    <Link href={`/admin/resources/${typeSlug}/${r.id}`}>
-                      <ExternalLink className="mr-2 h-4 w-4" />
-                      View
-                    </Link>
-                  }
-                />
-                <DropdownMenuItem onClick={() => onEdit(r)}>
-                  <Pencil className="mr-2 h-4 w-4" />
-                  Edit
-                </DropdownMenuItem>
-                {r.status !== "active" && (
-                  <DropdownMenuItem
-                    onClick={() => statusMutation.mutate({ id: r.id, status: "active" })}
-                  >
-                    <CheckCircle className="mr-2 h-4 w-4" />
-                    Activate
-                  </DropdownMenuItem>
-                )}
-                {r.status === "active" && (
-                  <DropdownMenuItem
-                    onClick={() => statusMutation.mutate({ id: r.id, status: "inactive" })}
-                  >
-                    <XCircle className="mr-2 h-4 w-4" />
-                    Deactivate
-                  </DropdownMenuItem>
-                )}
-                {r.status !== "archived" && (
-                  <DropdownMenuItem
-                    onClick={() => statusMutation.mutate({ id: r.id, status: "archived" })}
-                  >
-                    <Archive className="mr-2 h-4 w-4" />
-                    Archive
-                  </DropdownMenuItem>
-                )}
-                <DropdownMenuItem
-                  onClick={() => deleteMutation.mutate(r.id)}
-                  className="text-destructive focus:text-destructive"
-                >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Delete
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </TableCell>
+    <>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Name</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead>Price</TableHead>
+            <TableHead>Rating</TableHead>
+            <TableHead>Created</TableHead>
+            <TableHead className="w-[50px]" />
           </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+        </TableHeader>
+        <TableBody>
+          {resources.map((r) => (
+            <TableRow
+              key={r.id}
+              className="cursor-pointer"
+              onClick={() => setDetailResource(r)}
+            >
+              <TableCell className="font-medium hover:underline">
+                {r.name}
+              </TableCell>
+              <TableCell>
+                <Badge variant={STATUS_VARIANT[r.status] ?? "muted"}>
+                  {r.status}
+                </Badge>
+              </TableCell>
+              <TableCell>
+                {r.base_price.toFixed(2)} {r.currency}
+              </TableCell>
+              <TableCell>
+                {r.rating_count > 0
+                  ? `${r.rating_avg.toFixed(1)} (${r.rating_count})`
+                  : "—"}
+              </TableCell>
+              <TableCell className="text-muted-foreground">
+                {new Date(r.created_at).toLocaleDateString()}
+              </TableCell>
+            <TableCell onClick={(e) => e.stopPropagation()}>
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={<Button variant="ghost" size="icon" className="h-8 w-8" />}
+                >
+                  <MoreHorizontal className="h-4 w-4" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    render={
+                      <Link href={`/admin/resources/${typeSlug}/${r.id}`}>
+                        <ExternalLink className="mr-2 h-4 w-4" />
+                        Full Page
+                      </Link>
+                    }
+                  />
+                  <DropdownMenuItem onClick={() => onEdit(r)}>
+                    <Pencil className="mr-2 h-4 w-4" />
+                    Edit
+                  </DropdownMenuItem>
+                  {r.status !== "active" && (
+                    <DropdownMenuItem
+                      onClick={() => statusMutation.mutate({ id: r.id, status: "active" })}
+                    >
+                      <CheckCircle className="mr-2 h-4 w-4" />
+                      Activate
+                    </DropdownMenuItem>
+                  )}
+                  {r.status === "active" && (
+                    <DropdownMenuItem
+                      onClick={() => statusMutation.mutate({ id: r.id, status: "inactive" })}
+                    >
+                      <XCircle className="mr-2 h-4 w-4" />
+                      Deactivate
+                    </DropdownMenuItem>
+                  )}
+                  {r.status !== "archived" && (
+                    <DropdownMenuItem
+                      onClick={() => statusMutation.mutate({ id: r.id, status: "archived" })}
+                    >
+                      <Archive className="mr-2 h-4 w-4" />
+                      Archive
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem
+                    onClick={() => deleteMutation.mutate(r.id)}
+                    className="text-destructive focus:text-destructive"
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+
+      <ResourceDetailSheet
+        resource={detailResource!}
+        typeSlug={typeSlug}
+        typeName={typeName}
+        open={!!detailResource}
+        onClose={() => setDetailResource(null)}
+        onEdit={(r) => {
+          setDetailResource(null);
+          onEdit(r);
+        }}
+        onBook={(r) => {
+          setDetailResource(null);
+          onBook(r);
+        }}
+      />
+    </>
   );
 }

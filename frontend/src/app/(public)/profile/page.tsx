@@ -1,12 +1,14 @@
 "use client";
 
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/lib/auth-store";
 import { useMyReviews } from "@/hooks/use-reviews";
 import { ProfileForm } from "@/components/public/profile-form";
 import { StarRating } from "@/components/reviews/star-rating";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Lock } from "lucide-react";
+import { Lock, LogOut } from "lucide-react";
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -14,10 +16,11 @@ export default function ProfilePage() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const isLoading = useAuthStore((s) => s.isLoading);
 
-  if (!isLoading && !isAuthenticated) {
-    router.push("/login?returnUrl=/profile");
-    return null;
-  }
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      router.push("/login?returnUrl=/profile");
+    }
+  }, [isLoading, isAuthenticated, router]);
 
   const { data: reviews, isLoading: reviewsLoading } = useMyReviews({ limit: 20 });
 
@@ -31,9 +34,20 @@ export default function ProfilePage() {
 
   if (!user) return null;
 
+  function handleLogout() {
+    useAuthStore.getState().clearAuth();
+    router.push("/");
+  }
+
   return (
     <div className="mx-auto max-w-2xl px-4 py-6 space-y-6">
-      <h1 className="text-2xl font-bold">Profile</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Profile</h1>
+        <Button variant="outline" size="sm" onClick={handleLogout}>
+          <LogOut className="mr-1.5 h-4 w-4" />
+          Log Out
+        </Button>
+      </div>
 
       <ProfileForm user={user} />
 
