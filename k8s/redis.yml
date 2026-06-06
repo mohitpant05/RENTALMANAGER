@@ -36,7 +36,7 @@ spec:
       containers:
         - name: redis
           image: redis:7-alpine
-          command: ["redis-server", "--appendonly", "yes", "--protected-mode", "yes"]
+          command: ["redis-server", "--appendonly", "yes", "--protected-mode", "no"]
           ports:
             - containerPort: 6379
           securityContext:

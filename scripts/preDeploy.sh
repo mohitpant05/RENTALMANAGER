@@ -25,38 +25,32 @@ case "$ARCH" in
   aarch64|arm64) ARCH="arm64" ;;
 esac
 
+LOCAL_BIN="${LOCAL_BIN:-$HOME/.local/bin}"
+mkdir -p "$LOCAL_BIN"
+
 install_kind() {
-  warn "Installing kind..."
-  if [ "$OS" = "darwin" ]; then
-    if command -v brew &>/dev/null; then
-      brew install kind
-    else
-      curl -fsSL "https://kind.sigs.k8s.io/dl/latest/kind-darwin-${ARCH}" -o /tmp/kind
-      chmod +x /tmp/kind && sudo mv /tmp/kind /usr/local/bin/kind
-    fi
+  warn "Installing kind to $LOCAL_BIN..."
+  if [ "$OS" = "darwin" ] && command -v brew &>/dev/null && [ -w "$(brew --prefix)" ]; then
+    brew install kind
   else
-    curl -fsSL "https://kind.sigs.k8s.io/dl/latest/kind-linux-${ARCH}" -o /tmp/kind
-    chmod +x /tmp/kind && sudo mv /tmp/kind /usr/local/bin/kind
+    local url="https://kind.sigs.k8s.io/dl/latest/kind-${OS}-${ARCH}"
+    curl -fsSL "$url" -o "$LOCAL_BIN/kind"
+    chmod +x "$LOCAL_BIN/kind"
   fi
-  ok "kind installed ($(kind version))"
+  ok "kind installed ($(kind version 2>/dev/null || echo "add $LOCAL_BIN to your PATH"))"
 }
 
 install_kubectl() {
-  warn "Installing kubectl..."
-  if [ "$OS" = "darwin" ]; then
-    if command -v brew &>/dev/null; then
-      brew install kubectl
-    else
-      LATEST="$(curl -fsL https://dl.k8s.io/release/stable.txt)"
-      curl -fsSL "https://dl.k8s.io/release/${LATEST}/bin/darwin/${ARCH}/kubectl" -o /tmp/kubectl
-      chmod +x /tmp/kubectl && sudo mv /tmp/kubectl /usr/local/bin/kubectl
-    fi
+  warn "Installing kubectl to $LOCAL_BIN..."
+  if [ "$OS" = "darwin" ] && command -v brew &>/dev/null && [ -w "$(brew --prefix)" ]; then
+    brew install kubectl
   else
     LATEST="$(curl -fsL https://dl.k8s.io/release/stable.txt)"
-    curl -fsSL "https://dl.k8s.io/release/${LATEST}/bin/linux/${ARCH}/kubectl" -o /tmp/kubectl
-    chmod +x /tmp/kubectl && sudo mv /tmp/kubectl /usr/local/bin/kubectl
+    local url="https://dl.k8s.io/release/${LATEST}/bin/${OS}/${ARCH}/kubectl"
+    curl -fsSL "$url" -o "$LOCAL_BIN/kubectl"
+    chmod +x "$LOCAL_BIN/kubectl"
   fi
-  ok "kubectl installed ($(kubectl version --client 2>/dev/null | head -1))"
+  ok "kubectl installed ($(kubectl version --client 2>/dev/null | head -1 || echo "add $LOCAL_BIN to your PATH"))"
 }
 
 command -v kind &>/dev/null || install_kind
@@ -91,11 +85,6 @@ if ! docker info &>/dev/null; then
   fi
 fi
 
-# Check port 80 availability
-if lsof -i :80 -P -n 2>/dev/null | grep -q LISTEN; then
-  fail "Port 80 is already in use. Free it first (e.g., sudo lsof -i :80 to find the process)."
-fi
-
 ok "All prerequisites satisfied"
 
 # ─── Kind cluster ─────────────────────────────────────────────────
@@ -104,6 +93,10 @@ step "Kind cluster: $CLUSTER_NAME"
 if kind get clusters 2>/dev/null | grep -q "^$CLUSTER_NAME$"; then
   warn "Cluster '$CLUSTER_NAME' already exists — skipping creation"
 else
+  # Only check port 80 when creating a new cluster (existing cluster owns it)
+  if lsof -i :80 -P -n 2>/dev/null | grep -q LISTEN; then
+    fail "Port 80 is already in use (not by our cluster). Free it first."
+  fi
   info "Creating cluster with port 80/443 mapping..."
   cat > /tmp/kind-rm-config.yml <<EOF
 kind: Cluster
@@ -182,25 +175,22 @@ for f in backend.yml celery.yml frontend.yml ingress.yml; do
   kubectl apply -f "$K8S_DIR/$f"
 done
 
-info "Waiting for Backend..."
-kubectl rollout status deployment/backend -n "$NAMESPACE" --timeout=180s
-info "Waiting for Celery worker..."
-kubectl rollout status deployment/celery-worker -n "$NAMESPACE" --timeout=120s
-info "Waiting for Frontend..."
-kubectl rollout status deployment/frontend -n "$NAMESPACE" --timeout=120s
-ok "All application pods ready"
-
-# ─── Restart deployments to pick up fresh images (re-deploy) ──────
-step "Rolling restart (picks up freshly loaded images)"
+# Force restart so all pods pick up the freshly loaded images
+# (works on fresh deploy too — pods don't exist yet, restart is a no-op)
+step "Restarting deployments to pick up fresh images"
 for deploy in backend celery-worker celery-beat frontend; do
   if kubectl get deployment "$deploy" -n "$NAMESPACE" &>/dev/null; then
     kubectl rollout restart "deployment/$deploy" -n "$NAMESPACE"
   fi
 done
-kubectl rollout status deployment/backend -n "$NAMESPACE" --timeout=180s
-kubectl rollout status deployment/celery-worker -n "$NAMESPACE" --timeout=120s
-kubectl rollout status deployment/frontend -n "$NAMESPACE" --timeout=120s
-ok "All deployments running fresh images"
+
+info "Waiting for Backend..."
+kubectl rollout status deployment/backend -n "$NAMESPACE" --timeout=300s
+info "Waiting for Celery worker..."
+kubectl rollout status deployment/celery-worker -n "$NAMESPACE" --timeout=180s
+info "Waiting for Frontend..."
+kubectl rollout status deployment/frontend -n "$NAMESPACE" --timeout=180s
+ok "All application pods ready"
 
 # ─── Run seed data ────────────────────────────────────────────────
 step "Seed data"

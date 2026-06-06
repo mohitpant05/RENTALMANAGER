@@ -49,10 +49,22 @@ spec:
             readOnlyRootFilesystem: false
             capabilities:
               drop: ["ALL"]
+          resources:
+            limits:
+              memory: "512Mi"
       containers:
         - name: backend
           image: rentmanager-backend:latest
           imagePullPolicy: IfNotPresent
+          command:
+            - uvicorn
+            - app.main:app
+            - --host
+            - 0.0.0.0
+            - --port
+            - "8000"
+            - --workers
+            - "2"
           ports:
             - containerPort: 8000
           envFrom:
@@ -79,8 +91,8 @@ spec:
             periodSeconds: 15
           resources:
             requests:
-              memory: "256Mi"
+              memory: "512Mi"
               cpu: "250m"
             limits:
-              memory: "512Mi"
-              cpu: "500m"
+              memory: "1Gi"
+              cpu: "1"
