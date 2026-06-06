@@ -1,0 +1,43 @@
+name: Deploy Live
+
+on:
+  push:
+    branches: [live]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install sshpass
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
+
+      - name: Push code and deploy
+        env:
+          SSH_HOST: ${{ secrets.LIVE_SSH_HOST }}
+          SSH_USER: ${{ secrets.LIVE_SSH_USER }}
+          SSH_PASSWORD: ${{ secrets.LIVE_SSH_PASSWORD }}
+        run: |
+          # Archive the repo (minus git history + caches) for fast transfer
+          tar czf /tmp/rm-deploy.tar.gz \
+            --exclude=.git --exclude=node_modules --exclude=.next \
+            --exclude=__pycache__ --exclude=.pytest_cache \
+            -C "${{ github.workspace }}" .
+
+          # Copy archive + preDeploy script to remote
+          sshpass -p "$SSH_PASSWORD" ssh -o StrictHostKeyChecking=no \
+            "$SSH_USER@$SSH_HOST" "mkdir -p ~/RM"
+          sshpass -p "$SSH_PASSWORD" scp -o StrictHostKeyChecking=no \
+            /tmp/rm-deploy.tar.gz "$SSH_USER@$SSH_HOST":~/RM/
+
+          # Remote: extract, run preDeploy
+          sshpass -p "$SSH_PASSWORD" ssh -o StrictHostKeyChecking=no \
+            "$SSH_USER@$SSH_HOST" "
+            set -euo pipefail
+            cd ~/RM
+            tar xzf rm-deploy.tar.gz && rm -f rm-deploy.tar.gz
+            chmod +x scripts/preDeploy.sh
+            ./scripts/preDeploy.sh
+          "
