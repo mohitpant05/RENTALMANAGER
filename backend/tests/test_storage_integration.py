@@ -98,6 +98,25 @@ async def test_delete_attachment(client: AsyncClient, admin_headers: dict):
 
 
 @pytest.mark.asyncio
+async def test_list_attachments_without_auth(client: AsyncClient, admin_headers: dict):
+    entity_id = str(uuid.uuid4())
+
+    await client.post(
+        "/api/storage/upload",
+        files=_upload_payload(entity_id, "public.jpg"),
+        headers=admin_headers,
+    )
+
+    resp = await client.get(
+        f"/api/storage/attachments?entity_type=resource&entity_id={entity_id}",
+    )
+    assert resp.status_code == 200
+    attachments = resp.json()
+    assert len(attachments) >= 1
+    assert attachments[0]["file_name"] == "public.jpg"
+
+
+@pytest.mark.asyncio
 async def test_upload_without_auth_fails(client: AsyncClient):
     entity_id = str(uuid.uuid4())
     resp = await client.post(

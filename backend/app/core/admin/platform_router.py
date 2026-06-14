@@ -311,6 +311,12 @@ async def upsert_setting(
 @router.post("/validate-key")
 async def validate_secret_key(data: ValidateKeyRequest):
     settings = _get_settings()
+    import logging
+    logging.getLogger("app.platform").warning(
+        "validate-key: received=%r expected=%r match=%s",
+        data.key, settings.superadmin_secret_key,
+        data.key == settings.superadmin_secret_key,
+    )
     if data.key != settings.superadmin_secret_key:
         raise HTTPException(status_code=404, detail="Not found")
     return {"valid": True}

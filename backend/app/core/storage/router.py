@@ -102,7 +102,6 @@ async def list_entity_attachments(
     entity_type: str = Query(...),
     entity_id: uuid.UUID = Query(...),
     session: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
 ):
     tenant_ctx = get_current_tenant()
     if tenant_ctx is None:

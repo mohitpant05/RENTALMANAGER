@@ -64,6 +64,7 @@ api.interceptors.response.use(
 
     const refreshToken = useAuthStore.getState().getRefreshToken();
     if (!refreshToken) {
+      processQueue(error, null);
       useAuthStore.getState().clearAuth();
       isRefreshing = false;
       return Promise.reject(error);
