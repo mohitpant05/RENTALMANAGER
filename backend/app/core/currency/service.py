@@ -18,7 +18,7 @@ SUPPORTED_CURRENCIES = [
     "MYR", "PHP", "IDR", "VND", "EGP", "NGN", "KES", "PKR",
 ]
 
-API_URL = "https://api.exchangerate.host/latest"
+API_URL = "https://api.frankfurter.dev/v1/latest"
 
 
 async def fetch_rates(base: str = "USD") -> dict[str, float]:

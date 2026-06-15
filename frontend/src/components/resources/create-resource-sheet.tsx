@@ -296,6 +296,7 @@ export function CreateResourceSheet({
                 type="number"
                 step="0.01"
                 min="0"
+                onKeyDown={(e) => { if (e.key === "-") e.preventDefault(); }}
                 {...register("base_price", { valueAsNumber: true })}
               />
               {errors.base_price && (
@@ -386,11 +387,13 @@ export function CreateResourceSheet({
                     <Input
                       type="number"
                       placeholder="0"
+                      min="0"
+                      onKeyDown={(e) => { if (e.key === "-") e.preventDefault(); }}
                       value={(getAttributeValue(attr) as number) ?? ""}
                       onChange={(e) =>
                         handleAttributeChange(
                           attr.name,
-                          e.target.value ? parseFloat(e.target.value) : undefined
+                          e.target.value ? Math.max(0, parseFloat(e.target.value)) : undefined
                         )
                       }
                     />

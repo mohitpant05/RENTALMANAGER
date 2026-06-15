@@ -54,7 +54,7 @@ export default function BookingSlotsPage() {
 function BookingSlotsContent() {
   const today = new Date().toISOString().split("T")[0];
   const [selectedDate, setSelectedDate] = useState(today);
-  const [selectedTypeId, setSelectedTypeId] = useState<string>("");
+  const [selectedTypeId, setSelectedTypeId] = useState<string>("all");
   const [searchInput, setSearchInput] = useState("");
 
   const { data: types } = useQuery({
@@ -79,7 +79,7 @@ function BookingSlotsContent() {
         end_date: endDate,
         limit: "500",
       };
-      if (selectedTypeId) params.resource_type_id = selectedTypeId;
+      if (selectedTypeId && selectedTypeId !== "all") params.resource_type_id = selectedTypeId;
       if (search) params.search = search;
       const { data } = await api.get<AvailabilitySlotResponse[]>(
         "/resources/availability/slots",
@@ -151,7 +151,7 @@ function BookingSlotsContent() {
             <SelectValue placeholder="All types" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All types</SelectItem>
+            <SelectItem value="all">All types</SelectItem>
             {types?.map((t) => (
               <SelectItem key={t.id} value={t.id}>
                 {t.name}

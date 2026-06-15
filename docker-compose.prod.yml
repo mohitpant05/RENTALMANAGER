@@ -230,6 +230,8 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       target: prod
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
     container_name: rm-frontend
     environment:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}

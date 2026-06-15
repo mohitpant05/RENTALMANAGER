@@ -145,6 +145,32 @@ async def list_all_resources(
     )
 
 
+# --- Admin: Availability Slots (must be before /{resource_id} to avoid path conflict) ---
+
+@resource_router.get("/availability/slots", response_model=list[AvailabilitySlotResponse])
+async def list_availability_slots_endpoint(
+    start_date: datetime = Query(...),
+    end_date: datetime = Query(...),
+    resource_type_id: uuid.UUID | None = Query(None),
+    resource_id: uuid.UUID | None = Query(None),
+    status: str | None = Query(None),
+    search: str | None = Query(None),
+    offset: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
+    session: AsyncSession = Depends(get_db),
+    _user: User = Depends(require_permission("resources:*:manage")),
+):
+    return await list_availability_slots(
+        session, start_date, end_date,
+        resource_type_id=resource_type_id,
+        resource_id=resource_id,
+        status_filter=status,
+        search=search,
+        offset=offset,
+        limit=limit,
+    )
+
+
 @resource_router.get("/{resource_id}", response_model=ResourceResponse)
 async def get_one_resource(
     resource_id: uuid.UUID,
@@ -250,32 +276,6 @@ async def calculate_price(
     pricing = get_pricing_provider(rt.pricing_model)
     price = pricing.calculate(resource.base_price, data.start, data.end, rt.pricing_config)
     return {"price": price, "currency": resource.currency}
-
-
-# --- Admin: Availability Slots ---
-
-@resource_router.get("/availability/slots", response_model=list[AvailabilitySlotResponse])
-async def list_availability_slots_endpoint(
-    start_date: datetime = Query(...),
-    end_date: datetime = Query(...),
-    resource_type_id: uuid.UUID | None = Query(None),
-    resource_id: uuid.UUID | None = Query(None),
-    status: str | None = Query(None),
-    search: str | None = Query(None),
-    offset: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=500),
-    session: AsyncSession = Depends(get_db),
-    _user: User = Depends(require_permission("resources:*:manage")),
-):
-    return await list_availability_slots(
-        session, start_date, end_date,
-        resource_type_id=resource_type_id,
-        resource_id=resource_id,
-        status_filter=status,
-        search=search,
-        offset=offset,
-        limit=limit,
-    )
 
 
 # --- Addon Discovery ---

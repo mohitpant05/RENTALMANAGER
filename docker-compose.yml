@@ -1,4 +1,6 @@
 services:
+  # ─── Shared Infrastructure ───────────────────────────────────────────
+
   postgres:
     image: postgres:17-alpine
     container_name: rm-postgres
@@ -72,60 +74,31 @@ services:
     networks:
       - rentmanager
 
+  # ─── Traefik (port 80 → prod, port 8080 → dev) ─────────────────────
+
   traefik:
     image: traefik:v3.6
     container_name: rm-traefik
     ports:
       - "80:80"
       - "8080:8080"
+      - "8181:8181"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./traefik:/etc/traefik:ro
     depends_on:
-      backend:
+      backend-prod:
         condition: service_started
-      frontend:
+      frontend-prod:
+        condition: service_started
+      backend-dev:
+        condition: service_started
+      frontend-dev:
         condition: service_started
     networks:
       - rentmanager
 
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: rm-backend
-    environment:
-      DATABASE_URL: "postgresql+asyncpg://${POSTGRES_USER:-rentmanager}:${POSTGRES_PASSWORD:-rentmanager_dev}@postgres:5432/${POSTGRES_DB:-rentmanager}"
-      DATABASE_URL_SYNC: "postgresql://${POSTGRES_USER:-rentmanager}:${POSTGRES_PASSWORD:-rentmanager_dev}@postgres:5432/${POSTGRES_DB:-rentmanager}"
-      REDIS_URL: "redis://redis:6379/0"
-      MEILI_URL: "http://meilisearch:7700"
-      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-masterkey_dev}
-      MINIO_ENDPOINT: "minio:9000"
-      MINIO_PUBLIC_ENDPOINT: "http://localhost:9000"
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin_dev}
-      SECRET_KEY: ${SECRET_KEY:-dev-secret-key-change-in-production}
-      SUPERADMIN_SECRET_KEY: ${SUPERADMIN_SECRET_KEY:-change-me-in-production-min-32-chars!!}
-      ALLOWED_SUPERADMIN_IPS: ${ALLOWED_SUPERADMIN_IPS:-}
-      PYTHONUNBUFFERED: "1"
-    ports:
-      - "${BACKEND_PORT:-8000}:8000"
-    volumes:
-      - ./backend:/app
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      meilisearch:
-        condition: service_healthy
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.backend.rule=PathPrefix(`/api`)"
-      - "traefik.http.routers.backend.entrypoints=web"
-      - "traefik.http.services.backend.loadbalancer.server.port=8000"
-    networks:
-      - rentmanager
+  # ─── Shared Workers ─────────────────────────────────────────────────
 
   celery-worker:
     build:
@@ -156,36 +129,136 @@ services:
     container_name: rm-celery-beat
     command: celery -A app.celery_app beat --loglevel=info
     environment:
+      DATABASE_URL: "postgresql+asyncpg://${POSTGRES_USER:-rentmanager}:${POSTGRES_PASSWORD:-rentmanager_dev}@postgres:5432/${POSTGRES_DB:-rentmanager}"
+      DATABASE_URL_SYNC: "postgresql://${POSTGRES_USER:-rentmanager}:${POSTGRES_PASSWORD:-rentmanager_dev}@postgres:5432/${POSTGRES_DB:-rentmanager}"
       REDIS_URL: "redis://redis:6379/0"
+      MEILI_URL: "http://meilisearch:7700"
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-masterkey_dev}
     volumes:
       - ./backend:/app
     depends_on:
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
     networks:
       - rentmanager
 
-  frontend:
+  # ─── rm-prod (port 80) ──────────────────────────────────────────────
+
+  backend-prod:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: prod
+    container_name: rm-backend-prod
+    environment:
+      DATABASE_URL: "postgresql+asyncpg://${POSTGRES_USER:-rentmanager}:${POSTGRES_PASSWORD:-rentmanager_dev}@postgres:5432/${POSTGRES_DB:-rentmanager}"
+      DATABASE_URL_SYNC: "postgresql://${POSTGRES_USER:-rentmanager}:${POSTGRES_PASSWORD:-rentmanager_dev}@postgres:5432/${POSTGRES_DB:-rentmanager}"
+      REDIS_URL: "redis://redis:6379/0"
+      MEILI_URL: "http://meilisearch:7700"
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-masterkey_dev}
+      MINIO_ENDPOINT: "minio:9000"
+      MINIO_PUBLIC_ENDPOINT: "http://localhost:9000"
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin_dev}
+      SECRET_KEY: ${SECRET_KEY:-dev-secret-key-change-in-production}
+      SUPERADMIN_SECRET_KEY: ${SUPERADMIN_SECRET_KEY:-change-me-in-production-min-32-chars!!}
+      ALLOWED_SUPERADMIN_IPS: ${ALLOWED_SUPERADMIN_IPS:-}
+      PYTHONUNBUFFERED: "1"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      meilisearch:
+        condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.backend-prod.rule=PathPrefix(`/api`) || PathPrefix(`/superadmin`)"
+      - "traefik.http.routers.backend-prod.entrypoints=web"
+      - "traefik.http.services.backend-prod.loadbalancer.server.port=8000"
+    networks:
+      - rentmanager
+
+  frontend-prod:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: prod
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost/api}
+    container_name: rm-frontend-prod
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost/api}
+      BACKEND_INTERNAL_URL: http://backend-prod:8000
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.frontend-prod.rule=PathPrefix(`/`)"
+      - "traefik.http.routers.frontend-prod.entrypoints=web"
+      - "traefik.http.routers.frontend-prod.priority=1"
+      - "traefik.http.services.frontend-prod.loadbalancer.server.port=3000"
+    networks:
+      - rentmanager
+
+  # ─── rm-dev (port 8080) ─────────────────────────────────────────────
+
+  backend-dev:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: dev
+    container_name: rm-backend-dev
+    environment:
+      DATABASE_URL: "postgresql+asyncpg://${POSTGRES_USER:-rentmanager}:${POSTGRES_PASSWORD:-rentmanager_dev}@postgres:5432/${POSTGRES_DB:-rentmanager}"
+      DATABASE_URL_SYNC: "postgresql://${POSTGRES_USER:-rentmanager}:${POSTGRES_PASSWORD:-rentmanager_dev}@postgres:5432/${POSTGRES_DB:-rentmanager}"
+      REDIS_URL: "redis://redis:6379/0"
+      MEILI_URL: "http://meilisearch:7700"
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-masterkey_dev}
+      MINIO_ENDPOINT: "minio:9000"
+      MINIO_PUBLIC_ENDPOINT: "http://localhost:9000"
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin_dev}
+      SECRET_KEY: ${SECRET_KEY:-dev-secret-key-change-in-production}
+      SUPERADMIN_SECRET_KEY: ${SUPERADMIN_SECRET_KEY:-change-me-in-production-min-32-chars!!}
+      ALLOWED_SUPERADMIN_IPS: ${ALLOWED_SUPERADMIN_IPS:-}
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      meilisearch:
+        condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.backend-dev.rule=PathPrefix(`/api`) || PathPrefix(`/superadmin`)"
+      - "traefik.http.routers.backend-dev.entrypoints=dev"
+      - "traefik.http.services.backend-dev.loadbalancer.server.port=8000"
+    networks:
+      - rentmanager
+
+  frontend-dev:
     build:
       context: ./frontend
       dockerfile: Dockerfile
       target: dev
-    container_name: rm-frontend
-    ports:
-      - "${FRONTEND_PORT:-3000}:3000"
+    container_name: rm-frontend-dev
     volumes:
       - ./frontend:/app
       - /app/node_modules
       - /app/.next
     environment:
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost/api}
-      BACKEND_INTERNAL_URL: http://backend:8000
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL_DEV:-http://localhost:8080/api}
+      BACKEND_INTERNAL_URL: http://backend-dev:8000
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.frontend.rule=PathPrefix(`/`)"
-      - "traefik.http.routers.frontend.entrypoints=web"
-      - "traefik.http.routers.frontend.priority=1"
-      - "traefik.http.services.frontend.loadbalancer.server.port=3000"
+      - "traefik.http.routers.frontend-dev.rule=PathPrefix(`/`)"
+      - "traefik.http.routers.frontend-dev.entrypoints=dev"
+      - "traefik.http.routers.frontend-dev.priority=1"
+      - "traefik.http.services.frontend-dev.loadbalancer.server.port=3000"
     networks:
       - rentmanager
 

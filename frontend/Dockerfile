@@ -15,6 +15,8 @@ COPY package.json package-lock.json* ./
 RUN npm ci --only=production
 
 FROM base AS builder
+ARG NEXT_PUBLIC_API_URL=http://localhost/api
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 COPY package.json package-lock.json* ./
 RUN npm ci
 COPY . .
