@@ -66,9 +66,9 @@ const STATIC_NAV_CONFIG: Record<string, SubNavSection> = {
   "/admin/settings": {
     title: "Settings",
     items: [
-      { href: "/admin/settings#general", label: "General" },
-      { href: "/admin/settings#domains", label: "Domains" },
+      { href: "/admin/settings", label: "General" },
       { href: "/admin/settings/commission", label: "Commission" },
+      { href: "/admin/settings/email", label: "Email / SMTP" },
       { href: "/admin/settings/payments", label: "Payments" },
     ],
   },
@@ -120,10 +120,17 @@ export function SubNav() {
         <nav className="flex flex-col gap-1">
           {config.items.map((item) => {
             const isActive = currentUrl === item.href || pathname === item.href;
+            const isHashLink = item.href.includes("#") && item.href.startsWith(pathname);
             return (
               <Link
                 key={item.href}
                 href={item.href}
+                onClick={isHashLink ? () => {
+                  const hash = item.href.split("#")[1];
+                  if (window.location.hash === `#${hash}`) {
+                    window.dispatchEvent(new HashChangeEvent("hashchange"));
+                  }
+                } : undefined}
                 className={cn(
                   "rounded-md px-3 py-2 text-sm transition-colors",
                   isActive

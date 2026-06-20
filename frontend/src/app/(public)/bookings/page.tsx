@@ -147,7 +147,7 @@ export default function CustomerBookingsPage() {
             <p className="mt-3 text-muted-foreground">
               No bookings yet. Browse resources to get started!
             </p>
-            <Button variant="outline" className="mt-4" onClick={() => router.push("/")}>
+            <Button variant="outline" className="mt-4" onClick={() => router.push("/browse")}>
               Browse Resources
             </Button>
           </div>

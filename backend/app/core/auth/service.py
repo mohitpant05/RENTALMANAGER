@@ -4,7 +4,7 @@ from fastapi import HTTPException, status
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.celery_app import task_send_email
+from app.core.email.send import send_email
 from app.core.auth.invite import claim_invite_token, get_invite_data
 from app.core.auth.jwt import (
     create_access_token,
@@ -53,7 +53,7 @@ async def register_user(
 
     try:
         body = welcome_email(user.full_name)
-        task_send_email.delay(user.email, "Welcome to RentManager", body)
+        send_email(user.email, "Welcome to RentManager", body)
     except Exception:
         pass
 
@@ -227,7 +227,7 @@ async def accept_invite(
 
     try:
         body = welcome_email(user.full_name)
-        task_send_email.delay(user.email, "Welcome to RentManager", body)
+        send_email(user.email, "Welcome to RentManager", body)
     except Exception:
         pass
 

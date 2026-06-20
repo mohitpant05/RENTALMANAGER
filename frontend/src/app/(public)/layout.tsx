@@ -11,7 +11,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
     <div className="min-h-screen bg-background">
       <header className="border-b">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-3 py-3 sm:px-4 sm:py-4">
-          <Link href="/" className="text-lg font-bold sm:text-xl">
+          <Link href="/browse" className="text-lg font-bold sm:text-xl">
             RentManager
           </Link>
           <nav className="flex items-center gap-2 sm:gap-4">

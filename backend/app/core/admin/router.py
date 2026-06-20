@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.admin.schemas import (
@@ -11,6 +11,7 @@ from app.core.admin.schemas import (
     StaffUserResponse,
     TenantConfigUpdate,
     TenantResponse,
+    TestEmailRequest,
     ThemeResponse,
     ThemeUpdate,
 )
@@ -113,6 +114,33 @@ async def delete_tenant_domain(
 ):
     ctx = get_current_tenant()
     await remove_domain(session, ctx.tenant.id, domain_id)
+
+
+@router.post("/email/test")
+async def test_email(
+    data: TestEmailRequest,
+    user: User = Depends(_require_admin()),
+):
+    from app.core.email.factory import get_email_provider, get_email_provider_from_config
+
+    ctx = get_current_tenant()
+    config = ctx.tenant.config or {}
+    provider = None
+    if config.get("smtp_provider"):
+        provider = get_email_provider_from_config(config)
+    if provider is None:
+        provider = get_email_provider()
+    if provider is None:
+        raise HTTPException(status_code=400, detail="No email provider configured")
+    try:
+        provider.send(
+            data.to,
+            "RentManager — Test Email",
+            "This is a test email from RentManager.\n\nYour SMTP configuration is working correctly.",
+        )
+        return {"status": "sent"}
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Email send failed: {exc}")
 
 
 @router.get("/staff", response_model=list[StaffUserResponse])

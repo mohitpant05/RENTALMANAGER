@@ -39,7 +39,13 @@ SENSITIVE_CONFIG_KEYS = {
     "razorpay_key_secret",
     "webhook_secret_stripe",
     "webhook_secret_razorpay",
+    "smtp_password",
+    "mandrill_api_key",
 }
+
+
+class TestEmailRequest(BaseModel):
+    to: str
 
 
 def _mask_config(config: dict | None) -> dict | None:

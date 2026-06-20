@@ -4,7 +4,7 @@ import logging
 from celery import Celery
 
 from app.config import get_settings
-from app.core.email.factory import get_email_provider
+from app.core.email.factory import get_email_provider, get_email_provider_from_config
 
 logger = logging.getLogger(__name__)
 
@@ -158,8 +158,12 @@ def task_refresh_currency_rates():
 
 
 @celery.task(name="email.send", bind=True, max_retries=3, queue="email")
-def task_send_email(self, to: str, subject: str, body: str):
-    provider = get_email_provider()
+def task_send_email(self, to: str, subject: str, body: str, smtp_config: dict | None = None):
+    provider = None
+    if smtp_config:
+        provider = get_email_provider_from_config(smtp_config)
+    if provider is None:
+        provider = get_email_provider()
     if provider is None:
         logger.warning("No email provider configured, skipping email to %s", to)
         return None

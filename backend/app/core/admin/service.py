@@ -173,9 +173,9 @@ async def invite_staff(
 
     import uuid as _uuid
 
-    from app.celery_app import task_send_email
     from app.config import get_settings
     from app.core.auth.invite import store_invite_token
+    from app.core.email.send import send_email
 
     token = str(_uuid.uuid4())
     await store_invite_token(token, str(user.id), tenant_id)
@@ -190,7 +190,7 @@ async def invite_staff(
         f"{invite_link}\n\n"
         f"This link expires in {settings.invite_token_expire_hours} hours."
     )
-    task_send_email.delay(user.email, subject, body)
+    send_email(user.email, subject, body)
 
     return user
 

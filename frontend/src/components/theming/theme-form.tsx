@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { ChevronDown, Image as ImageIcon } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -8,15 +8,30 @@ import { cn } from "@/lib/utils";
 import { ColorInput } from "./color-input";
 
 interface SectionProps {
+  id: string;
   title: string;
   defaultOpen?: boolean;
   children: React.ReactNode;
 }
 
-function Section({ title, defaultOpen = false, children }: SectionProps) {
+function Section({ id, title, defaultOpen = false, children }: SectionProps) {
   const [open, setOpen] = useState(defaultOpen);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleHash() {
+      if (window.location.hash === `#${id}`) {
+        setOpen(true);
+        ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    }
+    handleHash();
+    window.addEventListener("hashchange", handleHash);
+    return () => window.removeEventListener("hashchange", handleHash);
+  }, [id]);
+
   return (
-    <div className="rounded-lg border">
+    <div id={id} ref={ref} className="rounded-lg border">
       <button
         type="button"
         onClick={() => setOpen(!open)}
@@ -99,7 +114,7 @@ export function ThemeForm({
   return (
     <div className="space-y-4">
       {/* Brand */}
-      <Section title="Brand">
+      <Section id="brand" title="Brand">
         <div className="flex items-center gap-3 rounded-lg border border-dashed p-4">
           <ImageIcon className="h-8 w-8 text-muted-foreground" />
           <div>
@@ -112,7 +127,7 @@ export function ThemeForm({
       </Section>
 
       {/* Colors */}
-      <Section title="Colors" defaultOpen>
+      <Section id="colors" title="Colors" defaultOpen>
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
           {COLOR_FIELDS.map(({ key, label }) => (
             <ColorInput
@@ -126,7 +141,7 @@ export function ThemeForm({
       </Section>
 
       {/* Typography */}
-      <Section title="Typography">
+      <Section id="typography" title="Typography">
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1.5">
             <Label className="text-xs">Body Font</Label>
@@ -186,7 +201,7 @@ export function ThemeForm({
       </Section>
 
       {/* Components */}
-      <Section title="Components">
+      <Section id="components" title="Components">
         <div className="space-y-4">
           <div className="space-y-1.5">
             <Label className="text-xs">Button Style</Label>

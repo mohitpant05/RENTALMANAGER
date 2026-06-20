@@ -6,7 +6,7 @@ from fastapi import HTTPException
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.celery_app import task_send_email
+from app.core.email.send import send_email
 from app.core.commission.service import calculate_breakdown, resolve_commission
 from app.core.email.templates import (
     booking_confirmation_email,
@@ -52,7 +52,7 @@ async def _dispatch_booking_event(
                 str(booking.end_time),
                 f"{booking.currency} {booking.total_price:.2f}",
             )
-            task_send_email.delay(user_email, subject, body)
+            send_email(user_email, subject, body)
             await notify_user(
                 session, booking.user_id, BOOKING_CONFIRMED, subject, body,
                 booking_confirmed_payload(str(booking.id), resource_name),
@@ -60,7 +60,7 @@ async def _dispatch_booking_event(
         elif new_status == "cancelled" or new_status == "rejected":
             subject = f"Booking {new_status.capitalize()}"
             body = booking_status_change_email(user_name, resource_name, new_status)
-            task_send_email.delay(user_email, subject, body)
+            send_email(user_email, subject, body)
         elif new_status == "pending":
             subject = "New Booking Pending"
             body = booking_status_change_email(user_name, resource_name, "pending")

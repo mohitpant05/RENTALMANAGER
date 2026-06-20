@@ -27,7 +27,7 @@ export function useAuth() {
   function getRedirectPath(userType: string): string {
     return userType === "admin" || userType === "staff"
       ? "/admin"
-      : "/";
+      : "/browse";
   }
 
   async function login(data: LoginRequest) {
@@ -45,7 +45,7 @@ export function useAuth() {
       headers: { Authorization: `Bearer ${res.data.access_token}` },
     });
     setAuth(res.data.access_token, res.data.refresh_token, meRes.data);
-    router.push("/");
+    router.push("/browse");
   }
 
   async function acceptInvite(data: AcceptInviteRequest) {
