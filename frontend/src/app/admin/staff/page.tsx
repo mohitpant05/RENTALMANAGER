@@ -62,12 +62,16 @@ export default function StaffPage() {
 
   const inviteMutation = useMutation({
     mutationFn: async (data: StaffInviteRequest) => {
-      const { data: result } = await api.post<StaffUserResponse>("/admin/staff", data);
+      const { data: result } = await api.post<StaffUserResponse & { email_status?: string; email_warning?: string }>("/admin/staff", data);
       return result;
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["admin-staff"] });
-      toast.success("Staff invited successfully");
+      if (result.email_status === "not_configured") {
+        toast.warning(result.email_warning || "Staff created but invite email was not sent — no email provider configured.");
+      } else {
+        toast.success("Staff invited — invite email queued");
+      }
       setSheetOpen(false);
       reset();
     },

@@ -8,6 +8,7 @@ from app.core.admin.schemas import (
     DomainCreate,
     DomainResponse,
     StaffInvite,
+    StaffInviteResponse,
     StaffUserResponse,
     TenantConfigUpdate,
     TenantResponse,
@@ -152,19 +153,43 @@ async def list_tenant_staff(
     return [StaffUserResponse(**s) for s in staff]
 
 
-@router.post("/staff", response_model=StaffUserResponse, status_code=201)
+@router.post("/staff", response_model=StaffInviteResponse, status_code=201)
 async def invite_tenant_staff(
     data: StaffInvite,
     session: AsyncSession = Depends(get_db),
     user: User = Depends(_require_admin()),
 ):
+    from app.core.notifications.events import EMAIL_FAILED, STAFF_INVITED
+    from app.core.notifications.service import notify
+
     tenant_ctx = get_current_tenant()
-    new_user = await invite_staff(
+    new_user, email_status, email_warning = await invite_staff(
         session, data,
         tenant_id=str(tenant_ctx.tenant.id),
         tenant_slug=tenant_ctx.tenant.slug,
     )
-    return StaffUserResponse.model_validate(new_user)
+
+    if email_status == "not_configured":
+        await notify(
+            session, user.id, EMAIL_FAILED,
+            "Invite email not sent",
+            f"No email provider configured. Staff member {new_user.full_name} ({new_user.email}) "
+            f"was created but the invite email could not be sent. "
+            f"Configure SMTP in Settings → Email / SMTP.",
+            {"staff_email": new_user.email, "staff_id": str(new_user.id)},
+        )
+    else:
+        await notify(
+            session, user.id, STAFF_INVITED,
+            "Staff invited",
+            f"Invite email queued for {new_user.full_name} ({new_user.email}).",
+            {"staff_email": new_user.email, "staff_id": str(new_user.id)},
+        )
+
+    resp = StaffInviteResponse.model_validate(new_user)
+    resp.email_status = email_status
+    resp.email_warning = email_warning
+    return resp
 
 
 @router.post("/staff/{user_id}/deactivate", response_model=StaffUserResponse)

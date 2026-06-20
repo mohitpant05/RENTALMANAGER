@@ -158,19 +158,80 @@ def task_refresh_currency_rates():
 
 
 @celery.task(name="email.send", bind=True, max_retries=3, queue="email")
-def task_send_email(self, to: str, subject: str, body: str, smtp_config: dict | None = None):
+def task_send_email(self, to: str, subject: str, body: str, smtp_config: dict | None = None, tenant_id: str | None = None):
+    logger.info("email.send task started: to=%s subject=%r attempt=%d", to, subject, self.request.retries + 1)
     provider = None
     if smtp_config:
         provider = get_email_provider_from_config(smtp_config)
+        if provider:
+            logger.info("Using tenant SMTP config (provider=%s)", smtp_config.get("smtp_provider"))
     if provider is None:
         provider = get_email_provider()
+        if provider:
+            logger.info("Using env-var email provider")
     if provider is None:
         logger.warning("No email provider configured, skipping email to %s", to)
-        return None
+        return {"status": "skipped", "to": to, "reason": "no_provider"}
     try:
-        return provider.send(to, subject, body)
+        provider.send(to, subject, body)
+        logger.info("Email sent successfully to %s", to)
+        return {"status": "sent", "to": to}
     except Exception as exc:
+        logger.error("Email send failed to %s: %s (attempt %d/4)", to, exc, self.request.retries + 1)
+        if self.request.retries >= self.max_retries:
+            logger.error("Email permanently failed to %s after %d retries: %s", to, self.max_retries + 1, exc)
+            task_notify_email_failure.delay(to, subject, str(exc), tenant_id)
+            return {"status": "failed", "to": to, "error": str(exc)}
         raise self.retry(exc=exc, countdown=30 * (2 ** self.request.retries))
+
+
+@celery.task(name="email.notify_failure", queue="email")
+def task_notify_email_failure(to: str, subject: str, error: str, tenant_id: str | None = None):
+    if not tenant_id:
+        logger.warning("Cannot create failure notification — no tenant_id for email to %s", to)
+        return
+
+    async def _do_notify():
+        from sqlalchemy import text as sa_text
+        from sqlmodel import select
+
+        from app.core.auth.models import User
+        from app.core.notifications.events import EMAIL_FAILED
+        from app.core.notifications.models import Notification
+        from app.core.tenancy.context import validate_schema_name
+        from app.core.tenancy.models import Tenant
+
+        task_engine, factory = _make_task_session_factory()
+        try:
+            async with factory() as session:
+                result = await session.exec(select(Tenant).where(Tenant.id == tenant_id))
+                tenant = result.first()
+                if not tenant:
+                    return
+
+            validate_schema_name(tenant.schema_name)
+            async with factory() as session:
+                await session.execute(sa_text(f"SET search_path TO {tenant.schema_name}, public"))
+                admin_result = await session.exec(
+                    select(User).where(User.user_type == "admin", User.is_active.is_(True)).limit(5)
+                )
+                admins = list(admin_result.all())
+                for admin in admins:
+                    notification = Notification(
+                        user_id=admin.id,
+                        event_type=EMAIL_FAILED,
+                        title="Email delivery failed",
+                        body=f"Failed to send email to {to} (subject: {subject}). Error: {error}. Check SMTP settings.",
+                        payload={"to": to, "subject": subject, "error": error},
+                    )
+                    session.add(notification)
+                await session.commit()
+                logger.info("Email failure notifications created for %d admins", len(admins))
+                await session.execute(sa_text("SET search_path TO public"))
+        finally:
+            await task_engine.dispose()
+
+    _run_async(_do_notify())
 
 
 celery.conf.beat_schedule = {

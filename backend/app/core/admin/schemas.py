@@ -110,6 +110,21 @@ class StaffUserResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class StaffInviteResponse(BaseModel):
+    id: uuid.UUID
+    email: str
+    full_name: str
+    phone: str | None
+    is_active: bool
+    user_type: str
+    created_at: datetime
+    roles: list[str] = []
+    email_status: str = "queued"
+    email_warning: str | None = None
+
+    model_config = {"from_attributes": True}
+
+
 class StaffInvite(BaseModel):
     email: str
     full_name: str
