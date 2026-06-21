@@ -18,15 +18,11 @@ from app.domains.resources.models import Resource, ResourceType
 router = APIRouter(prefix="/api/commission", tags=["commission"])
 
 
-def _require_admin():
-    return require_permission("*:*:*")
-
-
 @router.get("/resource-type/{resource_type_id}", response_model=CommissionConfigResponse)
 async def get_resource_type_commission(
     resource_type_id: uuid.UUID,
     session: AsyncSession = Depends(get_db),
-    _user: User = Depends(_require_admin()),
+    _user: User = Depends(require_permission("pricing:*:configure")),
 ):
     result = await session.exec(
         select(ResourceType).where(ResourceType.id == resource_type_id)
@@ -48,7 +44,7 @@ async def update_resource_type_commission(
     resource_type_id: uuid.UUID,
     data: CommissionConfigUpdate,
     session: AsyncSession = Depends(get_db),
-    _user: User = Depends(_require_admin()),
+    _user: User = Depends(require_permission("pricing:*:configure")),
 ):
     result = await session.exec(
         select(ResourceType).where(ResourceType.id == resource_type_id)
@@ -77,7 +73,7 @@ async def update_resource_type_commission(
 async def get_resource_commission(
     resource_id: uuid.UUID,
     session: AsyncSession = Depends(get_db),
-    _user: User = Depends(_require_admin()),
+    _user: User = Depends(require_permission("pricing:*:configure")),
 ):
     result = await session.exec(
         select(Resource).where(Resource.id == resource_id)
@@ -121,7 +117,7 @@ async def update_resource_commission(
     resource_id: uuid.UUID,
     data: CommissionConfigUpdate,
     session: AsyncSession = Depends(get_db),
-    _user: User = Depends(_require_admin()),
+    _user: User = Depends(require_permission("pricing:*:configure")),
 ):
     result = await session.exec(
         select(Resource).where(Resource.id == resource_id)
@@ -150,7 +146,7 @@ async def update_resource_commission(
 async def delete_resource_commission(
     resource_id: uuid.UUID,
     session: AsyncSession = Depends(get_db),
-    _user: User = Depends(_require_admin()),
+    _user: User = Depends(require_permission("pricing:*:configure")),
 ):
     result = await session.exec(
         select(Resource).where(Resource.id == resource_id)
@@ -168,7 +164,7 @@ async def preview_commission(
     resource_id: uuid.UUID,
     amount: float = 1000.0,
     session: AsyncSession = Depends(get_db),
-    _user: User = Depends(_require_admin()),
+    _user: User = Depends(require_permission("pricing:*:configure")),
 ):
     result = await session.exec(
         select(Resource).where(Resource.id == resource_id)

@@ -17,10 +17,6 @@ from app.database import get_db
 router = APIRouter(prefix="/api/payments", tags=["payments"])
 
 
-def _require_admin():
-    return require_permission("*:*:*")
-
-
 @router.post("/booking/{booking_id}", response_model=PaymentResponse, status_code=201)
 async def create_payment(
     booking_id: uuid.UUID,
@@ -47,7 +43,7 @@ async def mark_paid(
     payment_id: uuid.UUID,
     data: MarkPaidRequest | None = None,
     session: AsyncSession = Depends(get_db),
-    _user: User = Depends(_require_admin()),
+    _user: User = Depends(require_permission("settings:*:manage")),
 ):
     notes = data.notes if data else None
     return await mark_payment_paid(session, payment_id, notes=notes)
@@ -58,7 +54,7 @@ async def process_refund(
     payment_id: uuid.UUID,
     data: RefundRequest | None = None,
     session: AsyncSession = Depends(get_db),
-    _user: User = Depends(_require_admin()),
+    _user: User = Depends(require_permission("settings:*:manage")),
 ):
     amount = data.amount if data else None
     reason = data.reason if data else None

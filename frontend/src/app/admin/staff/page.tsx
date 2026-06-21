@@ -2,12 +2,12 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Loader2, Shield, Trash2, X } from "lucide-react";
+import { Plus, Loader2, Shield, Trash2, UserCog } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import api from "@/lib/api";
-import type { StaffUserResponse, StaffInviteRequest } from "@/types/api";
+import type { StaffUserResponse, StaffInviteRequest, RoleResponse } from "@/types/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -41,6 +41,9 @@ type InviteFormData = z.infer<typeof inviteSchema>;
 export default function StaffPage() {
   const queryClient = useQueryClient();
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [selectedRoleSlugs, setSelectedRoleSlugs] = useState<string[]>([]);
+  const [editRolesUserId, setEditRolesUserId] = useState<string | null>(null);
+  const [editRoleIds, setEditRoleIds] = useState<string[]>([]);
 
   const {
     register,
@@ -60,19 +63,37 @@ export default function StaffPage() {
     },
   });
 
+  const { data: roles = [] } = useQuery({
+    queryKey: ["admin-roles"],
+    queryFn: async () => {
+      const { data } = await api.get<RoleResponse[]>("/admin/roles");
+      return data;
+    },
+  });
+
+  const assignableRoles = roles.filter(
+    (r) => r.slug !== "admin" && r.slug !== "customer"
+  );
+
   const inviteMutation = useMutation({
     mutationFn: async (data: StaffInviteRequest) => {
-      const { data: result } = await api.post<StaffUserResponse & { email_status?: string; email_warning?: string }>("/admin/staff", data);
+      const { data: result } = await api.post<
+        StaffUserResponse & { email_status?: string; email_warning?: string }
+      >("/admin/staff", data);
       return result;
     },
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["admin-staff"] });
       if (result.email_status === "not_configured") {
-        toast.warning(result.email_warning || "Staff created but invite email was not sent — no email provider configured.");
+        toast.warning(
+          result.email_warning ||
+            "Staff created but invite email was not sent — no email provider configured."
+        );
       } else {
         toast.success("Staff invited — invite email queued");
       }
       setSheetOpen(false);
+      setSelectedRoleSlugs([]);
       reset();
     },
     onError: () => {
@@ -82,7 +103,9 @@ export default function StaffPage() {
 
   const deactivateMutation = useMutation({
     mutationFn: async (userId: string) => {
-      const { data } = await api.post<StaffUserResponse>(`/admin/staff/${userId}/deactivate`);
+      const { data } = await api.post<StaffUserResponse>(
+        `/admin/staff/${userId}/deactivate`
+      );
       return data;
     },
     onSuccess: () => {
@@ -94,8 +117,51 @@ export default function StaffPage() {
     },
   });
 
+  const updateRolesMutation = useMutation({
+    mutationFn: async ({
+      userId,
+      roleIds,
+    }: {
+      userId: string;
+      roleIds: string[];
+    }) => {
+      await api.patch(`/admin/staff/${userId}/roles`, { role_ids: roleIds });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-staff"] });
+      setEditRolesUserId(null);
+      toast.success("Roles updated");
+    },
+    onError: () => {
+      toast.error("Failed to update roles");
+    },
+  });
+
   function onSubmit(data: InviteFormData) {
-    inviteMutation.mutate(data);
+    inviteMutation.mutate({
+      ...data,
+      role_slugs: selectedRoleSlugs.length > 0 ? selectedRoleSlugs : undefined,
+    });
+  }
+
+  function openEditRoles(staffUser: StaffUserResponse) {
+    const currentIds = roles
+      .filter((r) => staffUser.roles.includes(r.slug))
+      .map((r) => r.id);
+    setEditRoleIds(currentIds);
+    setEditRolesUserId(staffUser.id);
+  }
+
+  function toggleRoleId(id: string) {
+    setEditRoleIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  }
+
+  function toggleRoleSlug(slug: string) {
+    setSelectedRoleSlugs((prev) =>
+      prev.includes(slug) ? prev.filter((x) => x !== slug) : [...prev, slug]
+    );
   }
 
   if (isLoading) {
@@ -111,7 +177,9 @@ export default function StaffPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Staff</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Manage team members and roles</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Manage team members and roles
+          </p>
         </div>
         <Button onClick={() => setSheetOpen(true)}>
           <Plus className="mr-2 h-4 w-4" />
@@ -133,7 +201,11 @@ export default function StaffPage() {
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
                   <span className="font-medium">{s.full_name}</span>
-                  <Badge variant={s.user_type === "admin" ? "default" : "secondary"}>
+                  <Badge
+                    variant={
+                      s.user_type === "admin" ? "default" : "secondary"
+                    }
+                  >
                     {s.user_type}
                   </Badge>
                   {!s.is_active && (
@@ -142,36 +214,62 @@ export default function StaffPage() {
                 </div>
                 <p className="text-sm text-muted-foreground">{s.email}</p>
                 {s.roles.length > 0 && (
-                  <div className="flex gap-1">
+                  <div className="flex gap-1 flex-wrap">
                     {s.roles.map((role) => (
-                      <Badge key={role} variant="muted" className="text-xs">{role}</Badge>
+                      <Badge key={role} variant="outline" className="text-xs">
+                        {role}
+                      </Badge>
                     ))}
                   </div>
                 )}
               </div>
 
-              {s.is_active && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="text-destructive"
-                  onClick={() => deactivateMutation.mutate(s.id)}
-                  disabled={deactivateMutation.isPending}
-                >
-                  <Trash2 className="mr-1 h-3 w-3" />
-                  Deactivate
-                </Button>
-              )}
+              <div className="flex gap-2">
+                {s.user_type !== "admin" && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => openEditRoles(s)}
+                  >
+                    <UserCog className="mr-1 h-3 w-3" />
+                    Roles
+                  </Button>
+                )}
+                {s.is_active && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-destructive"
+                    onClick={() => deactivateMutation.mutate(s.id)}
+                    disabled={deactivateMutation.isPending}
+                  >
+                    <Trash2 className="mr-1 h-3 w-3" />
+                    Deactivate
+                  </Button>
+                )}
+              </div>
             </CardContent>
           </Card>
         ))}
       </div>
 
-      <Sheet open={sheetOpen} onOpenChange={(o) => { setSheetOpen(o); if (!o) reset(); }}>
+      {/* Invite Sheet */}
+      <Sheet
+        open={sheetOpen}
+        onOpenChange={(o) => {
+          setSheetOpen(o);
+          if (!o) {
+            reset();
+            setSelectedRoleSlugs([]);
+          }
+        }}
+      >
         <SheetContent>
           <SheetHeader>
             <SheetTitle>Invite Staff</SheetTitle>
-            <SheetDescription>Send an invitation to join your team</SheetDescription>
+            <SheetDescription>
+              Send an invitation to join your team
+            </SheetDescription>
           </SheetHeader>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 px-4">
@@ -179,7 +277,9 @@ export default function StaffPage() {
               <Label htmlFor="full_name">Full Name</Label>
               <Input id="full_name" {...register("full_name")} />
               {errors.full_name && (
-                <p className="text-xs text-destructive">{errors.full_name.message}</p>
+                <p className="text-xs text-destructive">
+                  {errors.full_name.message}
+                </p>
               )}
             </div>
 
@@ -187,13 +287,20 @@ export default function StaffPage() {
               <Label htmlFor="email">Email</Label>
               <Input id="email" type="email" {...register("email")} />
               {errors.email && (
-                <p className="text-xs text-destructive">{errors.email.message}</p>
+                <p className="text-xs text-destructive">
+                  {errors.email.message}
+                </p>
               )}
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="user_type">Role</Label>
-              <Select onValueChange={(v) => register("user_type").onChange({ target: { value: v } })} defaultValue="staff">
+              <Label htmlFor="user_type">Type</Label>
+              <Select
+                onValueChange={(v) =>
+                  register("user_type").onChange({ target: { value: v } })
+                }
+                defaultValue="staff"
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -204,6 +311,33 @@ export default function StaffPage() {
               </Select>
             </div>
 
+            {assignableRoles.length > 0 && (
+              <div className="space-y-2">
+                <Label>Roles</Label>
+                <div className="space-y-2 rounded-md border p-3">
+                  {assignableRoles.map((role) => (
+                    <label
+                      key={role.slug}
+                      className="flex items-center gap-2 text-sm cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedRoleSlugs.includes(role.slug)}
+                        onChange={() => toggleRoleSlug(role.slug)}
+                        className="rounded"
+                      />
+                      <span>{role.name}</span>
+                      {role.description && (
+                        <span className="text-xs text-muted-foreground">
+                          — {role.description}
+                        </span>
+                      )}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <SheetFooter>
               <Button type="submit" disabled={inviteMutation.isPending}>
                 {inviteMutation.isPending && (
@@ -213,6 +347,63 @@ export default function StaffPage() {
               </Button>
             </SheetFooter>
           </form>
+        </SheetContent>
+      </Sheet>
+
+      {/* Edit Roles Sheet */}
+      <Sheet
+        open={!!editRolesUserId}
+        onOpenChange={(o) => {
+          if (!o) setEditRolesUserId(null);
+        }}
+      >
+        <SheetContent>
+          <SheetHeader>
+            <SheetTitle>Edit Roles</SheetTitle>
+            <SheetDescription>
+              {staff?.find((s) => s.id === editRolesUserId)?.full_name}
+            </SheetDescription>
+          </SheetHeader>
+
+          <div className="space-y-2 p-4">
+            {assignableRoles.map((role) => (
+              <label
+                key={role.id}
+                className="flex items-center gap-2 text-sm cursor-pointer"
+              >
+                <input
+                  type="checkbox"
+                  checked={editRoleIds.includes(role.id)}
+                  onChange={() => toggleRoleId(role.id)}
+                  className="rounded"
+                />
+                <span>{role.name}</span>
+                {role.description && (
+                  <span className="text-xs text-muted-foreground">
+                    — {role.description}
+                  </span>
+                )}
+              </label>
+            ))}
+          </div>
+
+          <SheetFooter className="px-4">
+            <Button
+              onClick={() =>
+                editRolesUserId &&
+                updateRolesMutation.mutate({
+                  userId: editRolesUserId,
+                  roleIds: editRoleIds,
+                })
+              }
+              disabled={updateRolesMutation.isPending}
+            >
+              {updateRolesMutation.isPending && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              Save Roles
+            </Button>
+          </SheetFooter>
         </SheetContent>
       </Sheet>
     </div>

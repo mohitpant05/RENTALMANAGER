@@ -16,6 +16,7 @@ export interface UserResponse {
   preferred_currency: string;
   created_at: string;
   roles: string[];
+  permissions: string[];
 }
 
 export interface LoginRequest {
@@ -545,4 +546,41 @@ export interface ResourceAssignmentCreate {
 
 export interface ResourceAssignmentUpdate {
   priority: number;
+}
+
+// ─── Roles & Permissions ──────────────────────────────
+
+export interface PermissionResponse {
+  id: string;
+  codename: string;
+  description: string | null;
+  domain: string;
+  action: string;
+}
+
+export interface RoleResponse {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  is_system: boolean;
+  created_at: string;
+  permissions: PermissionResponse[];
+}
+
+export interface PermissionGroup {
+  domain: string;
+  label: string;
+  permissions: PermissionResponse[];
+}
+
+export interface RoleCreate {
+  name: string;
+  slug: string;
+  description?: string;
+}
+
+export interface RoleUpdate {
+  name?: string;
+  description?: string;
 }

@@ -118,8 +118,14 @@ async def me(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
+    from app.core.auth.dependencies import get_user_permissions
+
     roles = await get_user_roles(session, str(user.id))
-    return build_user_response(user, roles)
+    if user.user_type == "admin":
+        perms = ["*:*:*"]
+    else:
+        perms = list(await get_user_permissions(session, user.id))
+    return build_user_response(user, roles, perms)
 
 
 @router.patch("/me", response_model=UserResponse)
@@ -128,9 +134,15 @@ async def update_me(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
+    from app.core.auth.dependencies import get_user_permissions
+
     updated = await update_profile(session, user, data)
     roles = await get_user_roles(session, str(updated.id))
-    return build_user_response(updated, roles)
+    if updated.user_type == "admin":
+        perms = ["*:*:*"]
+    else:
+        perms = list(await get_user_permissions(session, updated.id))
+    return build_user_response(updated, roles, perms)
 
 
 @router.get("/user/{user_id}", response_model=UserResponse)

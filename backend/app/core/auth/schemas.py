@@ -45,6 +45,7 @@ class UserResponse(BaseModel):
     preferred_currency: str
     created_at: datetime
     roles: list[str] = []
+    permissions: list[str] = []
 
 
 class ProfileUpdateRequest(BaseModel):

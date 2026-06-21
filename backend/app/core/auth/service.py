@@ -171,7 +171,9 @@ async def update_profile(
     return user
 
 
-def build_user_response(user: User, roles: list[str]) -> UserResponse:
+def build_user_response(
+    user: User, roles: list[str], permissions: list[str] | None = None
+) -> UserResponse:
     return UserResponse(
         id=user.id,
         email=user.email,
@@ -184,6 +186,7 @@ def build_user_response(user: User, roles: list[str]) -> UserResponse:
         preferred_currency=user.preferred_currency,
         created_at=user.created_at,
         roles=roles,
+        permissions=permissions or [],
     )
 
 

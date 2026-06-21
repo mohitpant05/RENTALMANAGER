@@ -37,12 +37,8 @@ from app.database import get_db
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 
-def _require_admin():
-    return require_permission("*:*:*")
-
-
 @router.get("/tenant", response_model=TenantResponse)
-async def get_tenant_info(user: User = Depends(_require_admin())):
+async def get_tenant_info(user: User = Depends(require_permission("settings:*:manage"))):
     ctx = get_current_tenant()
     return TenantResponse.from_tenant(ctx.tenant)
 
@@ -51,7 +47,7 @@ async def get_tenant_info(user: User = Depends(_require_admin())):
 async def patch_tenant(
     data: TenantConfigUpdate,
     session: AsyncSession = Depends(get_db),
-    user: User = Depends(_require_admin()),
+    user: User = Depends(require_permission("settings:*:manage")),
 ):
     ctx = get_current_tenant()
     tenant = await update_tenant_config(
@@ -68,7 +64,7 @@ async def patch_tenant(
 @router.get("/theme", response_model=ThemeResponse)
 async def get_tenant_theme(
     session: AsyncSession = Depends(get_db),
-    user: User = Depends(_require_admin()),
+    user: User = Depends(require_permission("theme:*:read")),
 ):
     ctx = get_current_tenant()
     theme = await get_theme(session, ctx.tenant.id)
@@ -79,7 +75,7 @@ async def get_tenant_theme(
 async def update_tenant_theme(
     data: ThemeUpdate,
     session: AsyncSession = Depends(get_db),
-    user: User = Depends(_require_admin()),
+    user: User = Depends(require_permission("theme:*:edit")),
 ):
     ctx = get_current_tenant()
     theme = await update_theme(session, ctx.tenant.id, data)
@@ -89,7 +85,7 @@ async def update_tenant_theme(
 @router.get("/domains", response_model=list[DomainResponse])
 async def list_tenant_domains(
     session: AsyncSession = Depends(get_db),
-    user: User = Depends(_require_admin()),
+    user: User = Depends(require_permission("settings:*:manage")),
 ):
     ctx = get_current_tenant()
     domains = await list_domains(session, ctx.tenant.id)
@@ -100,7 +96,7 @@ async def list_tenant_domains(
 async def add_tenant_domain(
     data: DomainCreate,
     session: AsyncSession = Depends(get_db),
-    user: User = Depends(_require_admin()),
+    user: User = Depends(require_permission("settings:*:manage")),
 ):
     ctx = get_current_tenant()
     domain = await add_domain(session, ctx.tenant.id, data)
@@ -111,7 +107,7 @@ async def add_tenant_domain(
 async def delete_tenant_domain(
     domain_id: uuid.UUID,
     session: AsyncSession = Depends(get_db),
-    user: User = Depends(_require_admin()),
+    user: User = Depends(require_permission("settings:*:manage")),
 ):
     ctx = get_current_tenant()
     await remove_domain(session, ctx.tenant.id, domain_id)
@@ -120,7 +116,7 @@ async def delete_tenant_domain(
 @router.post("/email/test")
 async def test_email(
     data: TestEmailRequest,
-    user: User = Depends(_require_admin()),
+    user: User = Depends(require_permission("settings:*:manage")),
 ):
     from app.core.email.factory import get_email_provider, get_email_provider_from_config
 
@@ -147,7 +143,7 @@ async def test_email(
 @router.get("/staff", response_model=list[StaffUserResponse])
 async def list_tenant_staff(
     session: AsyncSession = Depends(get_db),
-    user: User = Depends(_require_admin()),
+    user: User = Depends(require_permission("staff:*:manage")),
 ):
     staff = await list_staff(session)
     return [StaffUserResponse(**s) for s in staff]
@@ -157,7 +153,7 @@ async def list_tenant_staff(
 async def invite_tenant_staff(
     data: StaffInvite,
     session: AsyncSession = Depends(get_db),
-    user: User = Depends(_require_admin()),
+    user: User = Depends(require_permission("staff:*:invite")),
 ):
     from app.core.notifications.events import EMAIL_FAILED, STAFF_INVITED
     from app.core.notifications.service import notify
@@ -196,7 +192,7 @@ async def invite_tenant_staff(
 async def deactivate_staff(
     user_id: uuid.UUID,
     session: AsyncSession = Depends(get_db),
-    user: User = Depends(_require_admin()),
+    user: User = Depends(require_permission("staff:*:manage")),
 ):
     deactivated = await deactivate_user(session, user_id)
     return StaffUserResponse.model_validate(deactivated)
@@ -206,7 +202,7 @@ async def deactivate_staff(
 async def activate_staff(
     user_id: uuid.UUID,
     session: AsyncSession = Depends(get_db),
-    user: User = Depends(_require_admin()),
+    user: User = Depends(require_permission("staff:*:manage")),
 ):
     activated = await activate_user(session, user_id)
     return StaffUserResponse.model_validate(activated)
@@ -216,6 +212,6 @@ async def activate_staff(
 async def staff_deactivation_impact(
     user_id: uuid.UUID,
     session: AsyncSession = Depends(get_db),
-    _user: User = Depends(_require_admin()),
+    _user: User = Depends(require_permission("staff:*:manage")),
 ):
     return await get_deactivation_impact(session, user_id)

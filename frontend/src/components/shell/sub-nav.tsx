@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import api from "@/lib/api";
 import type { ResourceTypeResponse } from "@/types/api";
 import { useCreateTypeSheetStore } from "@/lib/create-type-sheet-store";
+import { usePermissions } from "@/hooks/use-permissions";
 
 interface SubNavItem {
   href: string;
@@ -61,6 +62,13 @@ const STATIC_NAV_CONFIG: Record<string, SubNavSection> = {
     items: [
       { href: "/admin/payouts", label: "Balances" },
       { href: "/admin/payouts?tab=history", label: "History" },
+    ],
+  },
+  "/admin/staff": {
+    title: "Staff",
+    items: [
+      { href: "/admin/staff", label: "Members" },
+      { href: "/admin/staff/roles", label: "Roles & Permissions" },
     ],
   },
   "/admin/settings": {
