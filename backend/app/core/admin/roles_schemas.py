@@ -27,8 +27,8 @@ class PermissionResponse(BaseModel):
     id: uuid.UUID
     codename: str
     description: str | None
-    domain: str
-    action: str
+    domain: str = ""
+    action: str = ""
 
     model_config = {"from_attributes": True}
 
@@ -57,3 +57,25 @@ class PermissionGroup(BaseModel):
     domain: str
     label: str
     permissions: list[PermissionResponse]
+
+
+class PermissionOverrideResponse(BaseModel):
+    permission_id: uuid.UUID
+    codename: str
+    description: str | None
+    granted: bool
+
+
+class EffectivePermissionsResponse(BaseModel):
+    role_permissions: list[PermissionResponse]
+    overrides: list[PermissionOverrideResponse]
+    effective: list[str]
+
+
+class OverrideEntry(BaseModel):
+    permission_id: uuid.UUID
+    granted: bool
+
+
+class PermissionOverrideUpdate(BaseModel):
+    overrides: list[OverrideEntry]

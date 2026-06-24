@@ -10,6 +10,7 @@ TENANT_AUTH_TABLES: set[str] = {
     "permissions",
     "role_permissions",
     "user_roles",
+    "user_permission_overrides",
 }
 
 
@@ -74,6 +75,18 @@ class UserRole(SQLModel, table=True):
     user_id: uuid.UUID = Field(foreign_key="users.id", primary_key=True)
     role_id: uuid.UUID = Field(foreign_key="roles.id", primary_key=True)
     assigned_at: datetime = Field(
+        default_factory=lambda: datetime.now(UTC),
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+
+
+class UserPermissionOverride(SQLModel, table=True):
+    __tablename__ = "user_permission_overrides"
+
+    user_id: uuid.UUID = Field(foreign_key="users.id", primary_key=True)
+    permission_id: uuid.UUID = Field(foreign_key="permissions.id", primary_key=True)
+    granted: bool = Field(default=True)
+    created_at: datetime = Field(
         default_factory=lambda: datetime.now(UTC),
         sa_column=Column(DateTime(timezone=True), nullable=False),
     )

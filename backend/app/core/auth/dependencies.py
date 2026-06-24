@@ -8,13 +8,22 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.auth.jwt import decode_token
-from app.core.auth.models import Permission, RolePermission, User, UserRole
+from app.core.auth.models import Permission, RolePermission, User, UserPermissionOverride, UserRole
 from app.core.tenancy.context import get_current_tenant
 from app.database import get_db
 
 logger = logging.getLogger("app.auth.dependencies")
 
 _security = HTTPBearer()
+
+PERMISSION_SUPERSETS: dict[str, list[str]] = {
+    "bookings:*:manage": [
+        "bookings:*:confirm",
+        "bookings:*:reject",
+        "bookings:*:cancel",
+        "bookings:*:no_show",
+    ],
+}
 
 
 def matches_permission(required: str, granted: set[str]) -> bool:
@@ -30,7 +39,12 @@ def matches_permission(required: str, granted: set[str]) -> bool:
         f"{domain}:*:*",
         "*:*:*",
     ]
-    return any(c in granted for c in candidates)
+    if any(c in granted for c in candidates):
+        return True
+    for superset_perm, sub_perms in PERMISSION_SUPERSETS.items():
+        if required in sub_perms and matches_permission(superset_perm, granted):
+            return True
+    return False
 
 
 async def get_user_permissions(session: AsyncSession, user_id: uuid.UUID) -> set[str]:
@@ -40,7 +54,20 @@ async def get_user_permissions(session: AsyncSession, user_id: uuid.UUID) -> set
         .join(UserRole, UserRole.role_id == RolePermission.role_id)
         .where(UserRole.user_id == user_id)
     )
-    return set(result.all())
+    perms = set(result.all())
+
+    override_result = await session.exec(
+        select(Permission.codename, UserPermissionOverride.granted)
+        .join(UserPermissionOverride, UserPermissionOverride.permission_id == Permission.id)
+        .where(UserPermissionOverride.user_id == user_id)
+    )
+    for codename, granted in override_result.all():
+        if granted:
+            perms.add(codename)
+        else:
+            perms.discard(codename)
+
+    return perms
 
 
 async def get_current_user(
@@ -133,6 +160,17 @@ def require_permission(permission: str):
         return user
 
     return _checker
+
+
+async def get_current_user_with_perms(
+    credentials: HTTPAuthorizationCredentials = Depends(_security),
+    session: AsyncSession = Depends(get_db),
+) -> tuple[User, set[str]]:
+    user = await get_current_user(credentials, session)
+    if user.user_type == "admin":
+        return user, {"*:*:*"}
+    perms = await get_user_permissions(session, user.id)
+    return user, perms
 
 
 async def get_optional_user(

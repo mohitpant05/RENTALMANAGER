@@ -17,7 +17,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
 import {
   Sheet,
   SheetContent,
@@ -25,6 +24,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Trash2, Plus, Shield } from "lucide-react";
+import { PermissionAccordion } from "@/components/admin/permission-accordion";
 
 const roleSchema = z.object({
   name: z.string().min(1, "Required"),
@@ -139,6 +139,22 @@ export default function RolesPage() {
     });
   }
 
+  function bulkTogglePermissions(permIds: string[], enabled: boolean) {
+    if (!selectedRole) return;
+    const current = new Set(selectedRole.permissions.map((p) => p.id));
+    for (const id of permIds) {
+      if (enabled) {
+        current.add(id);
+      } else {
+        current.delete(id);
+      }
+    }
+    permMutation.mutate({
+      roleId: selectedRole.id,
+      permissionIds: Array.from(current),
+    });
+  }
+
   function onSubmit(values: RoleFormValues) {
     createMutation.mutate(values);
   }
@@ -217,35 +233,13 @@ export default function RolesPage() {
               )}
             </div>
 
-            <div className="space-y-6">
-              {permissionGroups.map((group) => (
-                <div key={group.domain} className="border rounded-lg p-4">
-                  <h3 className="font-semibold text-sm mb-3">{group.label}</h3>
-                  <div className="space-y-3">
-                    {group.permissions.map((perm) => (
-                      <div
-                        key={perm.id}
-                        className="flex items-center justify-between"
-                      >
-                        <div>
-                          <p className="text-sm font-medium">{perm.codename}</p>
-                          {perm.description && (
-                            <p className="text-xs text-muted-foreground">
-                              {perm.description}
-                            </p>
-                          )}
-                        </div>
-                        <Switch
-                          checked={selectedPermIds.has(perm.id)}
-                          onCheckedChange={() => togglePermission(perm.id)}
-                          disabled={permMutation.isPending}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
+            <PermissionAccordion
+              groups={permissionGroups}
+              selectedPermIds={selectedPermIds}
+              onToggle={togglePermission}
+              onBulkToggle={bulkTogglePermissions}
+              disabled={permMutation.isPending}
+            />
           </div>
         ) : (
           <div className="flex items-center justify-center h-full text-muted-foreground">
