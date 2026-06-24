@@ -37,3 +37,6 @@ docs/
 # MinIO data (if running locally outside Docker)
 data/
 .gitnexus
+
+# RM-MCP index
+.rm-mcp/
