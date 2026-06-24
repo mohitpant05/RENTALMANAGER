@@ -10,13 +10,15 @@ Complete endpoint reference with request/response schemas, status codes, and aut
 - Tenant: `X-Tenant-ID: <slug>` header (or subdomain/custom domain)
 - Pagination: `offset` + `limit` query params
 - UUIDs: all IDs are UUID v4
+- **Phone fields**: 7–15 digits only, optional `+` prefix. Validated on both frontend (Zod regex) and backend (Pydantic `field_validator`).
+- **Numeric field caps**: `base_price` ≤ 1,000,000 | commission percent ≤ 100 | commission fixed ≤ 1,000,000 | `discovery_radius_km` ≤ 50,000 | `display_order` ≤ 1,000,000 | `priority` ≤ 1,000,000 | `hold_minutes` 1–60 | `refund amount` ≤ 1,000,000 | lat ±90 | lng ±180 | `geo_radius_km` ≤ 50,000
 
 ## Auth Endpoints (`/api/auth`)
 
 ### POST /api/auth/register (201)
 Rate limited: configurable (default `30/minute`)
 ```
-Request:  { email: EmailStr, password: str (≥8 chars), full_name: str, phone?: str }
+Request:  { email: EmailStr, password: str (≥8 chars), full_name: str, phone?: str (7–15 digits, optional + prefix) }
 Response: { access_token: str, refresh_token: str, token_type: "bearer" }
 Errors:   409 "Email already registered"
 ```
@@ -134,9 +136,13 @@ Response: { id, type_id, name, description, location_lat, location_lng, location
 
 ### POST /api/resources (201)
 Permission: `resources:*:create`. Sets `owner_id` from auth user.
+```
+Request includes: { ..., slot_config?: { fixed_slots?: [{start, end}], duration_options?: [str] } }
+```
+slot_config on resource overrides type-level default for time_slot availability.
 
 ### PUT /api/resources/{id}
-Auth required. Owner or admin only.
+Auth required. Owner or admin only. Accepts `slot_config` for per-resource time slot configuration.
 
 ### DELETE /api/resources/{id} (204)
 Auth required. Owner or admin only.
@@ -187,8 +193,8 @@ Response: list of available addon resources with availability + pricing
 ### POST /api/bookings (201)
 Auth required.
 ```
-Request:  { resource_id: UUID, hold_token: str, start_time: datetime, end_time: datetime, notes?: str, auto_confirm: bool (default true), user_id?: UUID (admin only) }
-Response: BookingResponse
+Request:  { resource_id: UUID, hold_token: str, start_time: datetime, end_time: datetime, notes?: str, auto_confirm: bool (default true), user_id?: UUID (admin only), timezone?: str (IANA tz, default "UTC") }
+Response: BookingResponse (includes timezone: str)
 Errors:   404 "Resource not found", 400 "Resource is not active", 409 "Hold token invalid or expired", 403 "Only admins can book on behalf"
 ```
 

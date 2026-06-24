@@ -21,6 +21,7 @@ class AvailabilityProvider(Protocol):
 Full-day bookings. Duration in days.
 - Validates: start < end
 - Check: no overlap with existing booked/held slots
+- Frontend sends `start_time = selectedDate T00:00:00` and `end_time = endDate+1 day T00:00:00` (exclusive end boundary) to eliminate 1-minute gaps at day boundaries
 
 ### hourly
 Hour-based bookings.
@@ -28,16 +29,24 @@ Hour-based bookings.
 - Check: no overlap with existing booked/held slots
 
 ### time_slot
-Fixed time slots defined in `ResourceType.slot_config`.
+Time-based bookings with optional fixed slots or duration constraints.
+
+**slot_config** is set per Resource (overrides ResourceType default). Stored as JSONB on `resources.slot_config` with fallback to `resource_types.slot_config`.
+
 ```json
 {
-  "slots": [
-    { "start": "09:00", "end": "12:00", "label": "Morning" },
-    { "start": "14:00", "end": "17:00", "label": "Afternoon" }
-  ]
+  "fixed_slots": [
+    { "start": "09:00", "end": "12:00" },
+    { "start": "14:00", "end": "17:00" }
+  ],
+  "duration_options": ["30m", "1h", "2h"]
 }
 ```
-- Validates: start/end must match a defined slot
+
+- **fixed_slots**: When present, booking start/end must exactly match one of the defined windows. Customer sees slot picker buttons instead of time inputs.
+- **duration_options**: Fallback when no fixed_slots. Constrains allowed booking durations.
+- **Neither set**: Free-form time selection with basic validation (start < end, min 30m, max 12h).
+- Validates: start/end must match a defined slot (if fixed_slots set), or duration must match allowed options
 - Check: slot not already booked/held for that date
 
 ## ResourceAvailability Record
@@ -109,6 +118,20 @@ Returns True (available) if no rows match.
 3. **Expired hold cleanup**: Celery beat task every 60s deletes expired holds, freeing availability
 4. **Hold expiry check**: `confirm_hold` checks `hold_expires` even if record exists — race between expiry cleanup and user confirmation handled
 
-## Default Hold Duration
+## Hold Configuration
 
-10 minutes (configurable via `HoldRequest.hold_minutes`).
+Hold behavior is configured per `ResourceType` via `hold_config` (JSONB, nullable):
+
+```json
+{ "unit": "minutes", "value": 10 }
+{ "unit": "seconds", "value": 300 }
+```
+
+- **`hold_config = null`** → No hold step. Booking goes directly to availability check + atomic insert. No countdown timer.
+- **`hold_config` set** → Standard hold flow (create_hold → countdown → confirm_hold). Duration from config.
+- `unit`: `"seconds"` or `"minutes"`
+- `value`: 1–60 for minutes, 1–3600 for seconds
+
+Frontend adapts UI: when hold disabled, shows "Check & Book" / "Book Now" instead of hold/countdown flow.
+
+Managed via Resource Type settings (admin create-type-sheet).
