@@ -1,12 +1,14 @@
 "use client";
 
-import { use, useCallback, useState } from "react";
+import { use, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, CalendarDays, Loader2, Image as ImageIcon, PackagePlus } from "lucide-react";
 import Link from "next/link";
 import api from "@/lib/api";
 import { useAuthStore } from "@/lib/auth-store";
+import { toLocalDate, toLocalDateExclusive } from "@/lib/utils";
+import { useFormatPrice } from "@/hooks/use-currency";
 import type { BookingResponse, ResourceResponse, AttachmentResponse, ResourceTypeResponse } from "@/types/api";
 import { BookingTimeline } from "@/components/public/booking-timeline";
 import { AddonDiscoveredSection } from "@/components/public/addon-discovered-section";
@@ -56,13 +58,19 @@ export default function CustomerBookingDetailPage({
   const queryClient = useQueryClient();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const authLoading = useAuthStore((s) => s.isLoading);
+  const fmt = useFormatPrice();
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
   const [addonSelections, setAddonSelections] = useState<AddonSelections>({});
   const [addingAddons, setAddingAddons] = useState(false);
 
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      router.push(`/login?returnUrl=/bookings/${id}`);
+    }
+  }, [authLoading, isAuthenticated, router, id]);
+
   if (!authLoading && !isAuthenticated) {
-    router.push(`/login?returnUrl=/bookings/${id}`);
     return null;
   }
 
@@ -250,7 +258,7 @@ export default function CustomerBookingDetailPage({
           <div className="flex items-center justify-between border-t pt-3">
             <span className="text-sm text-muted-foreground">Total Price</span>
             <span className="text-lg font-bold">
-              {booking.currency} {booking.total_price.toFixed(2)}
+              {fmt(booking.total_price, booking.currency)}
             </span>
           </div>
           {booking.notes && (
@@ -279,8 +287,8 @@ export default function CustomerBookingDetailPage({
           <CardContent>
             <AddonDiscoveredSection
               resourceId={booking.resource_id}
-              startDate={booking.start_time.slice(0, 10)}
-              endDate={booking.end_time.slice(0, 10)}
+              startDate={toLocalDate(booking.start_time, booking.timezone)}
+              endDate={toLocalDateExclusive(booking.end_time, booking.timezone)}
               onSelectionChange={setAddonSelections}
             />
             {Object.keys(addonSelections).length > 0 && (

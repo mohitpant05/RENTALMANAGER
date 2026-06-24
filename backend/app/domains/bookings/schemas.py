@@ -22,6 +22,7 @@ class BookingCreate(BaseModel):
     auto_confirm: bool = True
     user_id: uuid.UUID | None = None
     schedules: list[AddonSchedule] | None = None
+    timezone: str = "UTC"
 
 
 class BookingCancel(BaseModel):
@@ -56,6 +57,7 @@ class BookingResponse(BaseModel):
     cancelled_at: datetime | None
     cancellation_reason: str | None
     refund_percent: float | None
+    timezone: str
     version: int
     created_at: datetime
     updated_at: datetime
@@ -92,6 +94,7 @@ class BookingItemCreate(BaseModel):
     notes: str | None = None
     auto_confirm: bool = True
     schedules: list[AddonSchedule] | None = None
+    timezone: str = "UTC"
 
 
 class BundledBookingCreate(BaseModel):
@@ -108,6 +111,7 @@ class AddAddonRequest(BaseModel):
     notes: str | None = None
     auto_confirm: bool = True
     schedules: list[AddonSchedule] | None = None
+    timezone: str = "UTC"
 
 
 class BookingGroupResponse(BaseModel):

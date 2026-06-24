@@ -38,6 +38,7 @@ class Booking(SQLModel, table=True):
     )
     cancellation_reason: str | None = Field(default=None, max_length=500)
     refund_percent: float | None = Field(default=None)
+    timezone: str = Field(default="UTC", max_length=50)
     version: int = Field(default=1)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(UTC),

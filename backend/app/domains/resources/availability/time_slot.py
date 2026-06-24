@@ -32,22 +32,37 @@ class TimeSlotProvider:
             return errors
 
         if slot_config:
-            duration_minutes = (end - start).total_seconds() / 60
-            allowed = [_parse_duration(d) for d in slot_config.get("duration_options", [])]
-            if allowed and not any(abs(duration_minutes - a) < 1 for a in allowed):
-                errors.append(
-                    f"Slot duration {duration_minutes:.0f}min not in allowed: "
-                    f"{slot_config.get('duration_options')}"
+            fixed_slots = slot_config.get("fixed_slots")
+            if fixed_slots:
+                start_hhmm = start.strftime("%H:%M")
+                end_hhmm = end.strftime("%H:%M")
+                matched = any(
+                    s.get("start") == start_hhmm and s.get("end") == end_hhmm
+                    for s in fixed_slots
                 )
+                if not matched:
+                    labels = [f"{s['start']}-{s['end']}" for s in fixed_slots]
+                    errors.append(
+                        f"Time {start_hhmm}-{end_hhmm} not in allowed slots: {labels}"
+                    )
+            else:
+                duration_minutes = (end - start).total_seconds() / 60
+                allowed = [_parse_duration(d) for d in slot_config.get("duration_options", [])]
+                if allowed and not any(abs(duration_minutes - a) < 1 for a in allowed):
+                    errors.append(
+                        f"Slot duration {duration_minutes:.0f}min not in allowed: "
+                        f"{slot_config.get('duration_options')}"
+                    )
         return errors
 
     async def check(
-        self, session: AsyncSession, resource_id: uuid.UUID, start: datetime, end: datetime
+        self, session: AsyncSession, resource_id: uuid.UUID, start: datetime, end: datetime,
+        buffer_minutes: int = 0,
     ) -> bool:
-        return await check_overlap(session, resource_id, start, end)
+        return await check_overlap(session, resource_id, start, end, buffer_minutes)
 
     async def hold(
         self, session: AsyncSession, resource_id: uuid.UUID, start: datetime, end: datetime,
-        hold_minutes: int = 10,
+        hold_minutes: int = 10, buffer_minutes: int = 0,
     ) -> HoldResult:
-        return await create_hold(session, resource_id, start, end, hold_minutes)
+        return await create_hold(session, resource_id, start, end, hold_minutes, buffer_minutes)

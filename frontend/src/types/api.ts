@@ -162,6 +162,7 @@ export interface ResourceResponse {
   rating_avg: number;
   rating_count: number;
   owner_id: string;
+  slot_config: Record<string, unknown> | null;
   support_contact_id: string | null;
   version: number;
   created_at: string;
@@ -179,6 +180,7 @@ export interface ResourceCreate {
   base_price: number;
   currency?: string;
   support_contact_id?: string;
+  slot_config?: Record<string, unknown>;
 }
 
 export interface ResourceUpdate {
@@ -192,6 +194,7 @@ export interface ResourceUpdate {
   currency?: string;
   status?: string;
   support_contact_id?: string;
+  slot_config?: Record<string, unknown>;
 }
 
 // ─── Bookings ───────────────────────────────────────────
@@ -220,6 +223,7 @@ export interface BookingResponse {
   cancelled_at: string | null;
   cancellation_reason: string | null;
   refund_percent: number | null;
+  timezone: string;
   version: number;
   created_at: string;
   updated_at: string;
@@ -233,6 +237,7 @@ export interface BookingCreate {
   notes?: string;
   auto_confirm?: boolean;
   user_id?: string;
+  timezone?: string;
 }
 
 export interface BookingCancel {
@@ -481,6 +486,7 @@ export interface AddAddonRequest {
   notes?: string;
   auto_confirm?: boolean;
   schedules?: AddonSchedule[];
+  timezone?: string;
 }
 
 export interface BookingGroupResponse {
@@ -502,6 +508,7 @@ export interface AddonResourceItem {
   available: boolean;
   location_address: string | null;
   attributes: Record<string, unknown> | null;
+  slot_config: Record<string, unknown> | null;
 }
 
 export interface AddonTypeGroup {

@@ -98,6 +98,7 @@ async def discover_addons(
                 "available": available,
                 "location_address": resource.location_address,
                 "attributes": resource.attributes,
+                "slot_config": resource.slot_config,
             })
             assigned_ids_for_type.add(resource.id)
 
@@ -143,6 +144,7 @@ async def discover_addons(
                     "available": available,
                     "location_address": resource.location_address,
                     "attributes": resource.attributes,
+                    "slot_config": resource.slot_config,
                 })
 
             non_assigned = [i for i in items if not i["is_assigned"]]
