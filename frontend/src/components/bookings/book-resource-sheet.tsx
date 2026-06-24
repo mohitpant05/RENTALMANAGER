@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { CalendarDays, Clock, Loader2 } from "lucide-react";
 import { useBookingFlow } from "@/hooks/use-booking-flow";
+import { useFormatPrice } from "@/hooks/use-currency";
 import {
   Sheet,
   SheetContent,
@@ -22,6 +23,7 @@ interface BookResourceSheetProps {
   resourceName: string;
   availabilityModel: string;
   slotConfig?: Record<string, unknown> | null;
+  holdConfig?: { unit: "seconds" | "minutes"; value: number } | null;
 }
 
 export function BookResourceSheet({
@@ -31,9 +33,11 @@ export function BookResourceSheet({
   resourceName,
   availabilityModel,
   slotConfig,
+  holdConfig,
 }: BookResourceSheetProps) {
   const router = useRouter();
-  const flow = useBookingFlow({ resourceId, availabilityModel, slotConfig });
+  const fmt = useFormatPrice();
+  const flow = useBookingFlow({ resourceId, availabilityModel, slotConfig, holdConfig });
 
   function handleOpenChange(isOpen: boolean) {
     if (!isOpen) {
@@ -43,7 +47,16 @@ export function BookResourceSheet({
   }
 
   async function handleCheckAndHold() {
-    await flow.checkAndHold();
+    if (flow.holdEnabled) {
+      await flow.checkAndHold();
+    } else {
+      const booking = await flow.directBook();
+      if (booking) {
+        flow.reset();
+        onClose();
+        router.push(`/admin/bookings/${booking.id}`);
+      }
+    }
   }
 
   async function handleConfirm() {
@@ -87,47 +100,72 @@ export function BookResourceSheet({
                 />
               </div>
 
-              {flow.showTime && (
+              {flow.showTime && flow.hasFixedSlots ? (
                 <div className="space-y-2">
-                  <Label htmlFor="start-time">Start Time</Label>
-                  <Input
-                    id="start-time"
-                    type="time"
-                    value={flow.startTime}
-                    onChange={(e) => flow.setStartTime(e.target.value)}
-                  />
+                  <Label>Select Time Slot</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {flow.fixedSlots.map((slot) => {
+                      const selected = flow.startTime === slot.start && flow.endTime === slot.end;
+                      return (
+                        <Button
+                          key={`${slot.start}-${slot.end}`}
+                          type="button"
+                          variant={selected ? "default" : "outline"}
+                          size="sm"
+                          className="text-xs"
+                          onClick={() => flow.selectFixedSlot(slot)}
+                        >
+                          {slot.start} – {slot.end}
+                        </Button>
+                      );
+                    })}
+                  </div>
                 </div>
-              )}
+              ) : (
+                <>
+                  {flow.showTime && (
+                    <div className="space-y-2">
+                      <Label htmlFor="start-time">Start Time</Label>
+                      <Input
+                        id="start-time"
+                        type="time"
+                        value={flow.startTime}
+                        onChange={(e) => flow.setStartTime(e.target.value)}
+                      />
+                    </div>
+                  )}
 
-              {!flow.hideEndDate && (
-                <div className="space-y-2">
-                  <Label htmlFor="end-date">End Date</Label>
-                  <Input
-                    id="end-date"
-                    type="date"
-                    value={flow.endDate}
-                    onChange={(e) => flow.setEndDate(e.target.value)}
-                  />
-                </div>
-              )}
+                  {!flow.hideEndDate && (
+                    <div className="space-y-2">
+                      <Label htmlFor="end-date">End Date</Label>
+                      <Input
+                        id="end-date"
+                        type="date"
+                        value={flow.endDate}
+                        onChange={(e) => flow.setEndDate(e.target.value)}
+                      />
+                    </div>
+                  )}
 
-              {flow.showTime && (
-                <div className="space-y-2">
-                  <Label htmlFor="end-time">End Time</Label>
-                  <Input
-                    id="end-time"
-                    type="time"
-                    value={flow.endTime}
-                    onChange={(e) => flow.setEndTime(e.target.value)}
-                  />
-                </div>
-              )}
+                  {flow.showTime && (
+                    <div className="space-y-2">
+                      <Label htmlFor="end-time">End Time</Label>
+                      <Input
+                        id="end-time"
+                        type="time"
+                        value={flow.endTime}
+                        onChange={(e) => flow.setEndTime(e.target.value)}
+                      />
+                    </div>
+                  )}
 
-              {flow.allowedDurations.length > 0 && flow.showTime && (
-                <p className="text-xs text-muted-foreground">
-                  Available slot durations:{" "}
-                  {(slotConfig?.duration_options as string[])?.join(", ")}
-                </p>
+                  {flow.allowedDurations.length > 0 && flow.showTime && (
+                    <p className="text-xs text-muted-foreground">
+                      Available slot durations:{" "}
+                      {(slotConfig?.duration_options as string[])?.join(", ")}
+                    </p>
+                  )}
+                </>
               )}
 
               <div className="space-y-2">
@@ -148,7 +186,7 @@ export function BookResourceSheet({
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">Price</span>
                   <span className="text-lg font-semibold">
-                    ${flow.holdPrice.toFixed(2)}
+                    {fmt(flow.holdPrice)}
                   </span>
                 </div>
 
@@ -197,7 +235,7 @@ export function BookResourceSheet({
           {flow.step === "dates" && (
             <Button onClick={handleCheckAndHold} disabled={flow.isPending}>
               {flow.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Check & Hold
+              {flow.holdEnabled ? "Check & Hold" : "Check & Book"}
             </Button>
           )}
 

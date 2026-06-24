@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ImagePlus, X } from "lucide-react";
 import {
   Sheet,
@@ -23,6 +23,7 @@ import type {
   ResourceCreate,
   ResourceResponse,
   ResourceUpdate,
+  TenantResponse,
 } from "@/types/api";
 import { CurrencySelect } from "@/components/ui/currency-select";
 import { ResourcePreviewModal } from "@/components/resources/resource-preview-modal";
@@ -31,7 +32,7 @@ import { toast } from "sonner";
 const resourceSchema = z.object({
   name: z.string().min(1, "Name is required"),
   description: z.string().optional(),
-  base_price: z.number().min(0, "Price must be non-negative"),
+  base_price: z.number().min(0, "Price must be non-negative").max(1_000_000, "Price cannot exceed 1,000,000"),
   currency: z.string().min(1),
   location_address: z.string().optional(),
   location_lat: z.number().min(-90).max(90).optional(),
@@ -69,6 +70,11 @@ function getPlaceholders(typeName: string) {
   };
 }
 
+interface FixedSlot {
+  start: string;
+  end: string;
+}
+
 interface CreateResourceSheetProps {
   open: boolean;
   onClose: () => void;
@@ -76,6 +82,7 @@ interface CreateResourceSheetProps {
   typeName: string;
   attributeSchema: AttributeField[] | null;
   editingResource?: ResourceResponse | null;
+  availabilityModel?: string;
 }
 
 export function CreateResourceSheet({
@@ -85,12 +92,26 @@ export function CreateResourceSheet({
   typeName,
   attributeSchema,
   editingResource,
+  availabilityModel,
 }: CreateResourceSheetProps) {
   const queryClient = useQueryClient();
+  const { data: tenant } = useQuery({
+    queryKey: ["admin-tenant"],
+    queryFn: async () => {
+      const { data } = await api.get<TenantResponse>("/admin/tenant");
+      return data;
+    },
+  });
+  const defaultCurrency = tenant?.base_currency ?? "USD";
   const isEditing = !!editingResource;
   const [attributes, setAttributes] = useState<Record<string, unknown>>({});
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const [fixedSlots, setFixedSlots] = useState<FixedSlot[]>([]);
+  const [newSlotStart, setNewSlotStart] = useState("09:00");
+  const [newSlotEnd, setNewSlotEnd] = useState("10:00");
+  const [durationOptions, setDurationOptions] = useState<string[]>([]);
+  const [newDuration, setNewDuration] = useState("");
   const [showPreview, setShowPreview] = useState(false);
   const [pendingFormData, setPendingFormData] = useState<ResourceForm | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -113,7 +134,7 @@ export function CreateResourceSheet({
       name: "",
       description: "",
       base_price: 0,
-      currency: "USD",
+      currency: defaultCurrency,
       location_address: "",
       location_lat: undefined,
       location_lng: undefined,
@@ -132,21 +153,31 @@ export function CreateResourceSheet({
         location_lng: editingResource.location_lng ?? undefined,
       });
       setAttributes(editingResource.attributes ?? {});
+      const sc = editingResource.slot_config as Record<string, unknown> | null;
+      if (sc) {
+        setFixedSlots((sc.fixed_slots as FixedSlot[]) ?? []);
+        setDurationOptions((sc.duration_options as string[]) ?? []);
+      } else {
+        setFixedSlots([]);
+        setDurationOptions([]);
+      }
     } else {
       reset({
         name: "",
         description: "",
         base_price: 0,
-        currency: "USD",
+        currency: defaultCurrency,
         location_address: "",
         location_lat: undefined,
         location_lng: undefined,
       });
       setAttributes({});
+      setFixedSlots([]);
+      setDurationOptions([]);
       setImageFiles([]);
       setImagePreviews([]);
     }
-  }, [editingResource, reset]);
+  }, [editingResource, reset, defaultCurrency]);
 
   function handleImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
@@ -202,9 +233,16 @@ export function CreateResourceSheet({
 
   const createMutation = useMutation({
     mutationFn: async (data: ResourceForm) => {
+      let slot_config: Record<string, unknown> | undefined = undefined;
+      if (availabilityModel === "time_slot" && (fixedSlots.length > 0 || durationOptions.length > 0)) {
+        slot_config = {};
+        if (fixedSlots.length > 0) slot_config.fixed_slots = fixedSlots;
+        if (durationOptions.length > 0) slot_config.duration_options = durationOptions;
+      }
       const payload: Record<string, unknown> = {
         ...data,
         attributes: Object.keys(attributes).length > 0 ? attributes : undefined,
+        slot_config: slot_config ?? null,
       };
       if (isEditing) {
         const { data: res } = await api.put<ResourceResponse>(
@@ -296,6 +334,7 @@ export function CreateResourceSheet({
                 type="number"
                 step="0.01"
                 min="0"
+                max="1000000"
                 onKeyDown={(e) => { if (e.key === "-") e.preventDefault(); }}
                 {...register("base_price", { valueAsNumber: true })}
               />
@@ -388,14 +427,13 @@ export function CreateResourceSheet({
                       type="number"
                       placeholder="0"
                       min="0"
+                      max="1000000"
                       onKeyDown={(e) => { if (e.key === "-") e.preventDefault(); }}
                       value={(getAttributeValue(attr) as number) ?? ""}
-                      onChange={(e) =>
-                        handleAttributeChange(
-                          attr.name,
-                          e.target.value ? Math.max(0, parseFloat(e.target.value)) : undefined
-                        )
-                      }
+                      onChange={(e) => {
+                        const v = e.target.value ? Math.max(0, Math.min(1_000_000, parseFloat(e.target.value))) : undefined;
+                        handleAttributeChange(attr.name, v);
+                      }}
                     />
                   ) : attr.type === "tags" ? (
                     <Input
@@ -429,6 +467,73 @@ export function CreateResourceSheet({
                   )}
                 </div>
               ))}
+            </div>
+          )}
+
+          {availabilityModel === "time_slot" && (
+            <div className="space-y-4 rounded-lg border p-5">
+              <p className="text-sm font-medium">Time Slot Configuration</p>
+
+              <div className="space-y-2">
+                <Label className="text-xs">Fixed Slots</Label>
+                <div className="flex gap-2 items-end">
+                  <div className="space-y-1">
+                    <span className="text-[10px] text-muted-foreground">Start</span>
+                    <Input type="time" value={newSlotStart} onChange={(e) => setNewSlotStart(e.target.value)} className="w-28" />
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-[10px] text-muted-foreground">End</span>
+                    <Input type="time" value={newSlotEnd} onChange={(e) => setNewSlotEnd(e.target.value)} className="w-28" />
+                  </div>
+                  <Button type="button" variant="outline" size="sm" onClick={() => {
+                    if (newSlotStart && newSlotEnd && newSlotStart < newSlotEnd) {
+                      if (!fixedSlots.some((s) => s.start === newSlotStart && s.end === newSlotEnd)) {
+                        setFixedSlots((prev) => [...prev, { start: newSlotStart, end: newSlotEnd }]);
+                      }
+                    }
+                  }}>Add</Button>
+                </div>
+                {fixedSlots.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {fixedSlots.map((s, i) => (
+                      <span key={i} className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-xs">
+                        {s.start}–{s.end}
+                        <button type="button" onClick={() => setFixedSlots((prev) => prev.filter((_, j) => j !== i))} className="hover:text-destructive">
+                          <X className="h-3 w-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {fixedSlots.length === 0 && (
+                <div className="space-y-2">
+                  <Label className="text-xs">Duration Options (fallback)</Label>
+                  <div className="flex gap-2">
+                    <Input placeholder="e.g. 30m, 1h, 2h" value={newDuration} onChange={(e) => setNewDuration(e.target.value)} className="w-32" />
+                    <Button type="button" variant="outline" size="sm" onClick={() => {
+                      const d = newDuration.trim();
+                      if (d && !durationOptions.includes(d)) {
+                        setDurationOptions((prev) => [...prev, d]);
+                        setNewDuration("");
+                      }
+                    }}>Add</Button>
+                  </div>
+                  {durationOptions.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {durationOptions.map((d, i) => (
+                        <span key={i} className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-xs">
+                          {d}
+                          <button type="button" onClick={() => setDurationOptions((prev) => prev.filter((_, j) => j !== i))} className="hover:text-destructive">
+                            <X className="h-3 w-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
@@ -527,7 +632,7 @@ export function CreateResourceSheet({
         name: pendingFormData?.name ?? "",
         description: pendingFormData?.description,
         base_price: pendingFormData?.base_price ?? 0,
-        currency: pendingFormData?.currency ?? "USD",
+        currency: pendingFormData?.currency ?? defaultCurrency,
         location_address: pendingFormData?.location_address,
         attributes,
         typeName,

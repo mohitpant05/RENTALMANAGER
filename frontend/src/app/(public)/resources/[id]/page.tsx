@@ -151,7 +151,8 @@ export default function ResourceDetailPage({
           <BookingCard
             resource={resource}
             availabilityModel={resourceType?.availability_model ?? "date_range"}
-            slotConfig={resourceType?.slot_config}
+            slotConfig={resource?.slot_config ?? resourceType?.slot_config}
+            holdConfig={resourceType?.hold_config}
             onDatesSelected={(start, end) => {
               setSelectedStart(start);
               setSelectedEnd(end);
@@ -167,6 +168,7 @@ export default function ResourceDetailPage({
         <BookingCard
           resource={resource}
           availabilityModel={resourceType?.availability_model ?? "date_range"}
+          holdConfig={resourceType?.hold_config}
         />
       </div>
 

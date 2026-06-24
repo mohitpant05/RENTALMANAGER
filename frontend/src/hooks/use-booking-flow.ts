@@ -11,7 +11,7 @@ import type {
 } from "@/types/api";
 import { toast } from "sonner";
 
-type Step = "dates" | "available" | "held" | "booked";
+type Step = "dates" | "available" | "held" | "booked" | "confirm";
 
 function buildDatetime(date: string, time: string): string {
   return new Date(`${date}T${time}`).toISOString();
@@ -37,22 +37,34 @@ function formatDuration(minutes: number): string {
   return `${minutes}min`;
 }
 
+interface HoldConfig {
+  unit: "seconds" | "minutes";
+  value: number;
+}
+
 interface UseBookingFlowOptions {
   resourceId: string;
   availabilityModel: string;
   slotConfig?: Record<string, unknown> | null;
+  holdConfig?: HoldConfig | null;
 }
 
-export function useBookingFlow({ resourceId, availabilityModel, slotConfig }: UseBookingFlowOptions) {
+export function useBookingFlow({ resourceId, availabilityModel, slotConfig, holdConfig }: UseBookingFlowOptions) {
   const allowedDurations = useMemo(() => {
     if (!slotConfig?.duration_options) return [];
     return (slotConfig.duration_options as string[]).map(parseDuration);
   }, [slotConfig]);
+  const fixedSlots = useMemo(() => {
+    if (!slotConfig?.fixed_slots) return [] as { start: string; end: string }[];
+    return slotConfig.fixed_slots as { start: string; end: string }[];
+  }, [slotConfig]);
+  const hasFixedSlots = fixedSlots.length > 0;
+
   const [step, setStep] = useState<Step>("dates");
   const [startDate, setStartDate] = useState("");
-  const [startTime, setStartTime] = useState("09:00");
+  const [startTime, setStartTime] = useState(fixedSlots[0]?.start ?? "09:00");
   const [endDate, setEndDate] = useState("");
-  const [endTime, setEndTime] = useState("17:00");
+  const [endTime, setEndTime] = useState(fixedSlots[0]?.end ?? "17:00");
   const [notes, setNotes] = useState("");
   const [isPending, setIsPending] = useState(false);
 
@@ -64,6 +76,7 @@ export function useBookingFlow({ resourceId, availabilityModel, slotConfig }: Us
 
   const showTime = availabilityModel === "hourly" || availabilityModel === "time_slot";
   const hideEndDate = availabilityModel === "time_slot";
+  const holdEnabled = holdConfig != null;
 
   const clearTimer = useCallback(() => {
     if (intervalRef.current) {
@@ -75,9 +88,9 @@ export function useBookingFlow({ resourceId, availabilityModel, slotConfig }: Us
   const reset = useCallback(() => {
     setStep("dates");
     setStartDate("");
-    setStartTime("09:00");
+    setStartTime(fixedSlots[0]?.start ?? "09:00");
     setEndDate("");
-    setEndTime("17:00");
+    setEndTime(fixedSlots[0]?.end ?? "17:00");
     setNotes("");
     setIsPending(false);
     setHoldToken("");
@@ -126,7 +139,9 @@ export function useBookingFlow({ resourceId, availabilityModel, slotConfig }: Us
 
   function getEndDatetime(): string {
     if (availabilityModel === "date_range") {
-      return buildDatetime(endDate, "23:59");
+      const next = new Date(`${endDate}T00:00:00`);
+      next.setDate(next.getDate() + 1);
+      return next.toISOString();
     }
     const ed = hideEndDate ? startDate : endDate;
     return buildDatetime(ed, endTime);
@@ -269,6 +284,7 @@ export function useBookingFlow({ resourceId, availabilityModel, slotConfig }: Us
         start_time: getStartDatetime(),
         end_time: getEndDatetime(),
         notes: notes || undefined,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       };
 
       const { data: booking } = await api.post<BookingResponse>("/bookings", payload);
@@ -278,6 +294,51 @@ export function useBookingFlow({ resourceId, availabilityModel, slotConfig }: Us
       return booking;
     } catch {
       toast.error("Failed to confirm booking");
+      return null;
+    } finally {
+      setIsPending(false);
+    }
+  }
+
+  async function directBook(): Promise<BookingResponse | null> {
+    if (!startDate) {
+      toast.error("Please select a start date");
+      return null;
+    }
+    if (!hideEndDate && !endDate) {
+      toast.error("Please select an end date");
+      return null;
+    }
+
+    setIsPending(true);
+    try {
+      const start = getStartDatetime();
+      const end = getEndDatetime();
+
+      const { data: check } = await api.post<AvailabilityCheckResponse>(
+        `/resources/${resourceId}/availability/check`,
+        { start, end }
+      );
+
+      if (!check.available) {
+        toast.error("Resource is not available for the selected dates");
+        return null;
+      }
+
+      const payload: BookingCreate = {
+        resource_id: resourceId,
+        start_time: start,
+        end_time: end,
+        notes: notes || undefined,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      };
+
+      const { data: booking } = await api.post<BookingResponse>("/bookings", payload);
+      toast.success("Booking confirmed!");
+      setStep("booked");
+      return booking;
+    } catch {
+      toast.error("Failed to book resource");
       return null;
     } finally {
       setIsPending(false);
@@ -306,7 +367,10 @@ export function useBookingFlow({ resourceId, availabilityModel, slotConfig }: Us
     setNotes,
     showTime,
     hideEndDate,
+    holdEnabled,
     allowedDurations,
+    fixedSlots,
+    hasFixedSlots,
     checkPrice,
     holdPrice,
     countdown,
@@ -316,6 +380,11 @@ export function useBookingFlow({ resourceId, availabilityModel, slotConfig }: Us
     holdResource,
     checkAndHold,
     confirmBooking,
+    directBook,
+    selectFixedSlot: (slot: { start: string; end: string }) => {
+      setStartTime(slot.start);
+      setEndTime(slot.end);
+    },
     cancel,
     reset,
   };

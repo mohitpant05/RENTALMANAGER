@@ -26,6 +26,27 @@ from app.domains.resources.schemas import (
 )
 
 
+def _validate_operating_hours(rt: ResourceType, start: datetime, end: datetime) -> None:
+    oh = getattr(rt, "operating_hours", None)
+    if not oh:
+        return
+    op_start = oh.get("start")
+    op_end = oh.get("end")
+    if not op_start or not op_end:
+        return
+    oh_start_h, oh_start_m = int(op_start[:2]), int(op_start[3:])
+    oh_end_h, oh_end_m = int(op_end[:2]), int(op_end[3:])
+    booking_start_mins = start.hour * 60 + start.minute
+    booking_end_mins = end.hour * 60 + end.minute
+    op_start_mins = oh_start_h * 60 + oh_start_m
+    op_end_mins = oh_end_h * 60 + oh_end_m
+    if booking_start_mins < op_start_mins or booking_end_mins > op_end_mins:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Booking must be within operating hours {op_start}-{op_end}",
+        )
+
+
 async def create_resource_type(
     session: AsyncSession, data: ResourceTypeCreate
 ) -> ResourceType:
@@ -50,6 +71,10 @@ async def create_resource_type(
         pricing_config=data.pricing_config,
         cancellation_defaults=data.cancellation_defaults,
         requires_verification=data.requires_verification,
+        hold_config=data.hold_config.model_dump() if data.hold_config else None,
+        booking_mode=data.booking_mode,
+        operating_hours=data.operating_hours.model_dump() if data.operating_hours else None,
+        buffer_minutes=data.buffer_minutes,
     )
     session.add(rt)
     await session.commit()
@@ -103,6 +128,12 @@ async def update_resource_type(
 ) -> ResourceType:
     rt = await get_resource_type(session, resource_type_id)
     update_data = data.model_dump(exclude_unset=True)
+    if "hold_config" in update_data and update_data["hold_config"] is not None:
+        from app.domains.resources.schemas import HoldConfig
+        update_data["hold_config"] = HoldConfig(**update_data["hold_config"]).model_dump()
+    if "operating_hours" in update_data and update_data["operating_hours"] is not None:
+        from app.domains.resources.schemas import OperatingHours
+        update_data["operating_hours"] = OperatingHours(**update_data["operating_hours"]).model_dump()
     for key, value in update_data.items():
         setattr(rt, key, value)
     rt.updated_at = datetime.now(UTC)
@@ -142,7 +173,9 @@ async def create_resource(
 
     from app.core.currency.service import to_usd
 
-    input_currency = data.currency or "USD"
+    tenant_ctx = get_current_tenant()
+    tenant_currency = tenant_ctx.tenant.base_currency if tenant_ctx else "USD"
+    input_currency = data.currency or tenant_currency
     price_usd = await to_usd(data.base_price, input_currency)
 
     resource = Resource(
@@ -156,12 +189,12 @@ async def create_resource(
         base_price=price_usd,
         currency="USD",
         owner_id=owner_id,
+        slot_config=data.slot_config,
     )
     session.add(resource)
     await session.commit()
     await session.refresh(resource)
 
-    tenant_ctx = get_current_tenant()
     if tenant_ctx:
         doc = build_document(
             resource.id, resource.name, resource.description,
@@ -323,12 +356,16 @@ async def check_availability(
     resource = await get_resource(session, resource_id)
     rt = await get_resource_type(session, resource.type_id)
 
+    effective_slot_config = resource.slot_config or rt.slot_config
     provider = get_availability_provider(rt.availability_model)
-    errors = provider.validate_times(start, end, rt.slot_config)
+    errors = provider.validate_times(start, end, effective_slot_config)
     if errors:
         raise HTTPException(status_code=422, detail={"validation_errors": errors})
 
-    available = await provider.check(session, resource.id, start, end)
+    _validate_operating_hours(rt, start, end)
+
+    buf = getattr(rt, "buffer_minutes", 0) or 0
+    available = await provider.check(session, resource.id, start, end, buffer_minutes=buf)
     price = None
     if available:
         pricing = get_pricing_provider(rt.pricing_model)
@@ -344,7 +381,9 @@ async def check_schedule_availability(
     availability_model: str,
 ) -> tuple[bool, list[dict]]:
     resource = await get_resource(session, resource_id)
+    rt = await get_resource_type(session, resource.type_id)
     provider = get_availability_provider(availability_model)
+    buf = getattr(rt, "buffer_minutes", 0) or 0
     schedule_states: list[dict] = []
     all_available = True
 
@@ -359,7 +398,7 @@ async def check_schedule_availability(
             start = datetime.strptime(f"{d} 00:00", "%Y-%m-%d %H:%M").replace(tzinfo=UTC)
             end = datetime.strptime(f"{d} 23:59", "%Y-%m-%d %H:%M").replace(tzinfo=UTC)
 
-        available = await provider.check(session, resource.id, start, end)
+        available = await provider.check(session, resource.id, start, end, buffer_minutes=buf)
         if not available:
             all_available = False
 
@@ -378,22 +417,39 @@ async def hold_resource(
     resource_id: uuid.UUID,
     start: datetime,
     end: datetime,
-    hold_minutes: int = 10,
+    hold_minutes: int | None = None,
 ) -> tuple[str, datetime, float]:
     resource = await get_resource(session, resource_id)
     if resource.status != "active":
         raise HTTPException(status_code=400, detail="Resource is not active")
 
     rt = await get_resource_type(session, resource.type_id)
+
+    if rt.hold_config is None:
+        raise HTTPException(
+            status_code=400,
+            detail="This resource type does not support holds. Book directly.",
+        )
+
+    from app.domains.resources.schemas import HoldConfig
+    hc = HoldConfig(**rt.hold_config)
+    effective_minutes = hold_minutes if hold_minutes is not None else hc.to_minutes()
+    effective_minutes = max(1, min(60, effective_minutes))
+
     provider = get_availability_provider(rt.availability_model)
 
-    errors = provider.validate_times(start, end, rt.slot_config)
+    effective_slot_config = resource.slot_config or rt.slot_config
+    errors = provider.validate_times(start, end, effective_slot_config)
     if errors:
         raise HTTPException(status_code=422, detail={"validation_errors": errors})
 
+    _validate_operating_hours(rt, start, end)
+
+    buf = getattr(rt, "buffer_minutes", 0) or 0
     try:
         result = await provider.hold(
-            session, resource.id, start, end, hold_minutes=hold_minutes
+            session, resource.id, start, end, hold_minutes=effective_minutes,
+            buffer_minutes=buf,
         )
     except ValueError as e:
         raise HTTPException(status_code=409, detail=str(e))
@@ -517,7 +573,19 @@ async def list_availability_slots(
     from app.core.auth.models import User
 
     stmt = (
-        sa_select(ResourceAvailability)
+        sa_select(
+            ResourceAvailability.id,
+            ResourceAvailability.resource_id,
+            Resource.name.label("resource_name"),
+            ResourceType.name.label("resource_type_name"),
+            ResourceAvailability.start_time,
+            ResourceAvailability.end_time,
+            ResourceAvailability.status,
+            ResourceAvailability.hold_token,
+            ResourceAvailability.hold_expires,
+            ResourceAvailability.booking_id,
+            User.full_name.label("customer_name"),
+        )
         .join(Resource, ResourceAvailability.resource_id == Resource.id)
         .join(ResourceType, Resource.type_id == ResourceType.id)
         .outerjoin(Booking, ResourceAvailability.booking_id == Booking.id)
@@ -553,27 +621,18 @@ async def list_availability_slots(
     )
     result = await session.exec(stmt)
     rows = []
-    for ra in result.all():
-        resource = await session.get(Resource, ra.resource_id)
-        if resource is None:
-            continue
-        rt = await session.get(ResourceType, resource.type_id)
-        booking_user = None
-        if ra.booking_id:
-            booking = await session.get(Booking, ra.booking_id)
-            if booking:
-                booking_user = await session.get(User, booking.user_id)
+    for row in result.all():
         rows.append({
-            "id": ra.id,
-            "resource_id": ra.resource_id,
-            "resource_name": resource.name,
-            "resource_type_name": rt.name if rt else "",
-            "start_time": ra.start_time,
-            "end_time": ra.end_time,
-            "status": ra.status,
-            "hold_token": ra.hold_token,
-            "hold_expires": ra.hold_expires,
-            "booking_id": ra.booking_id,
-            "customer_name": booking_user.full_name if booking_user else None,
+            "id": row.id,
+            "resource_id": row.resource_id,
+            "resource_name": row.resource_name,
+            "resource_type_name": row.resource_type_name,
+            "start_time": row.start_time,
+            "end_time": row.end_time,
+            "status": row.status,
+            "hold_token": row.hold_token,
+            "hold_expires": row.hold_expires,
+            "booking_id": row.booking_id,
+            "customer_name": row.customer_name,
         })
     return rows

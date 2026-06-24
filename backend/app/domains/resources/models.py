@@ -66,6 +66,7 @@ class Resource(SQLModel, table=True):
     rating_count: int = Field(default=0)
     owner_id: uuid.UUID = Field(foreign_key="users.id", index=True)
     commission_config: dict | None = Field(default=None, sa_column=Column(JSONB))
+    slot_config: dict | None = Field(default=None, sa_column=Column(JSONB))
     suspension_reason: str | None = Field(default=None, max_length=50)
     support_contact_id: uuid.UUID | None = Field(default=None, foreign_key="users.id")
     version: int = Field(default=1)

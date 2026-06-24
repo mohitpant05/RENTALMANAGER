@@ -8,10 +8,13 @@ import type { AddonSchedule } from "@/types/api";
 
 function getDaysBetween(start: string, end: string): string[] {
   const days: string[] = [];
-  const current = new Date(start);
-  const endDate = new Date(end);
-  while (current <= endDate) {
-    days.push(current.toISOString().slice(0, 10));
+  const current = new Date(start + "T00:00:00");
+  const last = new Date(end + "T00:00:00");
+  while (current <= last) {
+    const y = current.getFullYear();
+    const m = String(current.getMonth() + 1).padStart(2, "0");
+    const d = String(current.getDate()).padStart(2, "0");
+    days.push(`${y}-${m}-${d}`);
     current.setDate(current.getDate() + 1);
   }
   return days;

@@ -156,6 +156,7 @@ async def create_booking(
         notes=data.notes,
         schedules=schedules_dicts,
         auto_confirm=data.auto_confirm,
+        timezone=getattr(data, "timezone", "UTC") or "UTC",
     )
 
     has_hold = bool(data.hold_token) or bool(data.hold_tokens)
