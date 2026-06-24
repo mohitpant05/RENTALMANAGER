@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.admin.schemas import (
@@ -8,9 +8,11 @@ from app.core.admin.schemas import (
     DomainCreate,
     DomainResponse,
     StaffInvite,
+    StaffInviteResponse,
     StaffUserResponse,
     TenantConfigUpdate,
     TenantResponse,
+    TestEmailRequest,
     ThemeResponse,
     ThemeUpdate,
 )
@@ -35,12 +37,8 @@ from app.database import get_db
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 
-def _require_admin():
-    return require_permission("*:*:*")
-
-
 @router.get("/tenant", response_model=TenantResponse)
-async def get_tenant_info(user: User = Depends(_require_admin())):
+async def get_tenant_info(user: User = Depends(require_permission("settings:*:manage"))):
     ctx = get_current_tenant()
     return TenantResponse.from_tenant(ctx.tenant)
 
@@ -49,7 +47,7 @@ async def get_tenant_info(user: User = Depends(_require_admin())):
 async def patch_tenant(
     data: TenantConfigUpdate,
     session: AsyncSession = Depends(get_db),
-    user: User = Depends(_require_admin()),
+    user: User = Depends(require_permission("settings:*:manage")),
 ):
     ctx = get_current_tenant()
     tenant = await update_tenant_config(
@@ -66,7 +64,7 @@ async def patch_tenant(
 @router.get("/theme", response_model=ThemeResponse)
 async def get_tenant_theme(
     session: AsyncSession = Depends(get_db),
-    user: User = Depends(_require_admin()),
+    user: User = Depends(require_permission("theme:*:read")),
 ):
     ctx = get_current_tenant()
     theme = await get_theme(session, ctx.tenant.id)
@@ -77,7 +75,7 @@ async def get_tenant_theme(
 async def update_tenant_theme(
     data: ThemeUpdate,
     session: AsyncSession = Depends(get_db),
-    user: User = Depends(_require_admin()),
+    user: User = Depends(require_permission("theme:*:edit")),
 ):
     ctx = get_current_tenant()
     theme = await update_theme(session, ctx.tenant.id, data)
@@ -87,7 +85,7 @@ async def update_tenant_theme(
 @router.get("/domains", response_model=list[DomainResponse])
 async def list_tenant_domains(
     session: AsyncSession = Depends(get_db),
-    user: User = Depends(_require_admin()),
+    user: User = Depends(require_permission("settings:*:manage")),
 ):
     ctx = get_current_tenant()
     domains = await list_domains(session, ctx.tenant.id)
@@ -98,7 +96,7 @@ async def list_tenant_domains(
 async def add_tenant_domain(
     data: DomainCreate,
     session: AsyncSession = Depends(get_db),
-    user: User = Depends(_require_admin()),
+    user: User = Depends(require_permission("settings:*:manage")),
 ):
     ctx = get_current_tenant()
     domain = await add_domain(session, ctx.tenant.id, data)
@@ -109,41 +107,92 @@ async def add_tenant_domain(
 async def delete_tenant_domain(
     domain_id: uuid.UUID,
     session: AsyncSession = Depends(get_db),
-    user: User = Depends(_require_admin()),
+    user: User = Depends(require_permission("settings:*:manage")),
 ):
     ctx = get_current_tenant()
     await remove_domain(session, ctx.tenant.id, domain_id)
 
 
+@router.post("/email/test")
+async def test_email(
+    data: TestEmailRequest,
+    user: User = Depends(require_permission("settings:*:manage")),
+):
+    from app.core.email.factory import get_email_provider, get_email_provider_from_config
+
+    ctx = get_current_tenant()
+    config = ctx.tenant.config or {}
+    provider = None
+    if config.get("smtp_provider"):
+        provider = get_email_provider_from_config(config)
+    if provider is None:
+        provider = get_email_provider()
+    if provider is None:
+        raise HTTPException(status_code=400, detail="No email provider configured")
+    try:
+        provider.send(
+            data.to,
+            "RentManager — Test Email",
+            "This is a test email from RentManager.\n\nYour SMTP configuration is working correctly.",
+        )
+        return {"status": "sent"}
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Email send failed: {exc}")
+
+
 @router.get("/staff", response_model=list[StaffUserResponse])
 async def list_tenant_staff(
     session: AsyncSession = Depends(get_db),
-    user: User = Depends(_require_admin()),
+    user: User = Depends(require_permission("staff:*:manage")),
 ):
     staff = await list_staff(session)
     return [StaffUserResponse(**s) for s in staff]
 
 
-@router.post("/staff", response_model=StaffUserResponse, status_code=201)
+@router.post("/staff", response_model=StaffInviteResponse, status_code=201)
 async def invite_tenant_staff(
     data: StaffInvite,
     session: AsyncSession = Depends(get_db),
-    user: User = Depends(_require_admin()),
+    user: User = Depends(require_permission("staff:*:invite")),
 ):
+    from app.core.notifications.events import EMAIL_FAILED, STAFF_INVITED
+    from app.core.notifications.service import notify
+
     tenant_ctx = get_current_tenant()
-    new_user = await invite_staff(
+    new_user, email_status, email_warning = await invite_staff(
         session, data,
         tenant_id=str(tenant_ctx.tenant.id),
         tenant_slug=tenant_ctx.tenant.slug,
     )
-    return StaffUserResponse.model_validate(new_user)
+
+    if email_status == "not_configured":
+        await notify(
+            session, user.id, EMAIL_FAILED,
+            "Invite email not sent",
+            f"No email provider configured. Staff member {new_user.full_name} ({new_user.email}) "
+            f"was created but the invite email could not be sent. "
+            f"Configure SMTP in Settings → Email / SMTP.",
+            {"staff_email": new_user.email, "staff_id": str(new_user.id)},
+        )
+    else:
+        await notify(
+            session, user.id, STAFF_INVITED,
+            "Staff invited",
+            f"Invite email queued for {new_user.full_name} ({new_user.email}).",
+            {"staff_email": new_user.email, "staff_id": str(new_user.id)},
+        )
+
+    resp = StaffInviteResponse.model_validate(new_user)
+    resp.email_status = email_status
+    resp.email_warning = email_warning
+    return resp
 
 
 @router.post("/staff/{user_id}/deactivate", response_model=StaffUserResponse)
 async def deactivate_staff(
     user_id: uuid.UUID,
     session: AsyncSession = Depends(get_db),
-    user: User = Depends(_require_admin()),
+    user: User = Depends(require_permission("staff:*:manage")),
 ):
     deactivated = await deactivate_user(session, user_id)
     return StaffUserResponse.model_validate(deactivated)
@@ -153,7 +202,7 @@ async def deactivate_staff(
 async def activate_staff(
     user_id: uuid.UUID,
     session: AsyncSession = Depends(get_db),
-    user: User = Depends(_require_admin()),
+    user: User = Depends(require_permission("staff:*:manage")),
 ):
     activated = await activate_user(session, user_id)
     return StaffUserResponse.model_validate(activated)
@@ -163,6 +212,6 @@ async def activate_staff(
 async def staff_deactivation_impact(
     user_id: uuid.UUID,
     session: AsyncSession = Depends(get_db),
-    _user: User = Depends(_require_admin()),
+    _user: User = Depends(require_permission("staff:*:manage")),
 ):
     return await get_deactivation_impact(session, user_id)

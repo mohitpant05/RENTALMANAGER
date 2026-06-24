@@ -141,7 +141,13 @@ async def list_staff(session: AsyncSession) -> list[dict]:
 
 async def invite_staff(
     session: AsyncSession, data: StaffInvite, tenant_id: str, tenant_slug: str
-) -> User:
+) -> tuple[User, str, str | None]:
+    """Returns (user, email_status, email_warning)."""
+    import logging
+    logger = logging.getLogger(__name__)
+
+    logger.info("Staff invite started: email=%s type=%s tenant=%s", data.email, data.user_type, tenant_slug)
+
     result = await session.exec(select(User).where(User.email == data.email))
     existing = result.first()
 
@@ -149,6 +155,7 @@ async def invite_staff(
         if existing.is_active:
             raise HTTPException(status_code=409, detail="User already active")
         user = existing
+        logger.info("Reusing existing inactive user id=%s for invite", user.id)
         from app.core.auth.invite import delete_user_invite_tokens
         await delete_user_invite_tokens(str(user.id))
     else:
@@ -162,6 +169,7 @@ async def invite_staff(
         session.add(user)
         await session.commit()
         await session.refresh(user)
+        logger.info("Created new user id=%s email=%s (inactive)", user.id, user.email)
 
         for slug in data.role_slugs:
             role_result = await session.exec(select(Role).where(Role.slug == slug))
@@ -170,15 +178,21 @@ async def invite_staff(
                 user_role = UserRole(user_id=user.id, role_id=role.id)
                 session.add(user_role)
         await session.commit()
+        logger.info("Assigned roles %s to user %s", data.role_slugs, user.id)
 
     import uuid as _uuid
 
-    from app.celery_app import task_send_email
     from app.config import get_settings
     from app.core.auth.invite import store_invite_token
+    from app.core.email.send import has_email_provider, send_email
 
     token = str(_uuid.uuid4())
     await store_invite_token(token, str(user.id), tenant_id)
+    logger.info("Invite token stored in Redis for user %s", user.id)
+
+    if not has_email_provider():
+        logger.warning("No email provider configured — invite email will NOT be sent to %s", user.email)
+        return user, "not_configured", "No email provider configured. Configure SMTP in Settings → Email to send invite emails."
 
     settings = get_settings()
     invite_link = f"{settings.frontend_url}/t/{tenant_slug}/accept-invite?token={token}"
@@ -190,9 +204,10 @@ async def invite_staff(
         f"{invite_link}\n\n"
         f"This link expires in {settings.invite_token_expire_hours} hours."
     )
-    task_send_email.delay(user.email, subject, body)
+    send_email(user.email, subject, body)
+    logger.info("Invite email queued for %s", user.email)
 
-    return user
+    return user, "queued", None
 
 
 async def deactivate_user(session: AsyncSession, user_id: uuid.UUID) -> User:

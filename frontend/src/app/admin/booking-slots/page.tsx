@@ -102,6 +102,23 @@ function BookingSlotsContent() {
     });
   }
 
+  function isFullDaySlot(s: AvailabilitySlotResponse): boolean {
+    const start = new Date(s.start_time);
+    const end = new Date(s.end_time);
+    const diffMs = end.getTime() - start.getTime();
+    const diffHours = diffMs / (1000 * 60 * 60);
+    return (
+      start.getHours() === end.getHours() &&
+      start.getMinutes() === end.getMinutes() &&
+      diffHours >= 23
+    );
+  }
+
+  function formatSlotTime(s: AvailabilitySlotResponse) {
+    if (isFullDaySlot(s)) return "All day";
+    return `${formatTime(s.start_time)} – ${formatTime(s.end_time)}`;
+  }
+
   const grouped = (slots ?? []).reduce(
     (acc, s) => {
       if (!acc[s.resource_id]) acc[s.resource_id] = { name: s.resource_name, type: s.resource_type_name, slots: [] };
@@ -224,7 +241,7 @@ function BookingSlotsContent() {
                       <TableCell className="font-mono text-sm">
                         <span className="inline-flex items-center gap-1">
                           <Clock className="h-3 w-3" />
-                          {formatTime(s.start_time)} – {formatTime(s.end_time)}
+                          {formatSlotTime(s)}
                         </span>
                       </TableCell>
                       <TableCell>

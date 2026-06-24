@@ -26,14 +26,10 @@ from app.domains.bookings.schemas import BookingResponse
 router = APIRouter(prefix="/api/payouts", tags=["payouts"])
 
 
-def _require_admin():
-    return require_permission("*:*:*")
-
-
 @router.get("/balances", response_model=list[OwnerBalance])
 async def owner_balances(
     session: AsyncSession = Depends(get_db),
-    _user: User = Depends(_require_admin()),
+    _user: User = Depends(require_permission("settings:*:manage")),
 ):
     return await get_owner_balances(session)
 
@@ -42,7 +38,7 @@ async def owner_balances(
 async def unsettled_bookings(
     owner_id: uuid.UUID,
     session: AsyncSession = Depends(get_db),
-    _user: User = Depends(_require_admin()),
+    _user: User = Depends(require_permission("settings:*:manage")),
 ):
     return await get_unsettled_bookings(session, owner_id)
 
@@ -51,7 +47,7 @@ async def unsettled_bookings(
 async def create_new_payout(
     data: PayoutCreate,
     session: AsyncSession = Depends(get_db),
-    user: User = Depends(_require_admin()),
+    user: User = Depends(require_permission("settings:*:manage")),
 ):
     payout = await create_payout(
         session, data.owner_id, data.period_start, data.period_end,
@@ -67,7 +63,7 @@ async def create_new_payout(
 async def settle(
     payout_id: uuid.UUID,
     session: AsyncSession = Depends(get_db),
-    user: User = Depends(_require_admin()),
+    user: User = Depends(require_permission("settings:*:manage")),
 ):
     payout = await settle_payout(session, payout_id, user.id)
     items = await get_payout_items(session, payout.id)
@@ -83,7 +79,7 @@ async def list_all_payouts(
     offset: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
     session: AsyncSession = Depends(get_db),
-    _user: User = Depends(_require_admin()),
+    _user: User = Depends(require_permission("settings:*:manage")),
 ):
     return await list_payouts(session, owner_id, status, offset, limit)
 
@@ -92,7 +88,7 @@ async def list_all_payouts(
 async def get_one_payout(
     payout_id: uuid.UUID,
     session: AsyncSession = Depends(get_db),
-    _user: User = Depends(_require_admin()),
+    _user: User = Depends(require_permission("settings:*:manage")),
 ):
     payout = await get_payout(session, payout_id)
     items = await get_payout_items(session, payout_id)

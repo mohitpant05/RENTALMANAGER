@@ -167,7 +167,7 @@ export function AddonDiscoveredSection({
                     <div className="ml-4 rounded-lg border bg-muted/30 p-3">
                       <AddonSchedulePicker
                         availabilityModel={group.availability_model}
-                        slotConfig={group.slot_config}
+                        slotConfig={addon.slot_config ?? group.slot_config}
                         startDate={startDate}
                         endDate={endDate}
                         basePrice={addon.base_price}

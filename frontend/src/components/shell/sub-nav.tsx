@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import api from "@/lib/api";
 import type { ResourceTypeResponse } from "@/types/api";
 import { useCreateTypeSheetStore } from "@/lib/create-type-sheet-store";
+import { usePermissions } from "@/hooks/use-permissions";
 
 interface SubNavItem {
   href: string;
@@ -63,12 +64,19 @@ const STATIC_NAV_CONFIG: Record<string, SubNavSection> = {
       { href: "/admin/payouts?tab=history", label: "History" },
     ],
   },
+  "/admin/staff": {
+    title: "Staff",
+    items: [
+      { href: "/admin/staff", label: "Members" },
+      { href: "/admin/staff/roles", label: "Roles & Permissions" },
+    ],
+  },
   "/admin/settings": {
     title: "Settings",
     items: [
-      { href: "/admin/settings#general", label: "General" },
-      { href: "/admin/settings#domains", label: "Domains" },
+      { href: "/admin/settings", label: "General" },
       { href: "/admin/settings/commission", label: "Commission" },
+      { href: "/admin/settings/email", label: "Email / SMTP" },
       { href: "/admin/settings/payments", label: "Payments" },
     ],
   },
@@ -120,10 +128,17 @@ export function SubNav() {
         <nav className="flex flex-col gap-1">
           {config.items.map((item) => {
             const isActive = currentUrl === item.href || pathname === item.href;
+            const isHashLink = item.href.includes("#") && item.href.startsWith(pathname);
             return (
               <Link
                 key={item.href}
                 href={item.href}
+                onClick={isHashLink ? () => {
+                  const hash = item.href.split("#")[1];
+                  if (window.location.hash === `#${hash}`) {
+                    window.dispatchEvent(new HashChangeEvent("hashchange"));
+                  }
+                } : undefined}
                 className={cn(
                   "rounded-md px-3 py-2 text-sm transition-colors",
                   isActive

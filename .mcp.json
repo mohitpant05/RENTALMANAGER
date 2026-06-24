@@ -7,6 +7,12 @@
         "mcp"
       ],
       "env": {}
+    },
+    "rm": {
+      "type": "stdio",
+      "command": "python3",
+      "args": ["-m", "rm_mcp", "serve"],
+      "env": {}
     }
   }
 }

@@ -182,33 +182,39 @@ export function useAddons() {
     ): Promise<BookingResponse | null> => {
       setLoading(true);
       try {
-        // For time_slot resources, create holds per schedule item instead of the full window
         let holdTokens: string[] = [];
-        if (availabilityModel === "time_slot" && schedules && schedules.length > 0) {
-          for (const s of schedules) {
-            const slotStart = `${s.date}T${s.start_time ?? "00:00"}:00Z`;
-            const slotEnd = `${s.date}T${s.end_time ?? "23:59"}:00Z`;
+        let holdFailed = false;
+
+        try {
+          if (availabilityModel === "time_slot" && schedules && schedules.length > 0) {
+            for (const s of schedules) {
+              const slotStart = `${s.date}T${s.start_time ?? "00:00"}:00Z`;
+              const slotEnd = `${s.date}T${s.end_time ?? "23:59"}:00Z`;
+              const { data: hold } = await api.post<HoldResponse>(
+                `/resources/${resourceId}/availability/hold`,
+                { start: slotStart, end: slotEnd },
+              );
+              holdTokens.push(hold.hold_token);
+            }
+          } else {
             const { data: hold } = await api.post<HoldResponse>(
               `/resources/${resourceId}/availability/hold`,
-              { start: slotStart, end: slotEnd },
+              { start: startTime, end: endTime },
             );
-            holdTokens.push(hold.hold_token);
+            holdTokens = [hold.hold_token];
           }
-        } else {
-          const { data: hold } = await api.post<HoldResponse>(
-            `/resources/${resourceId}/availability/hold`,
-            { start: startTime, end: endTime },
-          );
-          holdTokens = [hold.hold_token];
+        } catch {
+          holdFailed = true;
         }
 
         const payload: AddAddonRequest = {
           resource_id: resourceId,
-          hold_token: holdTokens[0],
-          hold_tokens: holdTokens.length > 1 ? holdTokens : undefined,
+          hold_token: holdFailed ? "" : holdTokens[0],
+          hold_tokens: !holdFailed && holdTokens.length > 1 ? holdTokens : undefined,
           start_time: startTime,
           end_time: endTime,
           schedules,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         };
 
         const { data: booking } = await api.post<BookingResponse>(

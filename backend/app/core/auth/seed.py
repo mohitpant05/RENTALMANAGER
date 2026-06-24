@@ -24,6 +24,11 @@ DEFAULT_PERMISSIONS = [
     ("analytics:*:read", "Read analytics"),
     ("settings:*:manage", "Manage tenant settings"),
     ("resources:*:assign_for_customer", "Assign addon resources to bookings on behalf of customers"),
+    ("bookings:*:confirm", "Confirm bookings"),
+    ("bookings:*:reject", "Reject bookings"),
+    ("bookings:*:no_show", "Mark booking as no-show"),
+    ("bookings:*:create_on_behalf", "Create bookings on behalf of customers"),
+    ("resource_types:*:manage", "Manage resource types"),
 ]
 
 DEFAULT_ROLES = {
@@ -37,9 +42,13 @@ DEFAULT_ROLES = {
         "description": "Tenant staff with configurable permissions",
         "permissions": [
             "resources:*:read",
+            "resources:*:create",
             "resources:*:manage",
             "bookings:*:read",
             "bookings:*:manage",
+            "bookings:*:confirm",
+            "bookings:*:reject",
+            "bookings:*:no_show",
             "reviews:*:read",
             "reviews:*:moderate",
             "pricing:*:read",
@@ -66,6 +75,8 @@ DEFAULT_ROLES = {
             "resources:*:manage",
             "bookings:*:read",
             "bookings:*:manage",
+            "bookings:*:confirm",
+            "bookings:*:reject",
             "reviews:*:read",
             "pricing:*:read",
         ],
@@ -96,20 +107,25 @@ async def seed_default_roles(session: AsyncSession) -> None:
         result = await session.exec(select(Role).where(Role.slug == slug))
         existing_role = result.first()
         if existing_role:
-            continue
+            role = existing_role
+        else:
+            role = Role(
+                name=config["name"],
+                slug=slug,
+                description=config["description"],
+                is_system=True,
+            )
+            session.add(role)
+            await session.flush()
 
-        role = Role(
-            name=config["name"],
-            slug=slug,
-            description=config["description"],
-            is_system=True,
+        existing_rp = await session.exec(
+            select(RolePermission.permission_id).where(RolePermission.role_id == role.id)
         )
-        session.add(role)
-        await session.flush()
+        existing_perm_ids = set(existing_rp.all())
 
         for perm_codename in config["permissions"]:
             perm = perm_map.get(perm_codename)
-            if perm:
+            if perm and perm.id not in existing_perm_ids:
                 rp = RolePermission(role_id=role.id, permission_id=perm.id)
                 session.add(rp)
 

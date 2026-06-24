@@ -218,6 +218,7 @@ export default function ResourceDetailPage() {
         typeName={currentType.name}
         attributeSchema={currentType.attribute_schema}
         editingResource={resource}
+        availabilityModel={currentType.availability_model}
       />
 
       <BookResourceSheet
@@ -226,6 +227,8 @@ export default function ResourceDetailPage() {
         resourceId={resource.id}
         resourceName={resource.name}
         availabilityModel={currentType.availability_model}
+        slotConfig={resource.slot_config ?? currentType.slot_config}
+        holdConfig={currentType.hold_config}
       />
     </div>
   );

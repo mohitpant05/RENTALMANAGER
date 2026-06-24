@@ -20,6 +20,7 @@ import {
 import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
+import { usePermissions } from "@/hooks/use-permissions";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Tooltip,
@@ -45,6 +46,7 @@ export function IconRail() {
   const pathname = usePathname();
   const { theme, setTheme } = useTheme();
   const { logout, user } = useAuth();
+  const { canAccessNav } = usePermissions();
 
   const initials = user?.full_name
     ?.split(" ")
@@ -63,7 +65,7 @@ export function IconRail() {
         </div>
 
         <nav className="flex flex-1 flex-col items-center gap-2">
-          {NAV_ITEMS.map(({ href, icon: Icon, label }) => {
+          {NAV_ITEMS.filter(({ href }) => canAccessNav(href)).map(({ href, icon: Icon, label }) => {
             const isActive = pathname.startsWith(href);
             return (
               <Tooltip key={href}>

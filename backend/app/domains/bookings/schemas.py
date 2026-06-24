@@ -1,7 +1,7 @@
 import uuid
 from datetime import date, datetime
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, EmailStr, field_validator
 
 from app.domains.bookings.state_machine import ALL_STATUSES
 
@@ -14,7 +14,7 @@ class AddonSchedule(BaseModel):
 
 class BookingCreate(BaseModel):
     resource_id: uuid.UUID
-    hold_token: str
+    hold_token: str = ""
     hold_tokens: list[str] = []
     start_time: datetime
     end_time: datetime
@@ -22,6 +22,7 @@ class BookingCreate(BaseModel):
     auto_confirm: bool = True
     user_id: uuid.UUID | None = None
     schedules: list[AddonSchedule] | None = None
+    timezone: str = "UTC"
 
 
 class BookingCancel(BaseModel):
@@ -56,6 +57,7 @@ class BookingResponse(BaseModel):
     cancelled_at: datetime | None
     cancellation_reason: str | None
     refund_percent: float | None
+    timezone: str
     version: int
     created_at: datetime
     updated_at: datetime
@@ -86,12 +88,13 @@ class BookingListParams(BaseModel):
 
 class BookingItemCreate(BaseModel):
     resource_id: uuid.UUID
-    hold_token: str
+    hold_token: str = ""
     start_time: datetime
     end_time: datetime
     notes: str | None = None
     auto_confirm: bool = True
     schedules: list[AddonSchedule] | None = None
+    timezone: str = "UTC"
 
 
 class BundledBookingCreate(BaseModel):
@@ -101,13 +104,14 @@ class BundledBookingCreate(BaseModel):
 
 class AddAddonRequest(BaseModel):
     resource_id: uuid.UUID
-    hold_token: str
+    hold_token: str = ""
     hold_tokens: list[str] = []
     start_time: datetime
     end_time: datetime
     notes: str | None = None
     auto_confirm: bool = True
     schedules: list[AddonSchedule] | None = None
+    timezone: str = "UTC"
 
 
 class BookingGroupResponse(BaseModel):
@@ -119,3 +123,22 @@ class BookingGroupResponse(BaseModel):
 class PagedBookingResponse(BaseModel):
     data: list[BookingResponse]
     total: int
+
+
+class OnBehalfBookingCreate(BaseModel):
+    customer_email: EmailStr
+    customer_name: str | None = None
+    customer_phone: str | None = None
+    resource_id: uuid.UUID
+    start_time: datetime
+    end_time: datetime
+    hold_token: str = ""
+    hold_tokens: list[str] = []
+    notes: str | None = None
+    schedules: list[AddonSchedule] | None = None
+    timezone: str = "UTC"
+
+
+class OnBehalfBookingResponse(BaseModel):
+    booking: BookingResponse
+    created_customer: bool

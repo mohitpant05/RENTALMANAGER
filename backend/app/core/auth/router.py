@@ -5,11 +5,12 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.config import get_settings
-from app.core.auth.dependencies import get_current_user
+from app.core.auth.dependencies import get_current_user, require_permission
 from app.core.auth.jwt import decode_token, revoke_refresh_token
 from app.core.auth.models import User
 from app.core.auth.schemas import (
     AcceptInviteRequest,
+    CustomerLookupResponse,
     LoginRequest,
     ProfileUpdateRequest,
     RefreshRequest,
@@ -118,8 +119,14 @@ async def me(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
+    from app.core.auth.dependencies import get_user_permissions
+
     roles = await get_user_roles(session, str(user.id))
-    return build_user_response(user, roles)
+    if user.user_type == "admin":
+        perms = ["*:*:*"]
+    else:
+        perms = list(await get_user_permissions(session, user.id))
+    return build_user_response(user, roles, perms)
 
 
 @router.patch("/me", response_model=UserResponse)
@@ -128,9 +135,15 @@ async def update_me(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
+    from app.core.auth.dependencies import get_user_permissions
+
     updated = await update_profile(session, user, data)
     roles = await get_user_roles(session, str(updated.id))
-    return build_user_response(updated, roles)
+    if updated.user_type == "admin":
+        perms = ["*:*:*"]
+    else:
+        perms = list(await get_user_permissions(session, updated.id))
+    return build_user_response(updated, roles, perms)
 
 
 @router.get("/user/{user_id}", response_model=UserResponse)
@@ -144,3 +157,21 @@ async def get_user(
         raise HTTPException(status_code=404, detail="User not found")
     roles = await get_user_roles(session, str(user.id))
     return build_user_response(user, roles)
+
+
+@router.get("/users/lookup", response_model=CustomerLookupResponse)
+async def lookup_customer(
+    email: str,
+    user: User = Depends(require_permission("bookings:*:create_on_behalf")),
+    session: AsyncSession = Depends(get_db),
+):
+    result = await session.exec(select(User).where(User.email == email))
+    found = result.first()
+    if not found:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    return CustomerLookupResponse(
+        id=found.id,
+        email=found.email,
+        full_name=found.full_name,
+        phone=found.phone,
+    )

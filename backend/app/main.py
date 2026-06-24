@@ -12,6 +12,7 @@ from sqlalchemy import text
 from app.config import get_settings
 from app.core.admin.ip_middleware import SuperadminIPMiddleware
 from app.core.admin.platform_router import router as platform_router
+from app.core.admin.roles_router import router as roles_router
 from app.core.admin.router import router as admin_router
 from app.core.auth.router import router as auth_router
 from app.core.commission.router import router as commission_router
@@ -105,7 +106,9 @@ app = FastAPI(
     title="RentManager API",
     version="0.1.0",
     lifespan=lifespan,
-
+    docs_url="/api/docs",
+    redoc_url="/api/redoc",
+    openapi_url="/api/openapi.json",
 )
 
 app.state.limiter = limiter
@@ -133,6 +136,7 @@ app.include_router(review_router)
 app.include_router(notification_router)
 app.include_router(storage_router)
 app.include_router(admin_router)
+app.include_router(roles_router)
 app.include_router(currency_router)
 app.include_router(commission_router)
 app.include_router(payment_router)

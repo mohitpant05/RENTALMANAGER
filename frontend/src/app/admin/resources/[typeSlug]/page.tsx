@@ -177,6 +177,7 @@ export default function ResourceTypePage() {
         typeName={currentType.name}
         attributeSchema={currentType.attribute_schema}
         editingResource={editingResource}
+        availabilityModel={currentType.availability_model}
       />
 
       <BookResourceSheet
@@ -185,7 +186,8 @@ export default function ResourceTypePage() {
         resourceId={bookResource?.id ?? ""}
         resourceName={bookResource?.name ?? ""}
         availabilityModel={currentType?.availability_model ?? "date_range"}
-        slotConfig={currentType?.slot_config}
+        slotConfig={bookResource?.slot_config ?? currentType?.slot_config}
+        holdConfig={currentType?.hold_config}
       />
 
       <CreateTypeSheet

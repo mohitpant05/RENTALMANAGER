@@ -19,10 +19,17 @@ import {
 } from "@/components/ui/card";
 import { toast } from "sonner";
 
+const phoneSchema = z
+  .string()
+  .refine((v) => !v || /^\+?\d{7,15}$/.test(v), {
+    message: "Phone must be 7–15 digits, optionally prefixed with +",
+  })
+  .optional();
+
 const registerSchema = z.object({
   full_name: z.string().min(2, "Name must be at least 2 characters"),
   email: z.string().email("Invalid email address"),
-  phone: z.string().optional(),
+  phone: phoneSchema,
   password: z.string().min(8, "Password must be at least 8 characters"),
   confirm_password: z.string(),
 }).refine((data) => data.password === data.confirm_password, {
@@ -116,6 +123,8 @@ export default function RegisterPage() {
             <Input
               id="phone"
               type="tel"
+              inputMode="numeric"
+              maxLength={16}
               placeholder="+1234567890"
               {...register("phone")}
             />

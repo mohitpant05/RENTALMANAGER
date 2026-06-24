@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.auth.models import User  # noqa: F401 — register FK target in metadata
 from app.domains.bookings.models import Booking
 from app.domains.resources.models import ResourceAvailability
 

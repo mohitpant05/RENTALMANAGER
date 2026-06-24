@@ -94,8 +94,8 @@ export function useFormatPrice() {
   const { data: rates } = useRates();
   const currency = useUserCurrency();
 
-  return (usdAmount: number): string => {
-    const converted = convertPrice(usdAmount, "USD", currency, rates);
+  return (amount: number, fromCurrency: string = "USD"): string => {
+    const converted = convertPrice(amount, fromCurrency, currency, rates);
     return formatPrice(converted, currency);
   };
 }

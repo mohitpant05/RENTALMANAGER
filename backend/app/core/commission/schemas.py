@@ -1,13 +1,15 @@
 import uuid
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+MAX_COMMISSION_FIXED = 1_000_000
 
 
 class CommissionConfig(BaseModel):
-    owner_percent: float = 0.0
-    owner_fixed: float = 0.0
-    customer_percent: float = 0.0
-    customer_fixed: float = 0.0
+    owner_percent: float = Field(default=0.0, ge=0, le=100)
+    owner_fixed: float = Field(default=0.0, ge=0, le=MAX_COMMISSION_FIXED)
+    customer_percent: float = Field(default=0.0, ge=0, le=100)
+    customer_fixed: float = Field(default=0.0, ge=0, le=MAX_COMMISSION_FIXED)
     currency: str = "USD"
 
 
@@ -20,10 +22,10 @@ class CommissionBreakdown(BaseModel):
 
 
 class CommissionConfigUpdate(BaseModel):
-    owner_percent: float | None = None
-    owner_fixed: float | None = None
-    customer_percent: float | None = None
-    customer_fixed: float | None = None
+    owner_percent: float | None = Field(default=None, ge=0, le=100)
+    owner_fixed: float | None = Field(default=None, ge=0, le=MAX_COMMISSION_FIXED)
+    customer_percent: float | None = Field(default=None, ge=0, le=100)
+    customer_fixed: float | None = Field(default=None, ge=0, le=MAX_COMMISSION_FIXED)
     currency: str | None = None
 
 

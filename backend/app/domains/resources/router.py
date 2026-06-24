@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.auth.dependencies import get_current_user, require_permission
@@ -121,12 +121,16 @@ async def update_type(
     return await update_resource_type(session, resource_type_id, data)
 
 
-@resource_type_router.delete("/{resource_type_id}", status_code=status.HTTP_204_NO_CONTENT)
+@resource_type_router.post("/{resource_type_id}/delete", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_type(
     resource_type_id: uuid.UUID,
+    password: str = Body(..., embed=True),
     session: AsyncSession = Depends(get_db),
-    _user: User = Depends(require_permission("resources:*:manage")),
+    user: User = Depends(require_permission("resources:*:manage")),
 ):
+    from app.core.auth.password import verify_password
+    if not verify_password(password, user.password_hash):
+        raise HTTPException(status_code=403, detail="Invalid password")
     await delete_resource_type(session, resource_type_id)
 
 

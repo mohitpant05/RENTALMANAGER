@@ -35,7 +35,7 @@ export default function LoginPage() {
   useEffect(() => {
     if (!isLoading && isAuthenticated) {
       const userType = user?.user_type;
-      router.push(userType === "admin" || userType === "staff" ? "/admin" : "/");
+      router.push(userType === "admin" || userType === "staff" ? "/admin" : "/browse");
     }
   }, [isLoading, isAuthenticated, user, router]);
 

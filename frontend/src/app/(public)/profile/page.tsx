@@ -36,7 +36,7 @@ export default function ProfilePage() {
 
   function handleLogout() {
     useAuthStore.getState().clearAuth();
-    router.push("/");
+    router.push("/browse");
   }
 
   return (

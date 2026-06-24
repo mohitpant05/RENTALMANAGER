@@ -28,6 +28,7 @@ interface BookingCardProps {
   resource: ResourceResponse;
   availabilityModel: string;
   slotConfig?: Record<string, unknown> | null;
+  holdConfig?: { unit: "seconds" | "minutes"; value: number } | null;
   onDatesSelected?: (startDate: string, endDate: string) => void;
 }
 
@@ -89,10 +90,10 @@ function StepIndicator({ currentStep }: { currentStep: string }) {
   );
 }
 
-export function BookingCard({ resource, availabilityModel, slotConfig, onDatesSelected }: BookingCardProps) {
+export function BookingCard({ resource, availabilityModel, slotConfig, holdConfig, onDatesSelected }: BookingCardProps) {
   const router = useRouter();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const flow = useBookingFlow({ resourceId: resource.id, availabilityModel, slotConfig });
+  const flow = useBookingFlow({ resourceId: resource.id, availabilityModel, slotConfig, holdConfig });
   const { displayCurrency, setDisplayCurrency } = useCurrencyStore();
   const { data: rates } = useRates();
   const convertedBase = convertPrice(
@@ -149,8 +150,17 @@ export function BookingCard({ resource, availabilityModel, slotConfig, onDatesSe
   }
 
   async function handleHoldAndConfirm() {
-    const held = await flow.holdResource();
-    if (!held) return;
+    if (flow.holdEnabled) {
+      const held = await flow.holdResource();
+      if (!held) return;
+    } else {
+      const booking = await flow.directBook();
+      if (booking) {
+        flow.reset();
+        setOpen(false);
+        router.push(`/bookings/${booking.id}`);
+      }
+    }
   }
 
   async function handleConfirm() {
@@ -207,47 +217,72 @@ export function BookingCard({ resource, availabilityModel, slotConfig, onDatesSe
                 />
               </div>
 
-              {flow.showTime && (
+              {flow.showTime && flow.hasFixedSlots ? (
                 <div className="space-y-1.5">
-                  <Label htmlFor="bc-start-time">Start Time</Label>
-                  <Input
-                    id="bc-start-time"
-                    type="time"
-                    value={flow.startTime}
-                    onChange={(e) => flow.setStartTime(e.target.value)}
-                  />
+                  <Label>Select Time Slot</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {flow.fixedSlots.map((slot) => {
+                      const selected = flow.startTime === slot.start && flow.endTime === slot.end;
+                      return (
+                        <Button
+                          key={`${slot.start}-${slot.end}`}
+                          type="button"
+                          variant={selected ? "default" : "outline"}
+                          size="sm"
+                          className="text-xs"
+                          onClick={() => flow.selectFixedSlot(slot)}
+                        >
+                          {slot.start} – {slot.end}
+                        </Button>
+                      );
+                    })}
+                  </div>
                 </div>
-              )}
+              ) : (
+                <>
+                  {flow.showTime && (
+                    <div className="space-y-1.5">
+                      <Label htmlFor="bc-start-time">Start Time</Label>
+                      <Input
+                        id="bc-start-time"
+                        type="time"
+                        value={flow.startTime}
+                        onChange={(e) => flow.setStartTime(e.target.value)}
+                      />
+                    </div>
+                  )}
 
-              {!flow.hideEndDate && (
-                <div className="space-y-1.5">
-                  <Label htmlFor="bc-end-date">End Date</Label>
-                  <Input
-                    id="bc-end-date"
-                    type="date"
-                    value={flow.endDate}
-                    onChange={(e) => flow.setEndDate(e.target.value)}
-                  />
-                </div>
-              )}
+                  {!flow.hideEndDate && (
+                    <div className="space-y-1.5">
+                      <Label htmlFor="bc-end-date">End Date</Label>
+                      <Input
+                        id="bc-end-date"
+                        type="date"
+                        value={flow.endDate}
+                        onChange={(e) => flow.setEndDate(e.target.value)}
+                      />
+                    </div>
+                  )}
 
-              {flow.showTime && (
-                <div className="space-y-1.5">
-                  <Label htmlFor="bc-end-time">End Time</Label>
-                  <Input
-                    id="bc-end-time"
-                    type="time"
-                    value={flow.endTime}
-                    onChange={(e) => flow.setEndTime(e.target.value)}
-                  />
-                </div>
-              )}
+                  {flow.showTime && (
+                    <div className="space-y-1.5">
+                      <Label htmlFor="bc-end-time">End Time</Label>
+                      <Input
+                        id="bc-end-time"
+                        type="time"
+                        value={flow.endTime}
+                        onChange={(e) => flow.setEndTime(e.target.value)}
+                      />
+                    </div>
+                  )}
 
-              {flow.allowedDurations.length > 0 && flow.showTime && (
-                <p className="text-xs text-muted-foreground">
-                  Available slot durations:{" "}
-                  {(slotConfig?.duration_options as string[])?.join(", ")}
-                </p>
+                  {flow.allowedDurations.length > 0 && flow.showTime && (
+                    <p className="text-xs text-muted-foreground">
+                      Available slot durations:{" "}
+                      {(slotConfig?.duration_options as string[])?.join(", ")}
+                    </p>
+                  )}
+                </>
               )}
 
               <div className="space-y-1.5">
@@ -328,7 +363,7 @@ export function BookingCard({ resource, availabilityModel, slotConfig, onDatesSe
                   {flow.isPending && (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   )}
-                  Reserve & Book
+                  {flow.holdEnabled ? "Reserve & Book" : "Book Now"}
                 </Button>
               </div>
             </div>

@@ -16,6 +16,7 @@ export interface UserResponse {
   preferred_currency: string;
   created_at: string;
   roles: string[];
+  permissions: string[];
 }
 
 export interface LoginRequest {
@@ -94,6 +95,11 @@ export interface ResourceTypeResponse {
   role: string;
   discovery_radius_km: number | null;
   display_order: number;
+  hold_config: { unit: "seconds" | "minutes"; value: number } | null;
+  booking_mode: "individual" | "bundled" | "both";
+  operating_hours: { start: string; end: string } | null;
+  buffer_minutes: number;
+  staff_booking_auto_confirm: boolean;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -122,6 +128,10 @@ export interface ResourceTypeCreate {
   role?: string;
   discovery_radius_km?: number | null;
   display_order?: number;
+  hold_config?: { unit: "seconds" | "minutes"; value: number } | null;
+  booking_mode?: "individual" | "bundled" | "both";
+  operating_hours?: { start: string; end: string } | null;
+  buffer_minutes?: number;
 }
 
 export interface ResourceTypeUpdate {
@@ -129,6 +139,8 @@ export interface ResourceTypeUpdate {
   slug?: string;
   icon?: string;
   description?: string;
+  availability_model?: string;
+  pricing_model?: string;
   attribute_schema?: AttributeField[];
   slot_config?: Record<string, unknown>;
   pricing_config?: Record<string, unknown>;
@@ -137,6 +149,10 @@ export interface ResourceTypeUpdate {
   role?: string;
   discovery_radius_km?: number | null;
   display_order?: number;
+  hold_config?: { unit: "seconds" | "minutes"; value: number } | null;
+  booking_mode?: "individual" | "bundled" | "both";
+  operating_hours?: { start: string; end: string } | null;
+  buffer_minutes?: number;
   is_active?: boolean;
 }
 
@@ -161,6 +177,7 @@ export interface ResourceResponse {
   rating_avg: number;
   rating_count: number;
   owner_id: string;
+  slot_config: Record<string, unknown> | null;
   support_contact_id: string | null;
   version: number;
   created_at: string;
@@ -178,6 +195,7 @@ export interface ResourceCreate {
   base_price: number;
   currency?: string;
   support_contact_id?: string;
+  slot_config?: Record<string, unknown>;
 }
 
 export interface ResourceUpdate {
@@ -191,6 +209,7 @@ export interface ResourceUpdate {
   currency?: string;
   status?: string;
   support_contact_id?: string;
+  slot_config?: Record<string, unknown>;
 }
 
 // ─── Bookings ───────────────────────────────────────────
@@ -219,6 +238,7 @@ export interface BookingResponse {
   cancelled_at: string | null;
   cancellation_reason: string | null;
   refund_percent: number | null;
+  timezone: string;
   version: number;
   created_at: string;
   updated_at: string;
@@ -226,12 +246,13 @@ export interface BookingResponse {
 
 export interface BookingCreate {
   resource_id: string;
-  hold_token: string;
+  hold_token?: string;
   start_time: string;
   end_time: string;
   notes?: string;
   auto_confirm?: boolean;
   user_id?: string;
+  timezone?: string;
 }
 
 export interface BookingCancel {
@@ -473,13 +494,14 @@ export interface BundledBookingCreate {
 
 export interface AddAddonRequest {
   resource_id: string;
-  hold_token: string;
+  hold_token?: string;
   hold_tokens?: string[];
   start_time: string;
   end_time: string;
   notes?: string;
   auto_confirm?: boolean;
   schedules?: AddonSchedule[];
+  timezone?: string;
 }
 
 export interface BookingGroupResponse {
@@ -501,6 +523,7 @@ export interface AddonResourceItem {
   available: boolean;
   location_address: string | null;
   attributes: Record<string, unknown> | null;
+  slot_config: Record<string, unknown> | null;
 }
 
 export interface AddonTypeGroup {
@@ -545,4 +568,86 @@ export interface ResourceAssignmentCreate {
 
 export interface ResourceAssignmentUpdate {
   priority: number;
+}
+
+// ─── Roles & Permissions ──────────────────────────────
+
+export interface PermissionResponse {
+  id: string;
+  codename: string;
+  description: string | null;
+  domain: string;
+  action: string;
+}
+
+export interface RoleResponse {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  is_system: boolean;
+  created_at: string;
+  permissions: PermissionResponse[];
+}
+
+export interface PermissionGroup {
+  domain: string;
+  label: string;
+  permissions: PermissionResponse[];
+}
+
+export interface RoleCreate {
+  name: string;
+  slug: string;
+  description?: string;
+}
+
+export interface RoleUpdate {
+  name?: string;
+  description?: string;
+}
+
+// ─── Permission Overrides ─────────────────────────────
+
+export interface PermissionOverrideResponse {
+  permission_id: string;
+  codename: string;
+  description: string | null;
+  granted: boolean;
+}
+
+export interface EffectivePermissionsResponse {
+  role_permissions: PermissionResponse[];
+  overrides: PermissionOverrideResponse[];
+  effective: string[];
+}
+
+export interface PermissionOverrideUpdate {
+  overrides: { permission_id: string; granted: boolean }[];
+}
+
+export interface CustomerLookupResponse {
+  id: string;
+  email: string;
+  full_name: string;
+  phone: string | null;
+}
+
+export interface OnBehalfBookingCreate {
+  customer_email: string;
+  customer_name?: string;
+  customer_phone?: string;
+  resource_id: string;
+  start_time: string;
+  end_time: string;
+  hold_token?: string;
+  hold_tokens?: string[];
+  notes?: string;
+  schedules?: AddonSchedule[];
+  timezone?: string;
+}
+
+export interface OnBehalfBookingResponse {
+  booking: BookingResponse;
+  created_customer: boolean;
 }
