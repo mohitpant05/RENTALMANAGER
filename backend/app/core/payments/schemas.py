@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class PaymentResponse(BaseModel):
@@ -26,5 +26,5 @@ class MarkPaidRequest(BaseModel):
 
 
 class RefundRequest(BaseModel):
-    amount: float | None = None
+    amount: float | None = Field(default=None, ge=0, le=1_000_000)
     reason: str | None = None

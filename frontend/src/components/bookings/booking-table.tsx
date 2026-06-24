@@ -82,6 +82,7 @@ export function BookingTable({ bookings, resourceNames, customerNames }: Booking
       <TableHeader>
         <TableRow>
           <TableHead>Booking ID</TableHead>
+          <TableHead>Type</TableHead>
           <TableHead>Customer</TableHead>
           <TableHead>Resource</TableHead>
           <TableHead>Status</TableHead>
@@ -96,6 +97,16 @@ export function BookingTable({ bookings, resourceNames, customerNames }: Booking
           <TableRow key={b.id}>
             <TableCell className="font-mono text-xs text-muted-foreground">
               {b.id.slice(0, 8)}
+            </TableCell>
+            <TableCell>
+              {b.booking_group_id ? (
+                <div className="flex flex-col gap-0.5">
+                  <Badge variant="default" className="text-[10px] w-fit">Bundled</Badge>
+                  <span className="font-mono text-[10px] text-muted-foreground">{b.booking_group_id.slice(0, 8)}</span>
+                </div>
+              ) : (
+                <Badge variant="muted" className="text-[10px]">Individual</Badge>
+              )}
             </TableCell>
             <TableCell>
               <span className="text-sm">{customerNames?.[b.user_id] ?? b.user_id.slice(0, 8)}</span>

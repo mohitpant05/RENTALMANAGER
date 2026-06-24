@@ -194,7 +194,11 @@ function CommissionEditSheet({
                   min="0"
                   max="100"
                   value={ownerPercent}
-                  onChange={(e) => setOwnerPercent(parseFloat(e.target.value) || 0)}
+                  onKeyDown={(e) => { if (e.key === "-") e.preventDefault(); }}
+                  onChange={(e) => {
+                    const v = parseFloat(e.target.value) || 0;
+                    setOwnerPercent(Math.min(100, Math.max(0, v)));
+                  }}
                 />
               </div>
               <div className="space-y-1">
@@ -203,8 +207,13 @@ function CommissionEditSheet({
                   type="number"
                   step="1"
                   min="0"
+                  max="1000000"
                   value={ownerFixed}
-                  onChange={(e) => setOwnerFixed(parseFloat(e.target.value) || 0)}
+                  onKeyDown={(e) => { if (e.key === "-") e.preventDefault(); }}
+                  onChange={(e) => {
+                    const v = parseFloat(e.target.value) || 0;
+                    setOwnerFixed(Math.min(1_000_000, Math.max(0, v)));
+                  }}
                 />
               </div>
             </div>
@@ -221,7 +230,11 @@ function CommissionEditSheet({
                   min="0"
                   max="100"
                   value={customerPercent}
-                  onChange={(e) => setCustomerPercent(parseFloat(e.target.value) || 0)}
+                  onKeyDown={(e) => { if (e.key === "-") e.preventDefault(); }}
+                  onChange={(e) => {
+                    const v = parseFloat(e.target.value) || 0;
+                    setCustomerPercent(Math.min(100, Math.max(0, v)));
+                  }}
                 />
               </div>
               <div className="space-y-1">
@@ -230,8 +243,13 @@ function CommissionEditSheet({
                   type="number"
                   step="1"
                   min="0"
+                  max="1000000"
                   value={customerFixed}
-                  onChange={(e) => setCustomerFixed(parseFloat(e.target.value) || 0)}
+                  onKeyDown={(e) => { if (e.key === "-") e.preventDefault(); }}
+                  onChange={(e) => {
+                    const v = parseFloat(e.target.value) || 0;
+                    setCustomerFixed(Math.min(1_000_000, Math.max(0, v)));
+                  }}
                 />
               </div>
             </div>

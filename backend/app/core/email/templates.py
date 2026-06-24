@@ -9,11 +9,17 @@ Best regards,
 The RentManager Team"""
 
 
-def booking_confirmation_email(full_name: str, resource_name: str, start: str, end: str, total: str) -> str:
+def booking_confirmation_email(
+    full_name: str, resource_name: str, start: str, end: str, total: str,
+    booking_id: str | None = None, booking_group_id: str | None = None,
+) -> str:
+    ref_label = "Bundle ID" if booking_group_id else "Booking ID"
+    ref_value = booking_group_id or booking_id or ""
     return f"""Hi {full_name},
 
 Your booking has been confirmed!
 
+{ref_label}: {ref_value}
 Resource: {resource_name}
 Start:    {start}
 End:      {end}

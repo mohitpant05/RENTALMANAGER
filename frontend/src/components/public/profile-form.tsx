@@ -21,9 +21,16 @@ import { useAuthStore } from "@/lib/auth-store";
 import { useCurrencyStore, useSupportedCurrencies } from "@/hooks/use-currency";
 import type { UserResponse } from "@/types/api";
 
+const phoneSchema = z
+  .string()
+  .refine((v) => !v || /^\+?\d{7,15}$/.test(v), {
+    message: "Phone must be 7–15 digits, optionally prefixed with +",
+  })
+  .optional();
+
 const profileSchema = z.object({
   full_name: z.string().min(1, "Name is required"),
-  phone: z.string().optional(),
+  phone: phoneSchema,
   preferred_currency: z.string().min(1),
 });
 
@@ -103,7 +110,10 @@ export function ProfileForm({ user }: ProfileFormProps) {
 
           <div className="space-y-2">
             <Label htmlFor="phone">Phone</Label>
-            <Input id="phone" {...register("phone")} placeholder="Optional" />
+            <Input id="phone" type="tel" inputMode="numeric" maxLength={16} {...register("phone")} placeholder="Optional" />
+            {errors.phone && (
+              <p className="text-xs text-destructive">{errors.phone.message}</p>
+            )}
           </div>
 
           <div className="space-y-2">

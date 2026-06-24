@@ -24,12 +24,13 @@ class AvailabilityProvider(Protocol):
     ) -> list[str]: ...
 
     async def check(
-        self, session: AsyncSession, resource_id: uuid.UUID, start: datetime, end: datetime
+        self, session: AsyncSession, resource_id: uuid.UUID, start: datetime, end: datetime,
+        buffer_minutes: int = 0,
     ) -> bool: ...
 
     async def hold(
         self, session: AsyncSession, resource_id: uuid.UUID, start: datetime, end: datetime,
-        hold_minutes: int = 10,
+        hold_minutes: int = 10, buffer_minutes: int = 0,
     ) -> HoldResult: ...
 
 
@@ -77,13 +78,15 @@ async def check_overlap(
     resource_id: uuid.UUID,
     start: datetime,
     end: datetime,
+    buffer_minutes: int = 0,
 ) -> bool:
     now = datetime.now(UTC)
+    buf = timedelta(minutes=buffer_minutes)
     result = await session.exec(
         select(ResourceAvailability).where(
             ResourceAvailability.resource_id == resource_id,
-            ResourceAvailability.start_time < end,
-            ResourceAvailability.end_time > start,
+            ResourceAvailability.start_time < (end + buf),
+            ResourceAvailability.end_time > (start - buf),
             or_(
                 ResourceAvailability.status == "booked",
                 and_(
@@ -102,13 +105,14 @@ async def create_hold(
     start: datetime,
     end: datetime,
     hold_minutes: int,
+    buffer_minutes: int = 0,
 ) -> HoldResult:
     # Lock the resource row to serialize concurrent hold attempts
     await session.exec(
         select(Resource).where(Resource.id == resource_id).with_for_update()
     )
     # Re-check overlap under lock to prevent TOCTOU race
-    available = await check_overlap(session, resource_id, start, end)
+    available = await check_overlap(session, resource_id, start, end, buffer_minutes)
     if not available:
         raise ValueError("Resource no longer available (concurrent booking)")
 
