@@ -3,12 +3,14 @@
 import { Suspense, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { Search, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, X, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import api from "@/lib/api";
 import type { BookingResponse, ResourceResponse, UserResponse } from "@/types/api";
 import { BookingTable } from "@/components/bookings/booking-table";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { usePermissions } from "@/hooks/use-permissions";
+import { StaffBookingSheet } from "@/components/bookings/staff-booking-sheet";
 
 const STATUS_TABS = [
   { value: "", label: "All" },
@@ -18,6 +20,12 @@ const STATUS_TABS = [
   { value: "completed", label: "Completed" },
   { value: "cancelled", label: "Cancelled" },
   { value: "rejected", label: "Rejected" },
+];
+
+const BOOKING_TYPE_TABS = [
+  { value: "", label: "All Types" },
+  { value: "individual", label: "Individual" },
+  { value: "bundled", label: "Bundled" },
 ];
 
 const PAGE_SIZE = 25;
@@ -41,14 +49,18 @@ function BookingsContent() {
   const router = useRouter();
   const status = searchParams.get("status") ?? "";
   const search = searchParams.get("search") ?? "";
+  const bookingType = searchParams.get("booking_type") ?? "";
   const page = parseInt(searchParams.get("page") ?? "1", 10);
 
   const [searchInput, setSearchInput] = useState(search);
+  const { hasPermission } = usePermissions();
+  const canCreateOnBehalf = hasPermission("bookings:*:create_on_behalf");
+  const [staffBookingOpen, setStaffBookingOpen] = useState(false);
 
   const offset = (page - 1) * PAGE_SIZE;
 
   const { data: paged, isLoading: bookingsLoading } = useQuery({
-    queryKey: ["bookings", status, search, page],
+    queryKey: ["bookings", status, search, bookingType, page],
     queryFn: async () => {
       const params: Record<string, string> = {
         offset: String(offset),
@@ -56,6 +68,7 @@ function BookingsContent() {
       };
       if (status) params.status = status;
       if (search) params.search = search;
+      if (bookingType) params.booking_type = bookingType;
       const res = await api.get("/bookings", { params });
       if (Array.isArray(res.data)) {
         const totalCount = parseInt(res.headers?.["x-total-count"] ?? "0", 10);
@@ -140,9 +153,16 @@ function BookingsContent() {
 
   return (
     <div className="flex-1 space-y-6 p-6">
-      <div>
-        <h1 className="text-2xl font-bold">Bookings</h1>
-        <p className="mt-1 text-muted-foreground">View and manage all bookings</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Bookings</h1>
+          <p className="mt-1 text-muted-foreground">View and manage all bookings</p>
+        </div>
+        {canCreateOnBehalf && (
+          <Button onClick={() => setStaffBookingOpen(true)}>
+            <Plus className="h-4 w-4 mr-2" /> New Booking
+          </Button>
+        )}
       </div>
 
       <div className="flex items-center gap-4">
@@ -169,13 +189,24 @@ function BookingsContent() {
         </Button>
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {STATUS_TABS.map((t) => (
           <Button
             key={t.value}
             variant={status === t.value ? "default" : "outline"}
             size="sm"
             onClick={() => setFilter("status", t.value)}
+          >
+            {t.label}
+          </Button>
+        ))}
+        <span className="mx-2 h-6 w-px bg-border" />
+        {BOOKING_TYPE_TABS.map((t) => (
+          <Button
+            key={t.value}
+            variant={bookingType === t.value ? "default" : "outline"}
+            size="sm"
+            onClick={() => setFilter("booking_type", t.value)}
           >
             {t.label}
           </Button>
@@ -236,6 +267,13 @@ function BookingsContent() {
             </div>
           )}
         </>
+      )}
+
+      {canCreateOnBehalf && (
+        <StaffBookingSheet
+          open={staffBookingOpen}
+          onClose={() => setStaffBookingOpen(false)}
+        />
       )}
     </div>
   );

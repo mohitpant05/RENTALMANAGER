@@ -4,7 +4,9 @@ from fastapi import APIRouter, Depends
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.admin.roles_schemas import (
+    EffectivePermissionsResponse,
     PermissionGroup,
+    PermissionOverrideUpdate,
     RoleCreate,
     RolePermissionsUpdate,
     RoleResponse,
@@ -15,9 +17,11 @@ from app.core.admin.roles_service import (
     create_role,
     delete_role,
     get_role,
+    get_staff_effective_permissions,
     list_permissions_grouped,
     list_roles,
     set_role_permissions,
+    set_staff_permission_overrides,
     update_role,
     update_staff_roles,
 )
@@ -111,3 +115,23 @@ async def update_staff_user_roles(
             return StaffUserResponse(**s)
     from fastapi import HTTPException
     raise HTTPException(status_code=404, detail="User not found")
+
+
+@router.get("/staff/{user_id}/permissions", response_model=EffectivePermissionsResponse)
+async def get_staff_permissions(
+    user_id: uuid.UUID,
+    session: AsyncSession = Depends(get_db),
+    _user: User = Depends(_require_staff_manage()),
+):
+    return await get_staff_effective_permissions(session, user_id)
+
+
+@router.put("/staff/{user_id}/permissions/overrides")
+async def update_staff_overrides(
+    user_id: uuid.UUID,
+    data: PermissionOverrideUpdate,
+    session: AsyncSession = Depends(get_db),
+    _user: User = Depends(_require_staff_manage()),
+):
+    await set_staff_permission_overrides(session, user_id, data.overrides)
+    return {"detail": "Overrides updated"}

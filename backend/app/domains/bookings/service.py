@@ -28,8 +28,13 @@ from app.domains.bookings.state_machine import (
     calculate_refund_percent,
     can_transition,
 )
-from app.domains.resources.availability.strategy import confirm_hold, release_hold
-from app.domains.resources.models import Resource, ResourceType
+from app.domains.resources.availability.strategy import (
+    check_overlap,
+    confirm_hold,
+    create_hold,
+    release_hold,
+)
+from app.domains.resources.models import Resource, ResourceAvailability, ResourceType
 from app.domains.resources.pricing.strategy import get_pricing_provider
 
 
@@ -51,6 +56,8 @@ async def _dispatch_booking_event(
                 str(booking.start_time),
                 str(booking.end_time),
                 f"{booking.currency} {booking.total_price:.2f}",
+                booking_id=str(booking.id),
+                booking_group_id=str(booking.booking_group_id) if booking.booking_group_id else None,
             )
             send_email(user_email, subject, body)
             await notify_user(
@@ -77,6 +84,8 @@ async def create_booking(
     data: BookingCreate,
     user_id: uuid.UUID,
     is_admin: bool = False,
+    *,
+    _from_bundle: bool = False,
 ) -> Booking:
     result = await session.exec(
         select(Resource).where(Resource.id == data.resource_id)
@@ -103,6 +112,13 @@ async def create_booking(
             )
         booking_user_id = data.user_id
 
+    bm = getattr(resource_type, "booking_mode", "both") or "both"
+    if bm == "bundled" and not _from_bundle:
+        raise HTTPException(
+            status_code=400,
+            detail="This resource type only supports bundled bookings",
+        )
+
     pricing = get_pricing_provider(resource_type.pricing_model)
     total_price = pricing.calculate(
         resource.base_price, data.start_time, data.end_time, resource_type.pricing_config
@@ -121,7 +137,7 @@ async def create_booking(
 
     schedules_dicts = None
     if data.schedules:
-        schedules_dicts = [s.model_dump() for s in data.schedules]
+        schedules_dicts = [s.model_dump(mode="json") for s in data.schedules]
 
     booking = Booking(
         resource_id=data.resource_id,
@@ -135,21 +151,51 @@ async def create_booking(
         platform_commission=breakdown["platform_commission"],
         owner_payout=breakdown["owner_payout"],
         customer_total=breakdown["customer_total"],
-        hold_token=data.hold_token,
+        hold_token=data.hold_token or None,
         cancellation_policy=cancellation_policy,
         notes=data.notes,
         schedules=schedules_dicts,
         auto_confirm=data.auto_confirm,
     )
 
-    all_tokens = list({data.hold_token, *data.hold_tokens})
-    for token in all_tokens:
-        confirmed = await confirm_hold(session, token, booking.id)
-        if not confirmed:
+    has_hold = bool(data.hold_token) or bool(data.hold_tokens)
+
+    if has_hold:
+        all_tokens = list({t for t in [data.hold_token, *data.hold_tokens] if t})
+        for token in all_tokens:
+            confirmed = await confirm_hold(session, token, booking.id)
+            if not confirmed:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Hold token invalid or expired — please create a new hold",
+                )
+    else:
+        if resource_type.hold_config is not None:
+            raise HTTPException(
+                status_code=400,
+                detail="This resource type requires a hold before booking",
+            )
+        from sqlmodel import select as sql_select
+        await session.exec(
+            sql_select(Resource).where(Resource.id == data.resource_id).with_for_update()
+        )
+        buf = getattr(resource_type, "buffer_minutes", 0) or 0
+        available = await check_overlap(
+            session, data.resource_id, data.start_time, data.end_time, buf
+        )
+        if not available:
             raise HTTPException(
                 status_code=409,
-                detail="Hold token invalid or expired — please create a new hold",
+                detail="Resource is not available for the selected dates",
             )
+        avail_record = ResourceAvailability(
+            resource_id=data.resource_id,
+            start_time=data.start_time,
+            end_time=data.end_time,
+            status="booked",
+            booking_id=booking.id,
+        )
+        session.add(avail_record)
 
     if data.auto_confirm:
         booking.status = "confirmed"
@@ -173,6 +219,91 @@ async def create_booking(
     return booking
 
 
+async def create_booking_on_behalf(
+    session: AsyncSession,
+    data: "OnBehalfBookingCreate",
+    staff_user_id: uuid.UUID,
+) -> tuple[Booking, bool]:
+    from app.core.auth.models import Role, User, UserRole
+    from app.domains.bookings.schemas import OnBehalfBookingCreate
+
+    result = await session.exec(
+        select(User).where(User.email == data.customer_email)
+    )
+    customer = result.first()
+    created_customer = False
+
+    if customer is None:
+        if not data.customer_name:
+            raise HTTPException(
+                status_code=400,
+                detail="customer_name is required for new customers",
+            )
+        customer = User(
+            email=data.customer_email,
+            full_name=data.customer_name,
+            phone=data.customer_phone,
+            user_type="customer",
+            is_active=True,
+            is_verified=False,
+        )
+        session.add(customer)
+        await session.flush()
+
+        role_result = await session.exec(
+            select(Role).where(Role.slug == "customer")
+        )
+        customer_role = role_result.first()
+        if customer_role:
+            session.add(UserRole(user_id=customer.id, role_id=customer_role.id))
+            await session.flush()
+
+        created_customer = True
+
+    result = await session.exec(
+        select(Resource).where(Resource.id == data.resource_id)
+    )
+    resource = result.first()
+    if resource is None:
+        raise HTTPException(status_code=404, detail="Resource not found")
+
+    result = await session.exec(
+        select(ResourceType).where(ResourceType.id == resource.type_id)
+    )
+    resource_type = result.first()
+    auto_confirm = getattr(resource_type, "staff_booking_auto_confirm", True)
+
+    booking_data = BookingCreate(
+        resource_id=data.resource_id,
+        hold_token=data.hold_token,
+        hold_tokens=data.hold_tokens,
+        start_time=data.start_time,
+        end_time=data.end_time,
+        notes=data.notes,
+        auto_confirm=auto_confirm,
+        schedules=data.schedules,
+    )
+
+    booking = await create_booking(session, booking_data, customer.id, is_admin=True)
+
+    if created_customer:
+        try:
+            subject = "Welcome — Your Booking Has Been Created"
+            body = booking_confirmation_email(
+                customer.full_name,
+                resource.name,
+                str(booking.start_time),
+                str(booking.end_time),
+                f"{booking.currency} {booking.total_price:.2f}",
+                booking_id=str(booking.id),
+            )
+            send_email(customer.email, subject, body)
+        except Exception:
+            logger.warning("Failed to send welcome email to %s", customer.email)
+
+    return booking, created_customer
+
+
 async def get_booking(
     session: AsyncSession, booking_id: uuid.UUID, *, for_update: bool = False
 ) -> Booking:
@@ -192,17 +323,17 @@ async def list_bookings(
     status_filter: str | None = None,
     resource_id: uuid.UUID | None = None,
     search: str | None = None,
+    booking_type: str | None = None,
     offset: int = 0,
     limit: int = 50,
 ) -> tuple[list[Booking], int]:
     from sqlalchemy import String, cast, func, or_
     from app.core.auth.models import User
 
-    base = select(Booking)
-    count_base = select(func.count(Booking.id))
     if search:
         condition = or_(
             cast(Booking.id, String).ilike(f"%{search}%"),
+            cast(Booking.booking_group_id, String).ilike(f"%{search}%"),
             User.email.ilike(f"%{search}%"),
             User.full_name.ilike(f"%{search}%"),
             Resource.name.ilike(f"%{search}%"),
@@ -219,6 +350,15 @@ async def list_bookings(
             .join(Resource, Booking.resource_id == Resource.id)
             .where(condition)
         )
+    else:
+        base = select(Booking)
+        count_base = select(func.count(Booking.id))
+    if booking_type == "individual":
+        base = base.where(Booking.booking_group_id.is_(None))
+        count_base = count_base.where(Booking.booking_group_id.is_(None))
+    elif booking_type == "bundled":
+        base = base.where(Booking.booking_group_id.isnot(None))
+        count_base = count_base.where(Booking.booking_group_id.isnot(None))
     if user_id:
         base = base.where(Booking.user_id == user_id)
         count_base = count_base.where(Booking.user_id == user_id)
@@ -374,6 +514,20 @@ async def cancel_booking(
     return booking
 
 
+def _validate_addon_dates(
+    primary_start: datetime, primary_end: datetime,
+    addon_start: datetime, addon_end: datetime,
+) -> None:
+    if addon_start < primary_start or addon_end > primary_end:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Addon dates must fall within primary booking range "
+                f"({primary_start.isoformat()} to {primary_end.isoformat()})"
+            ),
+        )
+
+
 async def create_bundled_booking(
     session: AsyncSession,
     primary_data: BookingCreate,
@@ -383,7 +537,29 @@ async def create_bundled_booking(
 ) -> dict:
     group_id = uuid.uuid4()
 
-    primary_booking = await create_booking(session, primary_data, user_id, is_admin)
+    result = await session.exec(
+        select(Resource).where(Resource.id == primary_data.resource_id)
+    )
+    primary_resource = result.first()
+    if primary_resource:
+        rt_result = await session.exec(
+            select(ResourceType).where(ResourceType.id == primary_resource.type_id)
+        )
+        rt = rt_result.first()
+        bm = getattr(rt, "booking_mode", "both") or "both"
+        if bm == "individual":
+            raise HTTPException(
+                status_code=400,
+                detail="This resource type only supports individual bookings",
+            )
+
+    for addon_data in addon_data_list:
+        _validate_addon_dates(
+            primary_data.start_time, primary_data.end_time,
+            addon_data.start_time, addon_data.end_time,
+        )
+
+    primary_booking = await create_booking(session, primary_data, user_id, is_admin, _from_bundle=True)
     primary_booking.booking_group_id = group_id
     primary_booking.parent_booking_id = None
     session.add(primary_booking)
@@ -393,7 +569,7 @@ async def create_bundled_booking(
     addon_bookings = []
     for addon_data in addon_data_list:
         try:
-            addon_booking = await create_booking(session, addon_data, user_id, is_admin)
+            addon_booking = await create_booking(session, addon_data, user_id, is_admin, _from_bundle=True)
             addon_booking.booking_group_id = group_id
             addon_booking.parent_booking_id = primary_booking.id
             session.add(addon_booking)
@@ -421,6 +597,11 @@ async def add_addon_to_booking(
     if primary.status not in ("pending", "confirmed"):
         raise HTTPException(status_code=400, detail="Primary booking must be pending or confirmed")
 
+    _validate_addon_dates(
+        primary.start_time, primary.end_time,
+        data.start_time, data.end_time,
+    )
+
     group_id = primary.booking_group_id or uuid.uuid4()
     if primary.booking_group_id is None:
         primary.booking_group_id = group_id
@@ -437,7 +618,7 @@ async def add_addon_to_booking(
         auto_confirm=data.auto_confirm,
         schedules=data.schedules,
     )
-    addon_booking = await create_booking(session, addon_create, primary.user_id, is_admin)
+    addon_booking = await create_booking(session, addon_create, primary.user_id, is_admin, _from_bundle=True)
     addon_booking.booking_group_id = group_id
     addon_booking.parent_booking_id = primary_booking_id
     session.add(addon_booking)

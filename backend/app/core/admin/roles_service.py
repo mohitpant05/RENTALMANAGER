@@ -12,7 +12,7 @@ from app.core.admin.roles_schemas import (
     RoleResponse,
     RoleUpdate,
 )
-from app.core.auth.models import Permission, Role, RolePermission, UserRole
+from app.core.auth.models import Permission, Role, RolePermission, UserPermissionOverride, UserRole
 
 DOMAIN_LABELS = {
     "resources": "Resources",
@@ -23,6 +23,7 @@ DOMAIN_LABELS = {
     "theme": "Theming",
     "analytics": "Analytics",
     "settings": "Settings",
+    "resource_types": "Resource Types",
 }
 
 
@@ -171,4 +172,70 @@ async def update_staff_roles(
 
     for rid in role_ids:
         session.add(UserRole(user_id=user_id, role_id=rid))
+    await session.commit()
+
+
+async def get_staff_effective_permissions(
+    session: AsyncSession, user_id: uuid.UUID
+) -> dict:
+    from app.core.admin.roles_schemas import PermissionOverrideResponse, PermissionResponse
+
+    rp_result = await session.exec(
+        select(Permission)
+        .join(RolePermission, RolePermission.permission_id == Permission.id)
+        .join(UserRole, UserRole.role_id == RolePermission.role_id)
+        .where(UserRole.user_id == user_id)
+    )
+    role_perms = [PermissionResponse.from_permission(p) for p in rp_result.all()]
+
+    override_result = await session.exec(
+        select(UserPermissionOverride, Permission)
+        .join(Permission, Permission.id == UserPermissionOverride.permission_id)
+        .where(UserPermissionOverride.user_id == user_id)
+    )
+    overrides = []
+    for ov, perm in override_result.all():
+        overrides.append(PermissionOverrideResponse(
+            permission_id=perm.id,
+            codename=perm.codename,
+            description=perm.description,
+            granted=ov.granted,
+        ))
+
+    from app.core.auth.dependencies import get_user_permissions
+    effective = await get_user_permissions(session, user_id)
+
+    return {
+        "role_permissions": role_perms,
+        "overrides": overrides,
+        "effective": sorted(effective),
+    }
+
+
+async def set_staff_permission_overrides(
+    session: AsyncSession, user_id: uuid.UUID, overrides: list
+) -> None:
+    perm_ids = [entry.permission_id for entry in overrides]
+    if perm_ids:
+        result = await session.exec(
+            select(Permission.id).where(Permission.id.in_(perm_ids))
+        )
+        valid_ids = set(result.all())
+        for pid in perm_ids:
+            if pid not in valid_ids:
+                raise HTTPException(status_code=404, detail=f"Permission {pid} not found")
+
+    existing = await session.exec(
+        select(UserPermissionOverride).where(UserPermissionOverride.user_id == user_id)
+    )
+    for ov in existing.all():
+        await session.delete(ov)
+    await session.flush()
+
+    for entry in overrides:
+        session.add(UserPermissionOverride(
+            user_id=user_id,
+            permission_id=entry.permission_id,
+            granted=entry.granted,
+        ))
     await session.commit()

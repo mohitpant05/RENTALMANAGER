@@ -8,6 +8,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import api from "@/lib/api";
 import type { StaffUserResponse, StaffInviteRequest, RoleResponse } from "@/types/api";
+import { PermissionOverrideEditor } from "@/components/admin/permission-override-editor";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -386,6 +387,12 @@ export default function StaffPage() {
               </label>
             ))}
           </div>
+
+          {editRolesUserId && (
+            <div className="mt-6 border-t pt-4 px-4">
+              <PermissionOverrideEditor userId={editRolesUserId} />
+            </div>
+          )}
 
           <SheetFooter className="px-4">
             <Button
