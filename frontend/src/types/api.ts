@@ -644,6 +644,7 @@ export interface OnBehalfBookingCreate {
   hold_tokens?: string[];
   notes?: string;
   schedules?: AddonSchedule[];
+  timezone?: string;
 }
 
 export interface OnBehalfBookingResponse {

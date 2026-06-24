@@ -136,6 +136,7 @@ class OnBehalfBookingCreate(BaseModel):
     hold_tokens: list[str] = []
     notes: str | None = None
     schedules: list[AddonSchedule] | None = None
+    timezone: str = "UTC"
 
 
 class OnBehalfBookingResponse(BaseModel):
