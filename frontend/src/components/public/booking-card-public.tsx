@@ -5,6 +5,7 @@ import { CalendarDays, Image as ImageIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import type { BookingResponse } from "@/types/api";
+import { useFormatPrice } from "@/hooks/use-currency";
 
 const STATUS_VARIANT: Record<
   string,
@@ -23,6 +24,7 @@ interface BookingCardPublicProps {
   booking: BookingResponse;
   resourceName: string;
   imageUrl?: string;
+  isAddon?: boolean;
 }
 
 function formatDateRange(start: string, end: string): string {
@@ -44,10 +46,12 @@ export function BookingCardPublic({
   booking,
   resourceName,
   imageUrl,
+  isAddon,
 }: BookingCardPublicProps) {
+  const fmt = useFormatPrice();
   return (
     <Link href={`/bookings/${booking.id}`}>
-      <Card className="transition-colors hover:bg-muted/50">
+      <Card className={`transition-colors hover:bg-muted/50 ${isAddon ? "ml-6 border-l-2 border-l-primary/30" : ""}`}>
         <CardContent className="flex gap-4 p-4">
           {imageUrl ? (
             <img
@@ -76,6 +80,9 @@ export function BookingCardPublic({
                 >
                   {resourceName}
                 </span>
+                {isAddon && (
+                  <Badge variant="default" className="shrink-0 text-[10px]">Addon</Badge>
+                )}
                 <Badge variant={STATUS_VARIANT[booking.status] ?? "muted"} className="shrink-0">
                   {booking.status.replace(/_/g, " ")}
                 </Badge>
@@ -88,7 +95,7 @@ export function BookingCardPublic({
             </div>
 
             <div className="mt-2 text-sm font-semibold">
-              {booking.currency} {booking.total_price.toFixed(2)}
+              {fmt(booking.total_price, booking.currency)}
             </div>
           </div>
         </CardContent>

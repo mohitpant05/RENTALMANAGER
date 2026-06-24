@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Bell, Check, CheckCheck } from "lucide-react";
 import { useAuthStore } from "@/lib/auth-store";
@@ -37,8 +37,13 @@ export default function PublicNotificationsPage() {
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [limit, setLimit] = useState(PAGE_SIZE);
 
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      router.push("/login?returnUrl=/notifications");
+    }
+  }, [authLoading, isAuthenticated, router]);
+
   if (!authLoading && !isAuthenticated) {
-    router.push("/login?returnUrl=/notifications");
     return null;
   }
 

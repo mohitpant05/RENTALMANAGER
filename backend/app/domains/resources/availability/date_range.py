@@ -23,12 +23,13 @@ class DateRangeProvider:
         return errors
 
     async def check(
-        self, session: AsyncSession, resource_id: uuid.UUID, start: datetime, end: datetime
+        self, session: AsyncSession, resource_id: uuid.UUID, start: datetime, end: datetime,
+        buffer_minutes: int = 0,
     ) -> bool:
-        return await check_overlap(session, resource_id, start, end)
+        return await check_overlap(session, resource_id, start, end, buffer_minutes)
 
     async def hold(
         self, session: AsyncSession, resource_id: uuid.UUID, start: datetime, end: datetime,
-        hold_minutes: int = 10,
+        hold_minutes: int = 10, buffer_minutes: int = 0,
     ) -> HoldResult:
-        return await create_hold(session, resource_id, start, end, hold_minutes)
+        return await create_hold(session, resource_id, start, end, hold_minutes, buffer_minutes)

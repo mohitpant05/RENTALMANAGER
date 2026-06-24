@@ -1,13 +1,13 @@
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 
 class SearchRequest(BaseModel):
     q: str = ""
     resource_type_slug: str | None = None
     filters: dict | None = None
-    geo_lat: float | None = None
-    geo_lng: float | None = None
-    geo_radius_km: float | None = None
+    geo_lat: float | None = Field(default=None, ge=-90, le=90)
+    geo_lng: float | None = Field(default=None, ge=-180, le=180)
+    geo_radius_km: float | None = Field(default=None, ge=0, le=50_000)
     sort_by: str | None = None
     sort_order: str = "asc"
     offset: int = 0
