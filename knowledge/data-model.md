@@ -28,14 +28,14 @@ PostgreSQL schema-per-tenant. Each tenant gets own schema with isolated tables.
 | Table | Purpose |
 |-------|---------|
 | `resource_types` | Categorization with JSON attribute schema |
-| `resources` | Individual resources with attributes JSONB |
+| `resources` | Individual resources with attributes JSONB, optional slot_config JSONB |
 | (availability tables) | Per availability strategy (date_range, hourly, time_slot) |
 | (pricing tables) | Per pricing provider |
 
 **Bookings:**
 | Table | Purpose |
 |-------|---------|
-| `bookings` | Booking records with state machine (pending→confirmed→active→completed/cancelled) |
+| `bookings` | Booking records with state machine (pending→confirmed→active→completed/cancelled), timezone stored per booking |
 | `booking_holds` | Temporary holds with expiry |
 
 **Reviews:**
@@ -64,7 +64,7 @@ When new tenant created (`core/tenancy/provisioning.py`):
 
 - Public schema: Alembic (`backend/alembic/versions/`)
 - Tenant schemas: `provisioning.py` creates tables with `checkfirst=True`
-- Current migrations: 0001 (public schema) through 0006 (user preferred currency)
+- Current migrations: 0001 (public schema) through 0012 (slot_config on resources)
 - Backend init container runs `alembic upgrade head` on k8s deploy
 
 ## Permission Format
