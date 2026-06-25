@@ -19,6 +19,7 @@ from app.core.auth.router import router as auth_router
 from app.core.commission.router import router as commission_router
 from app.core.currency.router import router as currency_router
 from app.core.notifications.router import router as notification_router
+from app.core.payments.refunds_router import router as refunds_router
 from app.core.payments.router import router as payment_router
 from app.core.payouts.router import router as payout_router
 from app.core.search.router import router as search_router
@@ -142,6 +143,7 @@ app.include_router(roles_router)
 app.include_router(currency_router)
 app.include_router(commission_router)
 app.include_router(payment_router)
+app.include_router(refunds_router)
 app.include_router(payout_router)
 app.include_router(platform_router)
 

@@ -7,15 +7,16 @@ import {
   Bell,
   Box,
   CalendarDays,
+  Clock,
   LayoutDashboard,
   Palette,
+  RotateCcw,
   Settings,
   Star,
   Users,
   Sun,
   Moon,
   LogOut,
-  Clock,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
@@ -35,6 +36,7 @@ const NAV_ITEMS = [
   { href: "/admin/bookings", icon: CalendarDays, label: "Bookings" },
   { href: "/admin/booking-slots", icon: Clock, label: "Slots" },
   { href: "/admin/payouts", icon: Banknote, label: "Payouts" },
+  { href: "/admin/refunds", icon: RotateCcw, label: "Refunds" },
   { href: "/admin/reviews", icon: Star, label: "Reviews" },
   { href: "/admin/staff", icon: Users, label: "Staff" },
   { href: "/admin/notifications", icon: Bell, label: "Notifications" },
