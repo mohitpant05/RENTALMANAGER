@@ -7,6 +7,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.admin.models import TenantTheme
 from app.core.admin.schemas import (
+    CustomerCreate,
     DeactivationImpactResponse,
     DomainCreate,
     StaffInvite,
@@ -281,6 +282,125 @@ async def activate_user(session: AsyncSession, user_id: uuid.UUID) -> User:
     await session.commit()
     await session.refresh(user)
     return user
+
+
+async def list_customers(
+    session: AsyncSession,
+    search: str | None = None,
+    scope_owner_ids: list[uuid.UUID] | None = None,
+) -> list[dict]:
+    from sqlalchemy import func
+
+    from app.domains.bookings.models import Booking
+    from app.domains.resources.models import Resource
+
+    stmt = select(User).where(User.user_type == "customer")
+
+    if scope_owner_ids is not None:
+        stmt = (
+            stmt.join(Booking, Booking.user_id == User.id)
+            .join(Resource, Booking.resource_id == Resource.id)
+            .where(Resource.owner_id.in_(scope_owner_ids))
+            .distinct()
+        )
+
+    if search:
+        stmt = stmt.where(
+            User.email.ilike(f"%{search}%") | User.full_name.ilike(f"%{search}%")
+        )
+    stmt = stmt.order_by(User.created_at.desc())
+    result = await session.exec(stmt)
+    users = list(result.all())
+
+    user_ids = [u.id for u in users]
+    if user_ids:
+        from sqlalchemy import func as sa_func
+        if scope_owner_ids is not None:
+            count_result = await session.exec(
+                select(Booking.user_id, sa_func.count(Booking.id))
+                .join(Resource, Booking.resource_id == Resource.id)
+                .where(Booking.user_id.in_(user_ids), Resource.owner_id.in_(scope_owner_ids))
+                .group_by(Booking.user_id)
+            )
+        else:
+            count_result = await session.exec(
+                select(Booking.user_id, sa_func.count(Booking.id))
+                .where(Booking.user_id.in_(user_ids))
+                .group_by(Booking.user_id)
+            )
+        booking_counts = dict(count_result.all())
+    else:
+        booking_counts = {}
+
+    return [
+        {**u.model_dump(), "booking_count": booking_counts.get(u.id, 0)}
+        for u in users
+    ]
+
+
+async def create_customer(
+    session: AsyncSession, data: CustomerCreate
+) -> User:
+    result = await session.exec(select(User).where(User.email == data.email))
+    existing = result.first()
+    if existing is not None:
+        raise HTTPException(status_code=409, detail="Email already registered")
+
+    customer = User(
+        email=data.email,
+        full_name=data.full_name,
+        phone=data.phone,
+        user_type="customer",
+        is_active=True,
+        is_verified=False,
+    )
+    session.add(customer)
+    await session.flush()
+
+    role_result = await session.exec(select(Role).where(Role.slug == "customer"))
+    customer_role = role_result.first()
+    if customer_role:
+        session.add(UserRole(user_id=customer.id, role_id=customer_role.id))
+
+    await session.commit()
+    await session.refresh(customer)
+    return customer
+
+
+async def deactivate_customer(
+    session: AsyncSession, customer_id: uuid.UUID
+) -> User:
+    result = await session.exec(select(User).where(User.id == customer_id))
+    customer = result.first()
+    if customer is None:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    if customer.user_type != "customer":
+        raise HTTPException(status_code=400, detail="User is not a customer")
+
+    customer.is_active = False
+    customer.updated_at = datetime.now(UTC)
+    session.add(customer)
+    await session.commit()
+    await session.refresh(customer)
+    return customer
+
+
+async def activate_customer(
+    session: AsyncSession, customer_id: uuid.UUID
+) -> User:
+    result = await session.exec(select(User).where(User.id == customer_id))
+    customer = result.first()
+    if customer is None:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    if customer.user_type != "customer":
+        raise HTTPException(status_code=400, detail="User is not a customer")
+
+    customer.is_active = True
+    customer.updated_at = datetime.now(UTC)
+    session.add(customer)
+    await session.commit()
+    await session.refresh(customer)
+    return customer
 
 
 async def get_deactivation_impact(

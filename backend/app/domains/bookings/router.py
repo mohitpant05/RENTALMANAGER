@@ -9,6 +9,7 @@ from app.core.auth.dependencies import (
     matches_permission,
     require_permission,
 )
+from app.core.auth.scoping import resolve_data_scope
 from app.core.auth.models import User
 from app.database import get_db
 from app.domains.bookings.schemas import (
@@ -111,6 +112,7 @@ async def create_bundled_booking_endpoint(
 async def list_bookings_endpoint(
     status: str | None = None,
     resource_id: uuid.UUID | None = None,
+    user_id: uuid.UUID | None = None,
     search: str | None = None,
     booking_type: str | None = None,
     offset: int = 0,
@@ -121,7 +123,14 @@ async def list_bookings_endpoint(
 ):
     user, perms = user_and_perms
     can_read_all = matches_permission("bookings:*:read", perms)
-    user_filter = None if can_read_all else user.id
+
+    scope = await resolve_data_scope(session, user)
+    scope_owner_ids = scope.owner_ids if scope.is_scoped else None
+
+    if user_id and can_read_all:
+        user_filter = user_id
+    else:
+        user_filter = None if can_read_all else user.id
     bookings, total = await list_bookings(
         session,
         user_id=user_filter,
@@ -129,6 +138,7 @@ async def list_bookings_endpoint(
         resource_id=resource_id,
         search=search,
         booking_type=booking_type,
+        scope_owner_ids=scope_owner_ids,
         offset=offset,
         limit=limit,
     )

@@ -11,6 +11,7 @@ from sqlalchemy import text
 
 from app.config import get_settings
 from app.core.admin.ip_middleware import SuperadminIPMiddleware
+from app.core.admin.listers_router import router as listers_router
 from app.core.admin.platform_router import router as platform_router
 from app.core.admin.roles_router import router as roles_router
 from app.core.admin.router import router as admin_router
@@ -136,6 +137,7 @@ app.include_router(review_router)
 app.include_router(notification_router)
 app.include_router(storage_router)
 app.include_router(admin_router)
+app.include_router(listers_router)
 app.include_router(roles_router)
 app.include_router(currency_router)
 app.include_router(commission_router)

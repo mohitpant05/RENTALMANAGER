@@ -213,6 +213,7 @@ async def list_resources(
     type_id: uuid.UUID | None = None,
     status_filter: str | None = None,
     owner_id: uuid.UUID | None = None,
+    scope_owner_ids: list[uuid.UUID] | None = None,
     offset: int = 0,
     limit: int = 50,
 ) -> list[Resource]:
@@ -227,6 +228,8 @@ async def list_resources(
         stmt = stmt.where(Resource.status == "active")
     if owner_id:
         stmt = stmt.where(Resource.owner_id == owner_id)
+    if scope_owner_ids is not None:
+        stmt = stmt.where(Resource.owner_id.in_(scope_owner_ids))
     stmt = stmt.offset(offset).limit(limit).order_by(Resource.created_at.desc())
     result = await session.exec(stmt)
     return list(result.all())

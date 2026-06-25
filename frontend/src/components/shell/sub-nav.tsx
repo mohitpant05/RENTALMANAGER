@@ -65,9 +65,10 @@ const STATIC_NAV_CONFIG: Record<string, SubNavSection> = {
     ],
   },
   "/admin/staff": {
-    title: "Staff",
+    title: "Team",
     items: [
-      { href: "/admin/staff", label: "Members" },
+      { href: "/admin/staff", label: "Staff" },
+      { href: "/admin/staff/listers", label: "Listers" },
       { href: "/admin/staff/roles", label: "Roles & Permissions" },
     ],
   },

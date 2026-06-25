@@ -106,10 +106,14 @@ async def list_reviews(
     target_user_id: uuid.UUID | None = None,
     direction: str | None = None,
     status_filter: str = "published",
+    scope_owner_ids: list[uuid.UUID] | None = None,
     offset: int = 0,
     limit: int = 20,
 ) -> list[Review]:
     stmt = select(Review)
+    if scope_owner_ids is not None:
+        stmt = stmt.join(Resource, Review.resource_id == Resource.id)
+        stmt = stmt.where(Resource.owner_id.in_(scope_owner_ids))
     if resource_id:
         stmt = stmt.where(Review.resource_id == resource_id)
     if reviewer_id:

@@ -8,6 +8,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import api from "@/lib/api";
 import type { DomainResponse, TenantResponse, DomainCreate } from "@/types/api";
+import { useAuthStore } from "@/lib/auth-store";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,6 +24,7 @@ type DomainFormData = z.infer<typeof domainSchema>;
 
 export default function SettingsPage() {
   const queryClient = useQueryClient();
+  const { user } = useAuthStore();
   const [domainOpen, setDomainOpen] = useState(false);
   const [newDomain, setNewDomain] = useState("");
 
@@ -78,6 +80,20 @@ export default function SettingsPage() {
     },
     onError: () => {
       toast.error("Failed to remove domain");
+    },
+  });
+
+  const updateTenant = useMutation({
+    mutationFn: async (payload: Partial<TenantResponse>) => {
+      const { data } = await api.patch<TenantResponse>("/admin/tenant", payload);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-tenant"] });
+      toast.success("Settings updated");
+    },
+    onError: () => {
+      toast.error("Failed to update settings");
     },
   });
 
@@ -175,6 +191,35 @@ export default function SettingsPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Staff Isolation */}
+      {tenant && user?.user_type === "admin" && (
+        <Card>
+          <CardContent className="p-6">
+            <h3 className="text-lg font-semibold">Staff Data Isolation</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Control whether staff members see each other&apos;s data
+            </p>
+            <div className="mt-4 flex items-center gap-3">
+              <select
+                className="rounded-md border px-3 py-2 text-sm"
+                value={(tenant.config?.staff_isolation_mode as string) ?? "shared"}
+                onChange={(e) => {
+                  updateTenant.mutate({
+                    config: {
+                      ...tenant.config,
+                      staff_isolation_mode: e.target.value,
+                    },
+                  });
+                }}
+              >
+                <option value="shared">Shared — all staff see all data</option>
+                <option value="isolated">Isolated — staff see only their own data</option>
+              </select>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {domainOpen && (
         <Card className="border-primary/20">

@@ -173,6 +173,21 @@ async def get_current_user_with_perms(
     return user, perms
 
 
+async def get_scoped_user(
+    credentials: HTTPAuthorizationCredentials = Depends(_security),
+    session: AsyncSession = Depends(get_db),
+) -> tuple[User, set[str], "DataScope"]:
+    from app.core.auth.scoping import DataScope, resolve_data_scope
+
+    user = await get_current_user(credentials, session)
+    if user.user_type == "admin":
+        perms = {"*:*:*"}
+    else:
+        perms = await get_user_permissions(session, user.id)
+    scope = await resolve_data_scope(session, user)
+    return user, perms, scope
+
+
 async def get_optional_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(
         HTTPBearer(auto_error=False)

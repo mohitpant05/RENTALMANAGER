@@ -325,6 +325,7 @@ async def list_bookings(
     resource_id: uuid.UUID | None = None,
     search: str | None = None,
     booking_type: str | None = None,
+    scope_owner_ids: list[uuid.UUID] | None = None,
     offset: int = 0,
     limit: int = 50,
 ) -> tuple[list[Booking], int]:
@@ -354,6 +355,14 @@ async def list_bookings(
     else:
         base = select(Booking)
         count_base = select(func.count(Booking.id))
+
+    if scope_owner_ids is not None:
+        if not search:
+            base = base.join(Resource, Booking.resource_id == Resource.id)
+            count_base = count_base.join(Resource, Booking.resource_id == Resource.id)
+        base = base.where(Resource.owner_id.in_(scope_owner_ids))
+        count_base = count_base.where(Resource.owner_id.in_(scope_owner_ids))
+
     if booking_type == "individual":
         base = base.where(Booking.booking_group_id.is_(None))
         count_base = count_base.where(Booking.booking_group_id.is_(None))
