@@ -136,6 +136,7 @@ class ListerInvite(BaseModel):
     email: str
     full_name: str
     role_slugs: list[str] = ["lister"]
+    manager_id: uuid.UUID | None = None
 
 
 class ListerResponse(BaseModel):

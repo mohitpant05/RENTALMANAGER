@@ -39,13 +39,20 @@ async def invite_tenant_lister(
     user: User = Depends(require_permission("listers:*:invite")),
 ):
     if user.user_type not in ("admin", "staff"):
-        from fastapi import HTTPException
         raise HTTPException(status_code=403, detail="Only staff or admin can invite listers")
+
+    if user.user_type == "admin" and data.manager_id:
+        target_mgr = (await session.exec(select(User).where(User.id == data.manager_id))).first()
+        if not target_mgr or target_mgr.user_type != "staff":
+            raise HTTPException(status_code=400, detail="manager_id must reference a staff user")
+        effective_manager_id = data.manager_id
+    else:
+        effective_manager_id = user.id
 
     tenant_ctx = get_current_tenant()
     new_user, email_status, email_warning = await invite_lister(
         session, data,
-        manager_id=user.id,
+        manager_id=effective_manager_id,
         tenant_id=str(tenant_ctx.tenant.id),
         tenant_slug=tenant_ctx.tenant.slug,
     )

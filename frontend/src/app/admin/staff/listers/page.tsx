@@ -17,6 +17,13 @@ import { Label } from "@/components/ui/label";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useAuthStore } from "@/lib/auth-store";
+
+interface StaffUser {
+  id: string;
+  full_name: string;
+  email: string;
+}
 
 interface ListerResponse {
   id: string;
@@ -35,6 +42,17 @@ export default function ListersPage() {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
+  const [managerId, setManagerId] = useState<string>("");
+  const isAdmin = useAuthStore((s) => s.isAdmin);
+
+  const { data: staffList } = useQuery({
+    queryKey: ["staff-list"],
+    queryFn: async () => {
+      const { data } = await api.get<StaffUser[]>("/admin/staff");
+      return data.filter((s) => s.id !== useAuthStore.getState().user?.id);
+    },
+    enabled: isAdmin(),
+  });
 
   const { data: listers, isLoading } = useQuery({
     queryKey: ["listers"],
@@ -46,13 +64,16 @@ export default function ListersPage() {
 
   const inviteMutation = useMutation({
     mutationFn: async () => {
-      await api.post("/admin/listers", { email, full_name: fullName });
+      const payload: Record<string, unknown> = { email, full_name: fullName };
+      if (managerId) payload.manager_id = managerId;
+      await api.post("/admin/listers", payload);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["listers"] });
       setInviteOpen(false);
       setEmail("");
       setFullName("");
+      setManagerId("");
     },
     onError: (err: any) => {
       toast.error(err?.response?.data?.detail ?? "Failed to invite lister");
@@ -118,6 +139,24 @@ export default function ListersPage() {
                   placeholder="John Doe"
                 />
               </div>
+              {isAdmin() && staffList && staffList.length > 0 && (
+                <div>
+                  <Label htmlFor="manager">Assign to Staff</Label>
+                  <select
+                    id="manager"
+                    className="w-full rounded-md border px-3 py-2 text-sm"
+                    value={managerId}
+                    onChange={(e) => setManagerId(e.target.value)}
+                  >
+                    <option value="">Myself (admin)</option>
+                    {staffList.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.full_name} ({s.email})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <Button
                 className="w-full"
                 onClick={() => inviteMutation.mutate()}
