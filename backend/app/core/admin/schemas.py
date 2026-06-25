@@ -132,6 +132,28 @@ class StaffInvite(BaseModel):
     role_slugs: list[str] = []
 
 
+class ListerInvite(BaseModel):
+    email: str
+    full_name: str
+    role_slugs: list[str] = ["lister"]
+
+
+class ListerResponse(BaseModel):
+    id: uuid.UUID
+    email: str
+    full_name: str
+    phone: str | None
+    is_active: bool
+    user_type: str
+    manager_id: uuid.UUID | None
+    created_at: datetime
+    roles: list[str] = []
+    email_status: str = "queued"
+    email_warning: str | None = None
+
+    model_config = {"from_attributes": True}
+
+
 class PlatformLoginRequest(BaseModel):
     email: str
     password: str
@@ -179,3 +201,22 @@ class PlatformSettingUpdate(BaseModel):
 
 class ValidateKeyRequest(BaseModel):
     key: str
+
+
+class CustomerCreate(BaseModel):
+    email: str
+    full_name: str
+    phone: str | None = None
+
+
+class CustomerResponse(BaseModel):
+    id: uuid.UUID
+    email: str
+    full_name: str
+    phone: str | None
+    is_active: bool
+    user_type: str
+    created_at: datetime
+    booking_count: int = 0
+
+    model_config = {"from_attributes": True}

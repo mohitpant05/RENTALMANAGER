@@ -4,6 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.admin.schemas import (
+    CustomerCreate,
+    CustomerResponse,
     DeactivationImpactResponse,
     DomainCreate,
     DomainResponse,
@@ -17,12 +19,16 @@ from app.core.admin.schemas import (
     ThemeUpdate,
 )
 from app.core.admin.service import (
+    activate_customer,
     activate_user,
     add_domain,
+    create_customer,
+    deactivate_customer,
     deactivate_user,
     get_deactivation_impact,
     get_theme,
     invite_staff,
+    list_customers,
     list_domains,
     list_staff,
     remove_domain,
@@ -31,6 +37,7 @@ from app.core.admin.service import (
 )
 from app.core.auth.dependencies import require_permission
 from app.core.auth.models import User
+from app.core.auth.scoping import resolve_data_scope
 from app.core.tenancy.context import get_current_tenant
 from app.database import get_db
 
@@ -215,3 +222,47 @@ async def staff_deactivation_impact(
     _user: User = Depends(require_permission("staff:*:manage")),
 ):
     return await get_deactivation_impact(session, user_id)
+
+
+# --- Customer endpoints ---
+
+@router.get("/customers", response_model=list[CustomerResponse])
+async def list_tenant_customers(
+    search: str | None = None,
+    session: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("customers:*:read")),
+):
+    scope = await resolve_data_scope(session, user)
+    scope_owner_ids = scope.owner_ids if scope.is_scoped else None
+    customers = await list_customers(session, search, scope_owner_ids=scope_owner_ids)
+    return [CustomerResponse(**c) for c in customers]
+
+
+@router.post("/customers", response_model=CustomerResponse, status_code=201)
+async def create_tenant_customer(
+    data: CustomerCreate,
+    session: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("customers:*:create")),
+):
+    customer = await create_customer(session, data)
+    return CustomerResponse(**{**customer.model_dump(), "booking_count": 0})
+
+
+@router.post("/customers/{customer_id}/deactivate", response_model=CustomerResponse)
+async def deactivate_tenant_customer(
+    customer_id: uuid.UUID,
+    session: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("customers:*:deactivate")),
+):
+    customer = await deactivate_customer(session, customer_id)
+    return CustomerResponse(**{**customer.model_dump(), "booking_count": 0})
+
+
+@router.post("/customers/{customer_id}/activate", response_model=CustomerResponse)
+async def activate_tenant_customer(
+    customer_id: uuid.UUID,
+    session: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("customers:*:manage")),
+):
+    customer = await activate_customer(session, customer_id)
+    return CustomerResponse(**{**customer.model_dump(), "booking_count": 0})

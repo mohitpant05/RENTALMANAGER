@@ -4,8 +4,9 @@ from datetime import datetime
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.auth.dependencies import get_current_user, require_permission
+from app.core.auth.dependencies import get_current_user, get_optional_user, require_permission
 from app.core.auth.models import User
+from app.core.auth.scoping import resolve_data_scope
 from app.database import get_db
 from app.domains.resources.discovery import discover_addons
 from app.domains.resources.schemas import (
@@ -140,12 +141,20 @@ async def delete_type(
 async def list_all_resources(
     type_id: uuid.UUID | None = Query(None),
     status_filter: str | None = Query(None, alias="status"),
+    owner_id: uuid.UUID | None = Query(None),
     offset: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
     session: AsyncSession = Depends(get_db),
+    user: User | None = Depends(get_optional_user),
 ):
+    scope_owner_ids = None
+    if user:
+        scope = await resolve_data_scope(session, user)
+        if scope.is_scoped:
+            scope_owner_ids = scope.owner_ids
     return await list_resources(
-        session, type_id=type_id, status_filter=status_filter, offset=offset, limit=limit
+        session, type_id=type_id, status_filter=status_filter, owner_id=owner_id,
+        scope_owner_ids=scope_owner_ids, offset=offset, limit=limit,
     )
 
 

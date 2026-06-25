@@ -2,11 +2,12 @@ export const NAV_PERMISSION_MAP: Record<string, string[]> = {
   "/admin": [],
   "/admin/resources": ["resources:*:read", "resources:*:manage"],
   "/admin/bookings": ["bookings:*:read", "bookings:*:manage"],
+  "/admin/customers": ["customers:*:read", "customers:*:manage"],
   "/admin/booking-slots": ["bookings:*:read", "bookings:*:manage"],
   "/admin/payouts": ["settings:*:manage"],
   "/admin/reviews": ["reviews:*:read", "reviews:*:moderate"],
-  "/admin/staff": ["staff:*:manage", "staff:*:invite"],
-  "/admin/notifications": [],
+  "/admin/staff": ["staff:*:manage", "listers:*:manage"],
+  "/admin/notifications": ["settings:*:manage"],
   "/admin/theming": ["theme:*:read", "theme:*:edit"],
   "/admin/settings": ["settings:*:manage"],
 };
@@ -20,6 +21,9 @@ export const PERMISSION_DOMAIN_LABELS: Record<string, string> = {
   theme: "Theming",
   analytics: "Analytics",
   settings: "Settings",
+  resource_types: "Resource Types",
+  customers: "Customers",
+  listers: "Listers",
 };
 
 export function matchesPermission(

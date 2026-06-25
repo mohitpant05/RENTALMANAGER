@@ -5,6 +5,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.auth.dependencies import get_current_user, get_optional_user, require_permission
 from app.core.auth.models import User
+from app.core.auth.scoping import resolve_data_scope
 from app.database import get_db
 from app.domains.reviews.schemas import (
     ResourceRatingResponse,
@@ -50,12 +51,17 @@ async def list_all_reviews(
     session: AsyncSession = Depends(get_db),
     user: User | None = Depends(get_optional_user),
 ):
+    scope_owner_ids = None
+    if user is not None:
+        scope = await resolve_data_scope(session, user)
+        scope_owner_ids = scope.owner_ids if scope.is_scoped else None
     return await list_reviews(
         session,
         resource_id=resource_id,
         direction=direction,
         offset=offset,
         limit=limit,
+        scope_owner_ids=scope_owner_ids,
     )
 
 

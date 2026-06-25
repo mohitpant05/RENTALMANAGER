@@ -13,6 +13,8 @@ interface AuthState {
   clearAuth: () => void;
   getRefreshToken: () => string | null;
   isAdmin: () => boolean;
+  isStaff: () => boolean;
+  isLister: () => boolean;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -48,5 +50,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isAdmin: () => {
     const user = get().user;
     return user?.user_type === "admin" || user?.user_type === "staff";
+  },
+
+  isStaff: () => {
+    const user = get().user;
+    return user?.user_type === "staff";
+  },
+
+  isLister: () => {
+    const user = get().user;
+    return user?.user_type === "lister";
   },
 }));
