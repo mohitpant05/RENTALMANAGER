@@ -64,6 +64,13 @@ const STATIC_NAV_CONFIG: Record<string, SubNavSection> = {
       { href: "/admin/payouts?tab=history", label: "History" },
     ],
   },
+  "/admin/refunds": {
+    title: "Refunds",
+    items: [
+      { href: "/admin/refunds", label: "Pending" },
+      { href: "/admin/refunds?tab=settled", label: "Settled" },
+    ],
+  },
   "/admin/staff": {
     title: "Team",
     items: [

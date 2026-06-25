@@ -103,7 +103,9 @@ async def refund_payment(
     reason: str | None = None,
 ) -> Payment:
     result = await session.exec(
-        select(Payment).where(Payment.id == payment_id)
+        select(Payment)
+        .where(Payment.id == payment_id)
+        .with_for_update()
     )
     payment = result.first()
     if payment is None:
@@ -117,7 +119,10 @@ async def refund_payment(
     if refund_amount > payment.amount:
         raise HTTPException(status_code=400, detail="Refund amount exceeds payment amount")
 
-    provider_name, config = _get_payment_config()
+    ctx = get_current_tenant()
+    config = (ctx.tenant.config or {}) if ctx else {}
+
+    provider_name = payment.provider
     provider = get_provider(provider_name, config)
 
     if payment.provider_ref:
