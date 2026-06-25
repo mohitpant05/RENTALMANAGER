@@ -14,6 +14,14 @@ frontend/
 │   │   ├── tenant-initializer.tsx   # Resolves tenant on page load
 │   │   └── providers.tsx            # App-wide context providers
 │   │
+│   │   ├── admin/
+│   │   │   ├── bookings/       # Booking list + detail pages
+│   │   │   ├── customers/      # Customer CRUD + booking drill-down
+│   │   │   ├── resources/      # Resource management
+│   │   │   ├── staff/          # Staff management + roles
+│   │   │   ├── settings/       # General, commission, email, payments
+│   │   │   └── ...             # reviews, notifications, theming, payouts
+│   │
 │   ├── hooks/
 │   │   ├── use-auth.ts         # Auth state + actions
 │   │   ├── use-notifications.ts

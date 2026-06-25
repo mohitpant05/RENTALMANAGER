@@ -1,3 +1,9 @@
+# Git Workflow
+
+- **NEVER push directly to `live` or `main`.** Always create a feature branch, push there, create a PR, then merge.
+- Branch naming: `feat/short-name`, `fix/short-name`, `docs/short-name`
+- Flow: `git checkout -b feat/x origin/live` → commit → push → PR → merge
+
 # MCP Tools — Code Intelligence
 
 This project has two MCP servers: **rm** (project-specific) and **gitnexus** (graph-based). Use the right tool for the job.

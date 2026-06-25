@@ -201,8 +201,8 @@ Errors:   404 "Resource not found", 400 "Resource is not active", 409 "Hold toke
 ### GET /api/bookings/mine?status=&offset=0&limit=50
 Auth required. Own bookings only.
 
-### GET /api/bookings?status=&resource_id=&offset=0&limit=50
-Auth required. Admin sees all; non-admin sees own only.
+### GET /api/bookings?status=&resource_id=&user_id=&search=&booking_type=&offset=0&limit=50
+Auth required. Admin sees all; non-admin sees own only. `user_id` filter only works for users with `bookings:*:read` permission (admin drill-down).
 
 ### GET /api/bookings/{id}
 Auth required. Admin or booking owner.
@@ -376,6 +376,11 @@ All require `*:*:*` permission (admin user_type).
 - PATCH /api/admin/tenant → update name, base_currency, timezone, config
 - GET/PUT /api/admin/theme → TenantTheme
 - GET/POST/DELETE /api/admin/domains → custom domain CRUD
+- GET /api/admin/customers?search= → list customers with booking counts. Permission: `bookings:*:manage`
+- POST /api/admin/customers → create customer (email, full_name, phone?). Permission: `bookings:*:manage`
+- PATCH /api/admin/customers/{id} → update customer (full_name?, phone?). Permission: `bookings:*:manage`
+- POST /api/admin/customers/{id}/deactivate → deactivate customer. Permission: `bookings:*:manage`
+- POST /api/admin/customers/{id}/activate → reactivate customer. Permission: `bookings:*:manage`
 - GET /api/admin/staff → list staff users
 - POST /api/admin/staff → invite staff (creates user with null password, sends invite email)
 - POST /api/admin/staff/{id}/deactivate
