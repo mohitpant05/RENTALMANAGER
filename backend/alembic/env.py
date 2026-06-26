@@ -7,6 +7,7 @@ from sqlmodel import SQLModel
 
 from alembic import context
 from app.config import get_settings
+from app.core.admin.models import DemoRequest  # noqa: F401
 from app.core.auth.models import PlatformUser  # noqa: F401
 from app.core.payments.models import Payment  # noqa: F401
 from app.core.payouts.models import Payout, PayoutItem  # noqa: F401

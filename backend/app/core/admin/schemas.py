@@ -221,3 +221,34 @@ class CustomerResponse(BaseModel):
     booking_count: int = 0
 
     model_config = {"from_attributes": True}
+
+
+class DemoRequestCreate(BaseModel):
+    name: str
+    email: str
+    company: str | None = None
+    message: str | None = None
+    slot_start: datetime
+
+
+class DemoRequestResponse(BaseModel):
+    id: uuid.UUID
+    name: str
+    email: str
+    company: str | None
+    message: str | None
+    slot_start: datetime
+    slot_end: datetime
+    status: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class DemoRequestStatusUpdate(BaseModel):
+    status: str
+
+
+class DemoSlotResponse(BaseModel):
+    start: datetime
+    end: datetime

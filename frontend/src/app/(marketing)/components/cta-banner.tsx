@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { DemoRequestModal } from "./demo-request-modal";
 
 export function CtaBanner() {
   return (
@@ -20,15 +21,17 @@ export function CtaBanner() {
               Start Free
             </Button>
           </Link>
-          <a href="mailto:contact@rentmanager.com">
-            <Button
-              size="lg"
-              variant="outline"
-              className="border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10"
-            >
-              Book a Demo
-            </Button>
-          </a>
+          <DemoRequestModal
+            trigger={
+              <Button
+                size="lg"
+                variant="outline"
+                className="border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10"
+              >
+                Book a Demo
+              </Button>
+            }
+          />
         </div>
       </div>
     </section>

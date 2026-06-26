@@ -12,6 +12,7 @@ from sqlalchemy import text
 from app.config import get_settings
 from app.core.admin.ip_middleware import SuperadminIPMiddleware
 from app.core.admin.listers_router import router as listers_router
+from app.core.admin.demo_router import router as demo_router
 from app.core.admin.platform_router import router as platform_router
 from app.core.admin.roles_router import router as roles_router
 from app.core.admin.router import router as admin_router
@@ -146,6 +147,7 @@ app.include_router(payment_router)
 app.include_router(refunds_router)
 app.include_router(payout_router)
 app.include_router(platform_router)
+app.include_router(demo_router)
 
 
 async def _ping_postgres() -> dict:
