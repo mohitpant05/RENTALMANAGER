@@ -70,6 +70,7 @@ function SuperadminSidebar({ secretKey }: { secretKey: string }) {
   const links = [
     { href: `${base}/dashboard`, label: "Dashboard" },
     { href: `${base}/tenants`, label: "Tenants" },
+    { href: `${base}/demo-requests`, label: "Demo Requests" },
     { href: `${base}/settings`, label: "Settings" },
   ];
 

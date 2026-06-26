@@ -1,9 +1,79 @@
+import enum
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, time
 
-from sqlalchemy import Column, DateTime
+import sqlalchemy as sa
+from sqlalchemy import Column, Date, DateTime, Time, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, SQLModel
+
+
+class DemoRequestStatus(str, enum.Enum):
+    pending = "pending"
+    confirmed = "confirmed"
+    completed = "completed"
+    cancelled = "cancelled"
+
+
+_demo_status_enum = sa.Enum(
+    DemoRequestStatus,
+    name="demorequeststatusenum",
+    create_type=False,
+)
+
+
+class DemoRequest(SQLModel, table=True):
+    __tablename__ = "demo_requests"
+    __table_args__ = (
+        UniqueConstraint("email", "slot_start", name="uq_demo_email_slot"),
+    )
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    name: str = Field(max_length=255)
+    email: str = Field(max_length=255, index=True)
+    company: str | None = Field(default=None, max_length=255)
+    message: str | None = Field(default=None, max_length=2000)
+    slot_start: datetime = Field(sa_column=Column(DateTime(timezone=True), nullable=False))
+    slot_end: datetime = Field(sa_column=Column(DateTime(timezone=True), nullable=False))
+    status: DemoRequestStatus = Field(
+        default=DemoRequestStatus.pending,
+        sa_column=Column(_demo_status_enum, nullable=False, server_default="pending"),
+    )
+    meeting_link: str | None = Field(default=None, max_length=500)
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(UTC),
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+
+
+class DemoSlotBlockAction(str, enum.Enum):
+    block = "block"
+    unblock = "unblock"
+
+
+_block_action_enum = sa.Enum(
+    DemoSlotBlockAction,
+    name="demoslotblockactionenum",
+    create_type=False,
+)
+
+
+class DemoSlotBlock(SQLModel, table=True):
+    __tablename__ = "demo_slot_blocks"
+    __table_args__ = (
+        UniqueConstraint("slot_time", "specific_date", name="uq_slot_block_time_date"),
+    )
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    slot_time: time = Field(sa_column=Column(Time, nullable=False))
+    specific_date: date | None = Field(default=None, sa_column=Column(Date, nullable=True))
+    action: DemoSlotBlockAction = Field(
+        sa_column=Column(_block_action_enum, nullable=False),
+    )
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(UTC),
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
 
 
 class TenantTheme(SQLModel, table=True):

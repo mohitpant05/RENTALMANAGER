@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { DemoRequestModal } from "./demo-request-modal";
 
 const NAV_LINKS = [
   { label: "Features", href: "#features" },
@@ -32,11 +33,13 @@ export function Hero() {
             <Link href="/register">
               <Button size="sm">Start Free</Button>
             </Link>
-            <a href="mailto:contact@rentmanager.com">
-              <Button variant="outline" size="sm">
-                Book a Demo
-              </Button>
-            </a>
+            <DemoRequestModal
+              trigger={
+                <Button variant="outline" size="sm">
+                  Book a Demo
+                </Button>
+              }
+            />
           </div>
         </div>
       </header>
@@ -55,11 +58,13 @@ export function Hero() {
           <Link href="/register">
             <Button size="lg">Start Free</Button>
           </Link>
-          <a href="mailto:contact@rentmanager.com">
-            <Button variant="outline" size="lg">
-              Book a Demo
-            </Button>
-          </a>
+          <DemoRequestModal
+            trigger={
+              <Button variant="outline" size="lg">
+                Book a Demo
+              </Button>
+            }
+          />
         </div>
       </div>
     </section>

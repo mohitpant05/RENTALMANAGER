@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime, time
 
 from pydantic import BaseModel
 
@@ -219,5 +219,53 @@ class CustomerResponse(BaseModel):
     user_type: str
     created_at: datetime
     booking_count: int = 0
+
+    model_config = {"from_attributes": True}
+
+
+class DemoRequestCreate(BaseModel):
+    name: str
+    email: str
+    company: str | None = None
+    message: str | None = None
+    slot_start: datetime
+
+
+class DemoRequestResponse(BaseModel):
+    id: uuid.UUID
+    name: str
+    email: str
+    company: str | None
+    message: str | None
+    slot_start: datetime
+    slot_end: datetime
+    status: str
+    meeting_link: str | None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class DemoRequestStatusUpdate(BaseModel):
+    status: str
+
+
+class DemoSlotResponse(BaseModel):
+    start: datetime
+    end: datetime
+
+
+class DemoSlotBlockCreate(BaseModel):
+    slot_time: str
+    specific_date: date | None = None
+    action: str
+
+
+class DemoSlotBlockResponse(BaseModel):
+    id: uuid.UUID
+    slot_time: time
+    specific_date: date | None
+    action: str
+    created_at: datetime
 
     model_config = {"from_attributes": True}
