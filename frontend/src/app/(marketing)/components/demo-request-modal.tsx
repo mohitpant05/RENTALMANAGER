@@ -6,7 +6,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -118,8 +117,9 @@ export function DemoRequestModal({
   }
 
   return (
-    <Dialog open={open} onOpenChange={(v) => (v ? setOpen(true) : handleClose())}>
-      <DialogTrigger asChild>{trigger}</DialogTrigger>
+    <>
+      <span onClick={() => setOpen(true)}>{trigger}</span>
+      <Dialog open={open} onOpenChange={(v) => (v ? setOpen(true) : handleClose())}>
       <DialogContent className="max-w-lg">
         {step === "form" && (
           <>
@@ -302,5 +302,6 @@ export function DemoRequestModal({
         )}
       </DialogContent>
     </Dialog>
+    </>
   );
 }
