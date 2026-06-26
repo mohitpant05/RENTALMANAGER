@@ -133,7 +133,7 @@ export function DemoRequestModal({
     <>
       <span onClick={() => setOpen(true)}>{trigger}</span>
       <Dialog open={open} onOpenChange={(v) => (v ? setOpen(true) : handleClose())}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="sm:max-w-lg overflow-hidden">
           {step === "form" && (
             <>
               <DialogHeader>
