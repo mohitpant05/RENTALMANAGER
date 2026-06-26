@@ -25,6 +25,11 @@ BUSINESS_HOUR_START = 9
 BUSINESS_HOUR_END = 17
 
 
+def _generate_meeting_link() -> str:
+    code = uuid.uuid4().hex[:12]
+    return f"https://meet.rentmanager.com/{code[:3]}-{code[3:7]}-{code[7:]}"
+
+
 def _generate_slots(from_dt: datetime, days: int) -> list[tuple[datetime, datetime]]:
     slots: list[tuple[datetime, datetime]] = []
     start_date = from_dt.date()
@@ -69,6 +74,44 @@ async def list_available_slots(
         if s not in booked_starts
     ]
     return available
+
+
+@router.get("/calendar", response_model=list[dict])
+async def list_calendar_slots(
+    session: AsyncSession = Depends(get_session),
+    platform_user: PlatformUser = Depends(get_current_platform_user),
+):
+    """SuperAdmin view: all slots with booking info for the next 14 days."""
+    now = datetime.now(UTC)
+    window_end = now + timedelta(days=SLOT_WINDOW_DAYS)
+
+    booked_result = await session.exec(
+        select(DemoRequest).where(
+            DemoRequest.slot_start >= now,
+            DemoRequest.slot_start <= window_end,
+            DemoRequest.status.in_([
+                DemoRequestStatus.pending,
+                DemoRequestStatus.confirmed,
+            ]),
+        )
+    )
+    booked_map: dict[datetime, DemoRequest] = {}
+    for req in booked_result.all():
+        booked_map[req.slot_start] = req
+
+    all_slots = _generate_slots(now, SLOT_WINDOW_DAYS)
+    calendar = []
+    for s, e in all_slots:
+        entry: dict = {"start": s.isoformat(), "end": e.isoformat()}
+        if s in booked_map:
+            req = booked_map[s]
+            entry["status"] = "booked"
+            entry["booking"] = DemoRequestResponse.model_validate(req).model_dump(mode="json")
+        else:
+            entry["status"] = "available"
+            entry["booking"] = None
+        calendar.append(entry)
+    return calendar
 
 
 @router.post("", response_model=DemoRequestResponse, status_code=201)
@@ -169,6 +212,9 @@ async def update_demo_request_status(
     demo = result.first()
     if demo is None:
         raise HTTPException(status_code=404, detail="Demo request not found")
+
+    if new_status == DemoRequestStatus.confirmed and not demo.meeting_link:
+        demo.meeting_link = _generate_meeting_link()
 
     demo.status = new_status
     session.add(demo)

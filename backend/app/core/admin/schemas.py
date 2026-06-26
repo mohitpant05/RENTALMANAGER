@@ -240,6 +240,7 @@ class DemoRequestResponse(BaseModel):
     slot_start: datetime
     slot_end: datetime
     status: str
+    meeting_link: str | None
     created_at: datetime
 
     model_config = {"from_attributes": True}

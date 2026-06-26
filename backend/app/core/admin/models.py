@@ -39,6 +39,7 @@ class DemoRequest(SQLModel, table=True):
         default=DemoRequestStatus.pending,
         sa_column=Column(_demo_status_enum, nullable=False, server_default="pending"),
     )
+    meeting_link: str | None = Field(default=None, max_length=500)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(UTC),
         sa_column=Column(DateTime(timezone=True), nullable=False),

@@ -28,16 +28,25 @@ export interface DemoRequest {
   slot_start: string;
   slot_end: string;
   status: "pending" | "confirmed" | "completed" | "cancelled";
+  meeting_link: string | null;
   created_at: string;
 }
 
-export function useAvailableSlots() {
+export interface CalendarSlot {
+  start: string;
+  end: string;
+  status: "available" | "booked";
+  booking: DemoRequest | null;
+}
+
+export function useAvailableSlots(enabled = true) {
   return useQuery({
     queryKey: ["demo-slots"],
     queryFn: async () => {
       const res = await publicApi.get("/slots");
       return res.data as DemoSlot[];
     },
+    enabled,
   });
 }
 
@@ -66,6 +75,16 @@ export function useDemoRequests() {
   });
 }
 
+export function useDemoCalendar() {
+  return useQuery({
+    queryKey: ["platform", "demo-calendar"],
+    queryFn: async () => {
+      const res = await platformApi().get("/calendar");
+      return res.data as CalendarSlot[];
+    },
+  });
+}
+
 export function useUpdateDemoStatus() {
   const qc = useQueryClient();
   return useMutation({
@@ -73,7 +92,9 @@ export function useUpdateDemoStatus() {
       const res = await platformApi().patch(`/${id}/status`, { status });
       return res.data as DemoRequest;
     },
-    onSuccess: () =>
-      qc.invalidateQueries({ queryKey: ["platform", "demo-requests"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["platform", "demo-requests"] });
+      qc.invalidateQueries({ queryKey: ["platform", "demo-calendar"] });
+    },
   });
 }

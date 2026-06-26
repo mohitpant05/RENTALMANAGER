@@ -31,6 +31,7 @@ def upgrade() -> None:
             nullable=False,
             server_default="pending",
         ),
+        sa.Column("meeting_link", sa.String(length=500), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("email", "slot_start", name="uq_demo_email_slot"),
