@@ -56,22 +56,26 @@ async def list_available_slots(
     session: AsyncSession = Depends(get_session),
 ):
     now = datetime.now(UTC)
-    window_end = now + timedelta(days=SLOT_WINDOW_DAYS)
+    all_slots = _generate_slots(now, SLOT_WINDOW_DAYS)
+    if not all_slots:
+        return []
+
+    earliest = all_slots[0][0]
+    latest = all_slots[-1][0]
 
     booked = await session.exec(
         select(DemoRequest.slot_start).where(
-            DemoRequest.slot_start >= now,
-            DemoRequest.slot_start <= window_end,
+            DemoRequest.slot_start >= earliest,
+            DemoRequest.slot_start <= latest,
             DemoRequest.status.in_([DemoRequestStatus.pending, DemoRequestStatus.confirmed]),
         )
     )
-    booked_starts = {row for row in booked.all()}
+    booked_starts = {row.isoformat() for row in booked.all()}
 
-    all_slots = _generate_slots(now, SLOT_WINDOW_DAYS)
     available = [
         DemoSlotResponse(start=s, end=e)
         for s, e in all_slots
-        if s not in booked_starts
+        if s.isoformat() not in booked_starts
     ]
     return available
 
