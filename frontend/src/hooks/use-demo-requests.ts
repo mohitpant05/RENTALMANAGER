@@ -35,8 +35,16 @@ export interface DemoRequest {
 export interface CalendarSlot {
   start: string;
   end: string;
-  status: "available" | "booked";
+  status: "available" | "booked" | "blocked";
   booking: DemoRequest | null;
+}
+
+export interface SlotBlock {
+  id: string;
+  slot_time: string;
+  specific_date: string | null;
+  action: "block" | "unblock";
+  created_at: string;
 }
 
 export function useAvailableSlots(enabled = true) {
@@ -95,6 +103,49 @@ export function useUpdateDemoStatus() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["platform", "demo-requests"] });
       qc.invalidateQueries({ queryKey: ["platform", "demo-calendar"] });
+    },
+  });
+}
+
+export function useSlotBlocks() {
+  return useQuery({
+    queryKey: ["platform", "slot-blocks"],
+    queryFn: async () => {
+      const res = await platformApi().get("/slot-blocks");
+      return res.data as SlotBlock[];
+    },
+  });
+}
+
+export function useCreateSlotBlock() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: {
+      slot_time: string;
+      specific_date?: string | null;
+      action: "block" | "unblock";
+    }) => {
+      const res = await platformApi().post("/slot-blocks", data);
+      return res.data as SlotBlock;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["platform", "slot-blocks"] });
+      qc.invalidateQueries({ queryKey: ["platform", "demo-calendar"] });
+      qc.invalidateQueries({ queryKey: ["demo-slots"] });
+    },
+  });
+}
+
+export function useDeleteSlotBlock() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      await platformApi().delete(`/slot-blocks/${id}`);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["platform", "slot-blocks"] });
+      qc.invalidateQueries({ queryKey: ["platform", "demo-calendar"] });
+      qc.invalidateQueries({ queryKey: ["demo-slots"] });
     },
   });
 }

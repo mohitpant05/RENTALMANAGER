@@ -2,7 +2,51 @@
 
 - **NEVER push directly to `live` or `main`.** Always create a feature branch, push there, create a PR, then merge.
 - Branch naming: `feat/short-name`, `fix/short-name`, `docs/short-name`
-- Flow: `git checkout -b feat/x origin/live` → commit → push → PR → merge
+
+## Feature Branch Lifecycle
+
+Every feature follows this exact flow:
+
+1. **Branch**: `git checkout -b feat/x origin/live`
+2. **Build**: Implement the feature, commit to the branch
+3. **Deploy**: `docker compose restart backend-dev` (code is volume-mounted) + run migrations if needed
+4. **Test**: Verify on backend-dev (:8080) — user tests frontend locally
+5. **Push**: `git push -u origin feat/x`
+6. **Wait**: Do NOT merge until user says "merge"
+7. **Merge**: When user says merge:
+   - Create PR against `live` via `gh pr create`
+   - Merge PR via `gh pr merge`
+   - Sync: `git checkout live && git pull origin live`
+   - Deploy live: `docker compose restart backend-prod` + run migrations
+   - Update knowledge base (GitNexus reindex if needed)
+8. **Cleanup**: Delete feature branch locally and remotely
+
+## Local Dev Setup
+
+When user runs frontend locally (outside Docker):
+
+```bash
+# Kill any stale local backend on :8000
+lsof -i :8000 -P -n  # check first
+
+# Start frontend pointing to backend-dev via Traefik
+cd frontend
+BACKEND_INTERNAL_URL=http://localhost:8080 npm run dev -- -p 3001
+```
+
+- Frontend: `http://localhost:3001`
+- API proxy: `:3001/api/*` → Traefik `:8080` → backend-dev container
+- SuperAdmin: `http://localhost:3001/superadmin/[secretKey]/...`
+- Never run a local Python backend — always use Docker backend-dev
+
+## Rules
+
+- Never commit directly to `live` or `main`
+- Always deploy to backend-dev first for testing before merging
+- Wait for explicit user approval before merging to live
+- Run `alembic upgrade head` inside the container after any migration changes: `docker compose exec backend-dev sh -c "cd /app && PYTHONPATH=/app alembic upgrade head"`
+- After merging to live, sync both dev and prod deployments
+- When starting frontend locally, always set `BACKEND_INTERNAL_URL=http://localhost:8080`
 
 # MCP Tools — Code Intelligence
 
@@ -91,7 +135,7 @@ Best for understanding call chains, blast radius, and safe refactoring.
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **RENTALMANAGER** (6339 symbols, 9660 relationships, 130 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **RENTALMANAGER** (6854 symbols, 10392 relationships, 134 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 

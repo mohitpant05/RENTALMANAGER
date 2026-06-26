@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime, time
 
 from pydantic import BaseModel
 
@@ -253,3 +253,19 @@ class DemoRequestStatusUpdate(BaseModel):
 class DemoSlotResponse(BaseModel):
     start: datetime
     end: datetime
+
+
+class DemoSlotBlockCreate(BaseModel):
+    slot_time: str
+    specific_date: date | None = None
+    action: str
+
+
+class DemoSlotBlockResponse(BaseModel):
+    id: uuid.UUID
+    slot_time: time
+    specific_date: date | None
+    action: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
