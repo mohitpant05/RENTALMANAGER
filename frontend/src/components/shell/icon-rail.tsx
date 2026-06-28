@@ -45,9 +45,9 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/admin/payouts", icon: Banknote, label: "Payouts" },
   { href: "/admin/refunds", icon: RotateCcw, label: "Refunds" },
   { href: "/admin/reviews", icon: Star, label: "Reviews" },
-  { href: "/admin/staff", icon: Users, label: "Staff", adminOnly: true },
+  { href: "/admin/staff", icon: Users, label: "Staff" },
   { href: "/admin/notifications", icon: Bell, label: "Notifications" },
-  { href: "/admin/theming", icon: Palette, label: "Theming" },
+  { href: "/admin/theming", icon: Palette, label: "Theming", adminOnly: true },
   { href: "/admin/settings", icon: Settings, label: "Settings" },
 ];
 

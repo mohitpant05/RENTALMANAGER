@@ -20,9 +20,11 @@ import { CreateResourceSheet } from "@/components/resources/create-resource-shee
 import { BookResourceSheet } from "@/components/bookings/book-resource-sheet";
 import { useCreateTypeSheetStore } from "@/lib/create-type-sheet-store";
 import { CreateTypeSheet } from "@/components/resources/create-type-sheet";
+import { usePermissions } from "@/hooks/use-permissions";
 
 export default function ResourceTypePage() {
   const { typeSlug } = useParams<{ typeSlug: string }>();
+  const { hasPermission } = usePermissions();
   const { open: typeSheetOpen, setOpen: setTypeSheetOpen } = useCreateTypeSheetStore();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editingResource, setEditingResource] =
@@ -117,14 +119,18 @@ export default function ResourceTypePage() {
           )}
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => setEditTypeOpen(true)}>
-            <Settings className="mr-2 h-4 w-4" />
-            Type Settings
-          </Button>
-          <Button onClick={openCreate}>
-            <Plus className="mr-2 h-4 w-4" />
-            Add {currentType.name.replace(/s$/, "")}
-          </Button>
+          {hasPermission("resource_types:*:manage") && (
+            <Button variant="outline" onClick={() => setEditTypeOpen(true)}>
+              <Settings className="mr-2 h-4 w-4" />
+              Type Settings
+            </Button>
+          )}
+          {hasPermission("resources:*:create") && (
+            <Button onClick={openCreate}>
+              <Plus className="mr-2 h-4 w-4" />
+              Add {currentType.name.replace(/s$/, "")}
+            </Button>
+          )}
         </div>
       </div>
 
