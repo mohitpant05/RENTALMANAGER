@@ -75,7 +75,7 @@ const STATIC_NAV_CONFIG: Record<string, SubNavSection> = {
     title: "Team",
     items: [
       { href: "/admin/staff", label: "Staff" },
-      { href: "/admin/staff/listers", label: "Listers" },
+      // { href: "/admin/staff/listers", label: "Listers" },  // DEFERRED: lister feature
       { href: "/admin/staff/roles", label: "Roles & Permissions" },
     ],
   },

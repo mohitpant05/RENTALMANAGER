@@ -27,17 +27,25 @@ const loginSchema = z.object({
 type LoginForm = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
-  const { login, isAuthenticated, isLoading, user } = useAuth();
+  const { login, initAuth, isAuthenticated, isLoading, user } = useAuth();
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
+    initAuth();
+  }, []);
+
+  useEffect(() => {
     if (!isLoading && isAuthenticated) {
       const userType = user?.user_type;
-      router.push(userType === "admin" || userType === "staff" ? "/admin" : "/browse");
+      router.replace(userType === "admin" || userType === "staff" ? "/admin" : "/browse");
     }
   }, [isLoading, isAuthenticated, user, router]);
+
+  if (isLoading || isAuthenticated) {
+    return null;
+  }
 
   const {
     register,

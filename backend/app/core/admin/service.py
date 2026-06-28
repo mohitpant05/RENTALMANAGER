@@ -67,7 +67,7 @@ async def update_tenant_config(
         tenant.timezone = tz
     if config is not None:
         from app.core.admin.schemas import SENSITIVE_CONFIG_KEYS
-        existing = tenant.config or {}
+        existing = dict(tenant.config) if tenant.config else {}
         for k, v in config.items():
             if k in SENSITIVE_CONFIG_KEYS and isinstance(v, str) and v.startswith("••••"):
                 continue
@@ -254,6 +254,73 @@ async def deactivate_user(session: AsyncSession, user_id: uuid.UUID) -> User:
     await session.commit()
     await session.refresh(user)
     return user
+
+
+async def reset_staff_password(
+    session: AsyncSession, user_id: uuid.UUID, new_password: str
+) -> User:
+    result = await session.exec(select(User).where(User.id == user_id))
+    user = result.first()
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    from app.core.auth.password import hash_password
+    user.password_hash = hash_password(new_password)
+    user.updated_at = datetime.now(UTC)
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+    return user
+
+
+async def delete_staff(session: AsyncSession, user_id: uuid.UUID) -> None:
+    result = await session.exec(select(User).where(User.id == user_id))
+    user = result.first()
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    if user.user_type not in ("staff", "admin"):
+        raise HTTPException(status_code=400, detail="Can only delete staff/admin users")
+
+    from app.core.auth.models import UserPermissionOverride, UserRole
+    from app.domains.bookings.models import Booking
+    from app.domains.resources.models import Resource
+
+    resource_result = await session.exec(
+        select(Resource).where(Resource.owner_id == user_id)
+    )
+    for r in resource_result.all():
+        booking_result = await session.exec(
+            select(Booking).where(
+                Booking.resource_id == r.id,
+                Booking.status == "pending",
+            )
+        )
+        for booking in booking_result.all():
+            booking.status = "rejected"
+            booking.cancellation_reason = "Staff member removed"
+            booking.updated_at = datetime.now(UTC)
+            booking.version += 1
+            session.add(booking)
+        r.owner_id = None
+        r.status = "suspended"
+        r.suspension_reason = "owner_deleted"
+        session.add(r)
+
+    role_result = await session.exec(
+        select(UserRole).where(UserRole.user_id == user_id)
+    )
+    for ur in role_result.all():
+        await session.delete(ur)
+
+    override_result = await session.exec(
+        select(UserPermissionOverride).where(
+            UserPermissionOverride.user_id == user_id
+        )
+    )
+    for ov in override_result.all():
+        await session.delete(ov)
+
+    await session.delete(user)
+    await session.commit()
 
 
 async def activate_user(session: AsyncSession, user_id: uuid.UUID) -> User:

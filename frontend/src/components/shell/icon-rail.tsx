@@ -30,7 +30,14 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-const NAV_ITEMS = [
+interface NavItem {
+  href: string;
+  icon: typeof LayoutDashboard;
+  label: string;
+  adminOnly?: boolean;
+}
+
+const NAV_ITEMS: NavItem[] = [
   { href: "/admin", icon: LayoutDashboard, label: "Dashboard" },
   { href: "/admin/resources", icon: Box, label: "Resources" },
   { href: "/admin/bookings", icon: CalendarDays, label: "Bookings" },
@@ -38,11 +45,11 @@ const NAV_ITEMS = [
   { href: "/admin/payouts", icon: Banknote, label: "Payouts" },
   { href: "/admin/refunds", icon: RotateCcw, label: "Refunds" },
   { href: "/admin/reviews", icon: Star, label: "Reviews" },
-  { href: "/admin/staff", icon: Users, label: "Staff" },
+  { href: "/admin/staff", icon: Users, label: "Staff", adminOnly: true },
   { href: "/admin/notifications", icon: Bell, label: "Notifications" },
   { href: "/admin/theming", icon: Palette, label: "Theming" },
   { href: "/admin/settings", icon: Settings, label: "Settings" },
-] as const;
+];
 
 export function IconRail() {
   const pathname = usePathname();
@@ -67,7 +74,10 @@ export function IconRail() {
         </div>
 
         <nav className="flex flex-1 flex-col items-center gap-2">
-          {NAV_ITEMS.filter(({ href }) => canAccessNav(href)).map(({ href, icon: Icon, label }) => {
+          {NAV_ITEMS.filter(({ href, adminOnly }) => {
+            if (adminOnly && user?.user_type !== "admin") return false;
+            return canAccessNav(href);
+          }).map(({ href, icon: Icon, label }) => {
             const isActive = pathname.startsWith(href);
             return (
               <Tooltip key={href}>
