@@ -8,6 +8,7 @@ REVIEW_MODERATED = "review.moderated"
 RESOURCE_APPROVED = "resource.approved"
 EMAIL_FAILED = "email.failed"
 STAFF_INVITED = "staff.invited"
+BOOKING_RESOURCE_OWNER = "booking.resource_owner"
 
 ALL_EVENT_TYPES = {
     BOOKING_CONFIRMED,
@@ -20,6 +21,7 @@ ALL_EVENT_TYPES = {
     RESOURCE_APPROVED,
     EMAIL_FAILED,
     STAFF_INVITED,
+    BOOKING_RESOURCE_OWNER,
 }
 
 

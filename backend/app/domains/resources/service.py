@@ -568,6 +568,7 @@ async def list_availability_slots(
     resource_id: uuid.UUID | None = None,
     status_filter: str | None = None,
     search: str | None = None,
+    scope_owner_ids: list[uuid.UUID] | None = None,
     offset: int = 0,
     limit: int = 100,
 ) -> list[dict]:
@@ -618,6 +619,8 @@ async def list_availability_slots(
             )
         else:
             stmt = stmt.where(ResourceAvailability.status == status_filter)
+    if scope_owner_ids is not None:
+        stmt = stmt.where(Resource.owner_id.in_(scope_owner_ids))
 
     stmt = stmt.offset(offset).limit(limit).order_by(
         Resource.name, ResourceAvailability.start_time

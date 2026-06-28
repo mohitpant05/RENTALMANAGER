@@ -171,14 +171,17 @@ async def list_availability_slots_endpoint(
     offset: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
     session: AsyncSession = Depends(get_db),
-    _user: User = Depends(require_permission("resources:*:manage")),
+    user: User = Depends(require_permission("resources:*:manage")),
 ):
+    scope = await resolve_data_scope(session, user)
+    scope_owner_ids = scope.owner_ids if scope.is_scoped else None
     return await list_availability_slots(
         session, start_date, end_date,
         resource_type_id=resource_type_id,
         resource_id=resource_id,
         status_filter=status,
         search=search,
+        scope_owner_ids=scope_owner_ids,
         offset=offset,
         limit=limit,
     )
