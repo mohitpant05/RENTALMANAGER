@@ -92,6 +92,20 @@ class VerifyInviteResponse(BaseModel):
     full_name: str | None = None
 
 
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str = Field(min_length=8)
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str = Field(min_length=8)
+
+
 class CustomerLookupResponse(BaseModel):
     id: uuid.UUID
     email: str

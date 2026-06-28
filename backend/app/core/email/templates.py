@@ -42,6 +42,20 @@ Best regards,
 The RentManager Team"""
 
 
+def password_reset_email(full_name: str, reset_url: str) -> str:
+    return f"""Hi {full_name},
+
+We received a request to reset your password.
+
+Click the link below to set a new password:
+{reset_url}
+
+This link expires in 1 hour. If you did not request this, you can safely ignore this email.
+
+Best regards,
+The RentManager Team"""
+
+
 def invite_email(full_name: str, invite_url: str) -> str:
     return f"""Hi {full_name},
 

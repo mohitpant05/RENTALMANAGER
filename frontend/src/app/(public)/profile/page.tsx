@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/lib/auth-store";
 import { useMyReviews } from "@/hooks/use-reviews";
 import { ProfileForm } from "@/components/public/profile-form";
+import { ChangePasswordForm } from "@/components/auth/change-password-form";
 import { StarRating } from "@/components/reviews/star-rating";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -99,12 +100,10 @@ export default function ProfilePage() {
             <Lock className="h-4 w-4" />
             Change Password
           </CardTitle>
-          <CardDescription>Coming soon</CardDescription>
+          <CardDescription>Update your account password</CardDescription>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground">
-            Password changes will be available in a future update.
-          </p>
+          <ChangePasswordForm />
         </CardContent>
       </Card>
     </div>
