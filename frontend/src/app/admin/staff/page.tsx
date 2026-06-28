@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Loader2, Shield, Trash2, UserCog } from "lucide-react";
+import { Plus, Loader2, Shield, MoreVertical, Trash2, UserCog, Power, KeyRound } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -29,6 +29,13 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 
 const inviteSchema = z.object({
@@ -45,6 +52,9 @@ export default function StaffPage() {
   const [selectedRoleSlugs, setSelectedRoleSlugs] = useState<string[]>([]);
   const [editRolesUserId, setEditRolesUserId] = useState<string | null>(null);
   const [editRoleIds, setEditRoleIds] = useState<string[]>([]);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [resetPasswordUserId, setResetPasswordUserId] = useState<string | null>(null);
+  const [newPassword, setNewPassword] = useState("");
 
   const {
     register,
@@ -115,6 +125,47 @@ export default function StaffPage() {
     },
     onError: () => {
       toast.error("Failed to deactivate");
+    },
+  });
+
+  const activateMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      await api.post(`/admin/staff/${userId}/activate`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-staff"] });
+      toast.success("Staff activated");
+    },
+    onError: () => {
+      toast.error("Failed to activate");
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      await api.delete(`/admin/staff/${userId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-staff"] });
+      setDeleteConfirmId(null);
+      toast.success("Staff deleted");
+    },
+    onError: () => {
+      toast.error("Failed to delete staff");
+    },
+  });
+
+  const resetPasswordMutation = useMutation({
+    mutationFn: async ({ userId, password }: { userId: string; password: string }) => {
+      await api.post(`/admin/staff/${userId}/reset-password`, { new_password: password });
+    },
+    onSuccess: () => {
+      setResetPasswordUserId(null);
+      setNewPassword("");
+      toast.success("Password reset");
+    },
+    onError: () => {
+      toast.error("Failed to reset password");
     },
   });
 
@@ -225,30 +276,47 @@ export default function StaffPage() {
                 )}
               </div>
 
-              <div className="flex gap-2">
-                {s.user_type !== "admin" && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => openEditRoles(s)}
-                  >
-                    <UserCog className="mr-1 h-3 w-3" />
-                    Roles
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="icon" variant="ghost" className="h-8 w-8">
+                    <MoreVertical className="h-4 w-4" />
                   </Button>
-                )}
-                {s.is_active && (
-                  <Button
-                    size="sm"
-                    variant="outline"
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {s.user_type !== "admin" && (
+                    <DropdownMenuItem onClick={() => openEditRoles(s)}>
+                      <UserCog className="mr-2 h-4 w-4" />
+                      Manage Roles
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem onClick={() => setResetPasswordUserId(s.id)}>
+                    <KeyRound className="mr-2 h-4 w-4" />
+                    Reset Password
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  {s.is_active ? (
+                    <DropdownMenuItem
+                      onClick={() => deactivateMutation.mutate(s.id)}
+                      className="text-orange-600"
+                    >
+                      <Power className="mr-2 h-4 w-4" />
+                      Deactivate
+                    </DropdownMenuItem>
+                  ) : (
+                    <DropdownMenuItem onClick={() => activateMutation.mutate(s.id)}>
+                      <Power className="mr-2 h-4 w-4" />
+                      Activate
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem
+                    onClick={() => setDeleteConfirmId(s.id)}
                     className="text-destructive"
-                    onClick={() => deactivateMutation.mutate(s.id)}
-                    disabled={deactivateMutation.isPending}
                   >
-                    <Trash2 className="mr-1 h-3 w-3" />
-                    Deactivate
-                  </Button>
-                )}
-              </div>
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </CardContent>
           </Card>
         ))}
@@ -409,6 +477,98 @@ export default function StaffPage() {
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               )}
               Save Roles
+            </Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
+
+      {/* Reset Password Sheet */}
+      <Sheet
+        open={!!resetPasswordUserId}
+        onOpenChange={(o) => {
+          if (!o) {
+            setResetPasswordUserId(null);
+            setNewPassword("");
+          }
+        }}
+      >
+        <SheetContent>
+          <SheetHeader>
+            <SheetTitle>Reset Password</SheetTitle>
+            <SheetDescription>
+              {staff?.find((s) => s.id === resetPasswordUserId)?.full_name}
+            </SheetDescription>
+          </SheetHeader>
+
+          <div className="space-y-4 p-4">
+            <div className="space-y-2">
+              <Label htmlFor="new_password">New Password</Label>
+              <Input
+                id="new_password"
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="Enter new password"
+              />
+            </div>
+          </div>
+
+          <SheetFooter className="px-4">
+            <Button
+              onClick={() =>
+                resetPasswordUserId &&
+                resetPasswordMutation.mutate({
+                  userId: resetPasswordUserId,
+                  password: newPassword,
+                })
+              }
+              disabled={resetPasswordMutation.isPending || newPassword.length < 8}
+            >
+              {resetPasswordMutation.isPending && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              Reset Password
+            </Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
+
+      {/* Delete Confirmation Sheet */}
+      <Sheet
+        open={!!deleteConfirmId}
+        onOpenChange={(o) => {
+          if (!o) setDeleteConfirmId(null);
+        }}
+      >
+        <SheetContent>
+          <SheetHeader>
+            <SheetTitle>Delete Staff Member</SheetTitle>
+            <SheetDescription>
+              Are you sure you want to permanently delete{" "}
+              <span className="font-semibold">
+                {staff?.find((s) => s.id === deleteConfirmId)?.full_name}
+              </span>
+              ? This will remove their account, roles, and suspend any resources they own.
+              This action cannot be undone.
+            </SheetDescription>
+          </SheetHeader>
+
+          <SheetFooter className="px-4 pt-6">
+            <Button
+              variant="ghost"
+              onClick={() => setDeleteConfirmId(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => deleteConfirmId && deleteMutation.mutate(deleteConfirmId)}
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              Delete Permanently
             </Button>
           </SheetFooter>
         </SheetContent>

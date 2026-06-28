@@ -44,6 +44,10 @@ SENSITIVE_CONFIG_KEYS = {
 }
 
 
+class ResetPasswordRequest(BaseModel):
+    new_password: str
+
+
 class TestEmailRequest(BaseModel):
     to: str
 

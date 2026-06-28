@@ -9,6 +9,7 @@ from app.core.admin.schemas import (
     DeactivationImpactResponse,
     DomainCreate,
     DomainResponse,
+    ResetPasswordRequest,
     StaffInvite,
     StaffInviteResponse,
     StaffUserResponse,
@@ -25,7 +26,9 @@ from app.core.admin.service import (
     create_customer,
     deactivate_customer,
     deactivate_user,
+    delete_staff,
     get_deactivation_impact,
+    reset_staff_password,
     get_theme,
     invite_staff,
     list_customers,
@@ -222,6 +225,28 @@ async def staff_deactivation_impact(
     _user: User = Depends(require_permission("staff:*:manage")),
 ):
     return await get_deactivation_impact(session, user_id)
+
+
+@router.delete("/staff/{user_id}", status_code=204)
+async def remove_staff(
+    user_id: uuid.UUID,
+    session: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("staff:*:manage")),
+):
+    if user_id == user.id:
+        raise HTTPException(status_code=400, detail="Cannot delete yourself")
+    await delete_staff(session, user_id)
+
+
+@router.post("/staff/{user_id}/reset-password", response_model=StaffUserResponse)
+async def reset_staff_password_endpoint(
+    user_id: uuid.UUID,
+    data: ResetPasswordRequest,
+    session: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("staff:*:manage")),
+):
+    updated = await reset_staff_password(session, user_id, data.new_password)
+    return StaffUserResponse.model_validate(updated)
 
 
 # --- Customer endpoints ---
