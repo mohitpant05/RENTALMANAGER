@@ -8,6 +8,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import api from "@/lib/api";
 import type { StaffUserResponse, StaffInviteRequest, RoleResponse } from "@/types/api";
+import { useAuthStore } from "@/lib/auth-store";
 import { PermissionOverrideEditor } from "@/components/admin/permission-override-editor";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -48,6 +49,8 @@ type InviteFormData = z.infer<typeof inviteSchema>;
 
 export default function StaffPage() {
   const queryClient = useQueryClient();
+  const currentUser = useAuthStore((s) => s.user);
+  const isAdmin = currentUser?.user_type === "admin";
   const [sheetOpen, setSheetOpen] = useState(false);
   const [selectedRoleSlugs, setSelectedRoleSlugs] = useState<string[]>([]);
   const [editRolesUserId, setEditRolesUserId] = useState<string | null>(null);
@@ -82,9 +85,13 @@ export default function StaffPage() {
     },
   });
 
-  const assignableRoles = roles.filter(
-    (r) => r.slug !== "admin" && r.slug !== "customer"
-  );
+  const currentUserRoleSlugs = staff?.find((s) => s.id === currentUser?.id)?.roles ?? [];
+
+  const assignableRoles = roles.filter((r) => {
+    if (r.slug === "admin" || r.slug === "customer") return false;
+    if (!isAdmin && !currentUserRoleSlugs.includes(r.slug)) return false;
+    return true;
+  });
 
   const inviteMutation = useMutation({
     mutationFn: async (data: StaffInviteRequest) => {
@@ -362,23 +369,25 @@ export default function StaffPage() {
               )}
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="user_type">Type</Label>
-              <Select
-                onValueChange={(v) =>
-                  register("user_type").onChange({ target: { value: v } })
-                }
-                defaultValue="staff"
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="staff">Staff</SelectItem>
-                  <SelectItem value="admin">Admin</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            {isAdmin && (
+              <div className="space-y-2">
+                <Label htmlFor="user_type">Type</Label>
+                <Select
+                  onValueChange={(v) =>
+                    register("user_type").onChange({ target: { value: v } })
+                  }
+                  defaultValue="staff"
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="staff">Staff</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             {assignableRoles.length > 0 && (
               <div className="space-y-2">

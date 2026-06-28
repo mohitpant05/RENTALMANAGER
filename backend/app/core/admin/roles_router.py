@@ -106,9 +106,9 @@ async def update_staff_user_roles(
     user_id: uuid.UUID,
     data: StaffRolesUpdate,
     session: AsyncSession = Depends(get_db),
-    _user: User = Depends(_require_staff_manage()),
+    acting_user: User = Depends(_require_staff_manage()),
 ):
-    await update_staff_roles(session, user_id, data.role_ids)
+    await update_staff_roles(session, user_id, data.role_ids, acting_user=acting_user)
     staff_list = await list_staff(session)
     for s in staff_list:
         if str(s["id"]) == str(user_id):

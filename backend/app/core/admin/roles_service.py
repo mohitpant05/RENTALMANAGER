@@ -153,8 +153,27 @@ async def list_permissions_grouped(session: AsyncSession) -> list[PermissionGrou
     ]
 
 
+async def get_user_role_ids(session: AsyncSession, user_id: uuid.UUID) -> set[uuid.UUID]:
+    result = await session.exec(
+        select(UserRole.role_id).where(UserRole.user_id == user_id)
+    )
+    return set(result.all())
+
+
+async def get_user_role_slugs(session: AsyncSession, user_id: uuid.UUID) -> set[str]:
+    result = await session.exec(
+        select(Role.slug)
+        .join(UserRole, UserRole.role_id == Role.id)
+        .where(UserRole.user_id == user_id)
+    )
+    return set(result.all())
+
+
 async def update_staff_roles(
-    session: AsyncSession, user_id: uuid.UUID, role_ids: list[uuid.UUID]
+    session: AsyncSession,
+    user_id: uuid.UUID,
+    role_ids: list[uuid.UUID],
+    acting_user: "User | None" = None,
 ) -> None:
     from app.core.auth.models import User
 
@@ -162,6 +181,20 @@ async def update_staff_roles(
     user = user_result.first()
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
+
+    if acting_user and acting_user.user_type != "admin":
+        allowed_role_ids = await get_user_role_ids(session, acting_user.id)
+        requested = set(role_ids)
+        disallowed = requested - allowed_role_ids
+        if disallowed:
+            slugs_result = await session.exec(
+                select(Role.slug).where(Role.id.in_(disallowed))
+            )
+            bad_slugs = list(slugs_result.all())
+            raise HTTPException(
+                status_code=403,
+                detail=f"Cannot assign roles you don't hold: {', '.join(bad_slugs)}",
+            )
 
     existing = await session.exec(
         select(UserRole).where(UserRole.user_id == user_id)

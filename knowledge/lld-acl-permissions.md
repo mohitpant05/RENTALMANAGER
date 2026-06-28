@@ -22,11 +22,24 @@ Admin (tenant owner — sees everything always)
 
 ### Who Creates Whom
 
-| Creator | Creates | Mechanism |
-|---------|---------|-----------|
-| Admin | Staff | Existing staff invite flow |
-| Staff | Lister | Lister invite flow (`POST /api/admin/listers`) |
-| Self-register | Customer | Public register endpoint |
+| Creator | Creates | Mechanism | Restrictions |
+|---------|---------|-----------|--------------|
+| Admin | Staff or Admin | Staff invite flow (`POST /api/admin/staff`) | None — can assign any role, any user_type |
+| Staff | Staff only | Staff invite flow (`POST /api/admin/staff`) | Cannot create admin users. Can only assign roles they themselves hold |
+| Staff | Lister | Lister invite flow (DEFERRED — endpoints disabled) | — |
+| Self-register | Customer | Public register endpoint | — |
+
+### Staff Role Restriction (Privilege Escalation Prevention)
+
+**Principle: staff can't grant what they don't have.**
+
+Enforced at two points:
+1. **Staff invite** (`POST /api/admin/staff`) — staff forced to `user_type: "staff"`, requested `role_slugs` validated against caller's own roles
+2. **Role update** (`PATCH /api/admin/staff/{id}/roles`) — requested `role_ids` validated against caller's own role IDs
+
+Admin users bypass all restrictions. Backend returns 403 with specific error listing disallowed roles.
+
+Frontend enforces this too: staff users don't see "Admin" type option, and `assignableRoles` is filtered to roles the current user holds.
 
 ## Permission Format
 
@@ -232,14 +245,20 @@ WHERE u.user_type = 'customer'
 | POST | /api/admin/customers/{id}/deactivate | `customers:*:deactivate` |
 | POST | /api/admin/customers/{id}/activate | `customers:*:manage` |
 
-### Lister Management (new)
-| Method | Path | Guard |
-|--------|------|-------|
-| GET | /api/admin/listers | `listers:*:read` |
-| POST | /api/admin/listers | `listers:*:invite` |
-| PATCH | /api/admin/listers/{user_id} | `listers:*:manage` |
-| POST | /api/admin/listers/{user_id}/deactivate | `listers:*:manage` |
-| POST | /api/admin/listers/{user_id}/activate | `listers:*:manage` |
+### Lister Management (DEFERRED)
+
+Lister endpoints are disabled (router not registered in `main.py`). Code preserved in `listers_router.py` and `listers_service.py` for future use. Lister permissions, roles, and scoping logic remain in the codebase but are dormant.
+
+### Staff Management
+| Method | Path | Guard | Notes |
+|--------|------|-------|-------|
+| GET | /api/admin/staff | `staff:*:manage` | |
+| POST | /api/admin/staff | `staff:*:invite` | Staff restricted: no admin creation, only own roles |
+| PATCH | /api/admin/staff/{id}/roles | `staff:*:manage` | Staff restricted: only own roles |
+| POST | /api/admin/staff/{id}/deactivate | `staff:*:manage` | |
+| POST | /api/admin/staff/{id}/activate | `staff:*:manage` | |
+| DELETE | /api/admin/staff/{id} | `staff:*:manage` | Hard delete, can't delete self |
+| POST | /api/admin/staff/{id}/reset-password | `staff:*:manage` | |
 
 ## On-Behalf Booking Flow
 
@@ -307,14 +326,14 @@ resource_types: "Resource Types",
 
 ### Team Sub-Nav Structure
 
-The Staff section is restructured into a "Team" sub-nav with three tabs:
+The Staff section has a "Team" sub-nav (admin-only):
 
 ```ts
 "/admin/staff": {
   title: "Team",
   items: [
     { href: "/admin/staff", label: "Staff" },
-    { href: "/admin/staff/listers", label: "Listers" },
+    // Listers — DEFERRED
     { href: "/admin/staff/roles", label: "Roles & Permissions" },
   ],
 }
@@ -328,13 +347,13 @@ The Staff section is restructured into a "Team" sub-nav with three tabs:
 | Bookings | Yes | Yes | Yes (own resources) | Own |
 | Customers | Yes | Yes | No | No |
 | Reviews | Yes | Yes | Yes (own resources) | Own |
-| Staff/Listers | Yes | Yes (listers tab) | No | No |
+| Staff | Yes | No (`adminOnly`) | No | No |
 | Notifications | Yes | No | No | No |
 | Theming | Yes | No | No | No |
 | Settings | Yes | No | No | No |
 | Payouts | Yes | No | No | No |
 
-Visibility is driven by permissions — no special user_type logic in the frontend; if a user has the permission, the nav item appears.
+Staff nav item uses `adminOnly: true` in `icon-rail.tsx` — hidden from non-admin users via `user_type` check, independent of permissions.
 
 ## Database Migrations (Staff Isolation Redesign)
 

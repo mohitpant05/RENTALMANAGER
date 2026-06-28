@@ -168,6 +168,21 @@ async def invite_tenant_staff(
     from app.core.notifications.events import EMAIL_FAILED, STAFF_INVITED
     from app.core.notifications.service import notify
 
+    if user.user_type != "admin":
+        if data.user_type == "admin":
+            raise HTTPException(
+                status_code=403, detail="Only admins can create admin users"
+            )
+        if data.role_slugs:
+            from app.core.admin.roles_service import get_user_role_slugs
+            caller_roles = await get_user_role_slugs(session, user.id)
+            disallowed = set(data.role_slugs) - caller_roles
+            if disallowed:
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"Cannot assign roles you don't hold: {', '.join(disallowed)}",
+                )
+
     tenant_ctx = get_current_tenant()
     new_user, email_status, email_warning = await invite_staff(
         session, data,
