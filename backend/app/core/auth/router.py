@@ -10,11 +10,14 @@ from app.core.auth.jwt import decode_token, revoke_refresh_token
 from app.core.auth.models import User
 from app.core.auth.schemas import (
     AcceptInviteRequest,
+    ChangePasswordRequest,
     CustomerLookupResponse,
+    ForgotPasswordRequest,
     LoginRequest,
     ProfileUpdateRequest,
     RefreshRequest,
     RegisterRequest,
+    ResetPasswordRequest,
     TokenResponse,
     UserResponse,
     VerifyInviteResponse,
@@ -23,8 +26,11 @@ from app.core.auth.service import (
     accept_invite,
     authenticate_user,
     build_user_response,
+    change_password,
+    complete_password_reset,
     create_tokens,
     get_user_roles,
+    initiate_password_reset,
     refresh_tokens,
     register_user,
     update_profile,
@@ -157,6 +163,40 @@ async def get_user(
         raise HTTPException(status_code=404, detail="User not found")
     roles = await get_user_roles(session, str(user.id))
     return build_user_response(user, roles)
+
+
+@router.post("/change-password")
+async def change_password_endpoint(
+    data: ChangePasswordRequest,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+):
+    await change_password(session, user, data.current_password, data.new_password)
+    return {"detail": "Password changed"}
+
+
+@router.post("/forgot-password")
+@limiter.limit("5/minute")
+async def forgot_password(
+    request: Request,
+    data: ForgotPasswordRequest,
+    session: AsyncSession = Depends(get_db),
+):
+    tenant_ctx = get_current_tenant()
+    tenant_id = str(tenant_ctx.tenant.id)
+    await initiate_password_reset(session, data.email, tenant_id, settings.frontend_url)
+    return {"detail": "If that email exists, a reset link has been sent"}
+
+
+@router.post("/reset-password")
+@limiter.limit("5/minute")
+async def reset_password(
+    request: Request,
+    data: ResetPasswordRequest,
+    session: AsyncSession = Depends(get_db),
+):
+    await complete_password_reset(session, data.token, data.new_password)
+    return {"detail": "Password has been reset"}
 
 
 @router.get("/users/lookup", response_model=CustomerLookupResponse)

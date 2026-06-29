@@ -236,3 +236,56 @@ async def accept_invite(
 
     roles = await get_user_roles(session, str(user.id))
     return user, roles
+
+
+async def change_password(
+    session: AsyncSession, user: User, current_password: str, new_password: str
+) -> None:
+    if not verify_password(current_password, user.password_hash):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+    user.password_hash = hash_password(new_password)
+    user.updated_at = datetime.now(UTC)
+    session.add(user)
+    await session.commit()
+
+
+async def initiate_password_reset(
+    session: AsyncSession, email: str, tenant_id: str, frontend_url: str
+) -> None:
+    import uuid as _uuid
+    from app.core.auth.invite import store_reset_token
+    from app.core.email.templates import password_reset_email
+
+    result = await session.exec(select(User).where(User.email == email))
+    user = result.first()
+    if not user or not user.is_active:
+        return
+
+    token = str(_uuid.uuid4())
+    await store_reset_token(token, str(user.id), tenant_id)
+    reset_url = f"{frontend_url}/reset-password?token={token}"
+    body = password_reset_email(user.full_name, reset_url)
+    try:
+        send_email(user.email, "Reset Your Password — RentManager", body)
+    except Exception:
+        pass
+
+
+async def complete_password_reset(
+    session: AsyncSession, token: str, new_password: str
+) -> None:
+    from app.core.auth.invite import claim_reset_token
+
+    data = await claim_reset_token(token)
+    if not data:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+
+    result = await session.exec(select(User).where(User.id == data["user_id"]))
+    user = result.first()
+    if not user:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+
+    user.password_hash = hash_password(new_password)
+    user.updated_at = datetime.now(UTC)
+    session.add(user)
+    await session.commit()

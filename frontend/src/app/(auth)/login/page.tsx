@@ -127,6 +127,11 @@ export default function LoginPage() {
                 {errors.password.message}
               </p>
             )}
+            <div className="text-right">
+              <a href="/forgot-password" className="text-sm text-primary hover:underline">
+                Forgot password?
+              </a>
+            </div>
           </div>
           <Button type="submit" className="w-full" disabled={isSubmitting}>
             {isSubmitting ? "Signing in..." : "Sign in"}
