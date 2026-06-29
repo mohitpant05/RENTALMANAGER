@@ -1,13 +1,5 @@
 {
   "mcpServers": {
-    "gitnexus": {
-      "type": "stdio",
-      "command": "gitnexus",
-      "args": [
-        "mcp"
-      ],
-      "env": {}
-    },
     "rm": {
       "type": "stdio",
       "command": "python3",
