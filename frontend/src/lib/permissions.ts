@@ -7,7 +7,7 @@ export const NAV_PERMISSION_MAP: Record<string, string[]> = {
   "/admin/payouts": ["settings:*:manage"],
   "/admin/reviews": ["reviews:*:read", "reviews:*:moderate"],
   "/admin/staff": ["staff:*:manage"],
-  "/admin/notifications": ["settings:*:manage"],
+  "/admin/notifications": [],
   "/admin/theming": ["theme:*:read", "theme:*:edit"],
   "/admin/settings": ["settings:*:manage"],
 };

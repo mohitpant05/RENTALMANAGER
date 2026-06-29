@@ -15,6 +15,7 @@ from app.core.email.templates import (
 from app.core.notifications.events import (
     BOOKING_CONFIRMED,
     BOOKING_NEW,
+    BOOKING_RESOURCE_OWNER,
     booking_confirmed_payload,
     booking_new_payload,
 )
@@ -46,6 +47,7 @@ async def _dispatch_booking_event(
     user_name: str,
     event_type: str,
     new_status: str,
+    resource_owner_id: uuid.UUID | None = None,
 ):
     try:
         if new_status == "confirmed":
@@ -74,6 +76,15 @@ async def _dispatch_booking_event(
             await notify_user(
                 session, booking.user_id, BOOKING_NEW, subject, body,
                 booking_new_payload(str(booking.id), resource_name, user_name),
+            )
+
+        if resource_owner_id and resource_owner_id != booking.user_id and new_status in ("pending", "confirmed"):
+            owner_subject = f"New booking on {resource_name}"
+            owner_body = f"{user_name} booked {resource_name} — status: {new_status}"
+            await notify_user(
+                session, resource_owner_id, BOOKING_RESOURCE_OWNER,
+                owner_subject, owner_body,
+                {"booking_id": str(booking.id), "resource_name": resource_name, "customer_name": user_name},
             )
     except Exception as e:
         logger.warning("Failed to dispatch booking event: %s", e)
@@ -215,6 +226,7 @@ async def create_booking(
     await _dispatch_booking_event(
         session, booking, resource.name, user_email, user_name,
         "booking.created", booking.status,
+        resource_owner_id=resource.owner_id,
     )
 
     return booking
@@ -389,7 +401,7 @@ async def list_bookings(
 
 async def _load_booking_context(
     session: AsyncSession, booking: Booking
-) -> tuple[str, str, str]:
+) -> tuple[str, str, str, uuid.UUID | None]:
     from app.core.auth.models import User
     user_result = await session.exec(select(User).where(User.id == booking.user_id))
     user = user_result.first()
@@ -401,6 +413,7 @@ async def _load_booking_context(
         resource.name if resource else "Resource",
         user.email if user else "",
         user.full_name if user else "Customer",
+        resource.owner_id if resource else None,
     )
 
 
@@ -421,10 +434,11 @@ async def confirm_booking(
     await session.commit()
     await session.refresh(booking)
 
-    res_name, user_email, user_name = await _load_booking_context(session, booking)
+    res_name, user_email, user_name, owner_id = await _load_booking_context(session, booking)
     await _dispatch_booking_event(
         session, booking, res_name, user_email, user_name,
         "booking.confirmed", "confirmed",
+        resource_owner_id=owner_id,
     )
     return booking
 
@@ -450,10 +464,11 @@ async def reject_booking(
     await session.commit()
     await session.refresh(booking)
 
-    res_name, user_email, user_name = await _load_booking_context(session, booking)
+    res_name, user_email, user_name, owner_id = await _load_booking_context(session, booking)
     await _dispatch_booking_event(
         session, booking, res_name, user_email, user_name,
         "booking.rejected", "rejected",
+        resource_owner_id=owner_id,
     )
     return booking
 
@@ -516,10 +531,11 @@ async def cancel_booking(
                 session.add(addon)
         await session.commit()
 
-    res_name, user_email, user_name = await _load_booking_context(session, booking)
+    res_name, user_email, user_name, owner_id = await _load_booking_context(session, booking)
     await _dispatch_booking_event(
         session, booking, res_name, user_email, user_name,
         "booking.cancelled", "cancelled",
+        resource_owner_id=owner_id,
     )
     return booking
 
