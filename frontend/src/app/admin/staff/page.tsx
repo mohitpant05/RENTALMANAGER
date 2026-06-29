@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Loader2, Shield, MoreVertical, Trash2, UserCog, Power, KeyRound } from "lucide-react";
 import { useForm } from "react-hook-form";
@@ -9,6 +10,7 @@ import { z } from "zod";
 import api from "@/lib/api";
 import type { StaffUserResponse, StaffInviteRequest, RoleResponse } from "@/types/api";
 import { useAuthStore } from "@/lib/auth-store";
+import { usePermissions } from "@/hooks/use-permissions";
 import { PermissionOverrideEditor } from "@/components/admin/permission-override-editor";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -48,9 +50,14 @@ const inviteSchema = z.object({
 type InviteFormData = z.infer<typeof inviteSchema>;
 
 export default function StaffPage() {
+  const router = useRouter();
   const queryClient = useQueryClient();
   const currentUser = useAuthStore((s) => s.user);
+  const { hasPermission, isLoading: permsLoading } = usePermissions();
   const isAdmin = currentUser?.user_type === "admin";
+
+  if (permsLoading) return <div className="flex flex-1 items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>;
+  if (!hasPermission("staff:*:manage") && !hasPermission("staff:*:invite")) { router.replace("/admin"); return null; }
   const [sheetOpen, setSheetOpen] = useState(false);
   const [selectedRoleSlugs, setSelectedRoleSlugs] = useState<string[]>([]);
   const [editRolesUserId, setEditRolesUserId] = useState<string | null>(null);

@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { useAuthStore } from "@/lib/auth-store";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -38,8 +40,13 @@ const roleSchema = z.object({
 type RoleFormValues = z.infer<typeof roleSchema>;
 
 export default function RolesPage() {
+  const router = useRouter();
+  const { user, isLoading: authLoading } = useAuthStore();
   const qc = useQueryClient();
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
+
+  if (authLoading) return <div className="flex flex-1 items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>;
+  if (user?.user_type !== "admin") { router.replace("/admin"); return null; }
   const [sheetOpen, setSheetOpen] = useState(false);
 
   const { data: roles = [] } = useQuery({

@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Eye, EyeOff, Loader2, Send } from "lucide-react";
+import { usePermissions } from "@/hooks/use-permissions";
 import api from "@/lib/api";
 import type { TenantResponse } from "@/types/api";
 import { Button } from "@/components/ui/button";
@@ -33,6 +35,10 @@ function maskKey(key: string): string {
 }
 
 export default function EmailSettingsPage() {
+  const router = useRouter();
+  const { hasPermission, isLoading: permsLoading } = usePermissions();
+  if (permsLoading) return <div className="flex flex-1 items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>;
+  if (!hasPermission("settings:*:manage")) { router.replace("/admin"); return null; }
   const queryClient = useQueryClient();
 
   const { data: tenant } = useQuery({

@@ -21,6 +21,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ResourceDetailSheet } from "@/components/resources/resource-detail-sheet";
+import { usePermissions } from "@/hooks/use-permissions";
 import api from "@/lib/api";
 import type { ResourceResponse } from "@/types/api";
 import { toast } from "sonner";
@@ -53,6 +54,7 @@ export function ResourceTable({
   onBook,
 }: ResourceTableProps) {
   const queryClient = useQueryClient();
+  const { hasPermission } = usePermissions();
   const [detailResource, setDetailResource] = useState<ResourceResponse | null>(null);
 
   const deleteMutation = useMutation({
@@ -147,11 +149,13 @@ export function ResourceTable({
                       </Link>
                     }
                   />
-                  <DropdownMenuItem onClick={() => onEdit(r)}>
-                    <Pencil className="mr-2 h-4 w-4" />
-                    Edit
-                  </DropdownMenuItem>
-                  {r.status !== "active" && (
+                  {hasPermission("resources:*:manage") && (
+                    <DropdownMenuItem onClick={() => onEdit(r)}>
+                      <Pencil className="mr-2 h-4 w-4" />
+                      Edit
+                    </DropdownMenuItem>
+                  )}
+                  {hasPermission("resources:*:manage") && r.status !== "active" && (
                     <DropdownMenuItem
                       onClick={() => statusMutation.mutate({ id: r.id, status: "active" })}
                     >
@@ -159,7 +163,7 @@ export function ResourceTable({
                       Activate
                     </DropdownMenuItem>
                   )}
-                  {r.status === "active" && (
+                  {hasPermission("resources:*:manage") && r.status === "active" && (
                     <DropdownMenuItem
                       onClick={() => statusMutation.mutate({ id: r.id, status: "inactive" })}
                     >
@@ -167,7 +171,7 @@ export function ResourceTable({
                       Deactivate
                     </DropdownMenuItem>
                   )}
-                  {r.status !== "archived" && (
+                  {hasPermission("resources:*:manage") && r.status !== "archived" && (
                     <DropdownMenuItem
                       onClick={() => statusMutation.mutate({ id: r.id, status: "archived" })}
                     >
@@ -175,13 +179,15 @@ export function ResourceTable({
                       Archive
                     </DropdownMenuItem>
                   )}
-                  <DropdownMenuItem
-                    onClick={() => deleteMutation.mutate(r.id)}
-                    className="text-destructive focus:text-destructive"
-                  >
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Delete
-                  </DropdownMenuItem>
+                  {hasPermission("resources:*:delete") && (
+                    <DropdownMenuItem
+                      onClick={() => deleteMutation.mutate(r.id)}
+                      className="text-destructive focus:text-destructive"
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Delete
+                    </DropdownMenuItem>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             </TableCell>

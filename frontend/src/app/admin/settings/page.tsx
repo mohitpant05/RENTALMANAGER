@@ -6,9 +6,11 @@ import { Plus, Trash2, Loader2 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { useRouter } from "next/navigation";
 import api from "@/lib/api";
 import type { DomainResponse, TenantResponse, DomainCreate } from "@/types/api";
 import { useAuthStore } from "@/lib/auth-store";
+import { usePermissions } from "@/hooks/use-permissions";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,10 +25,15 @@ const domainSchema = z.object({
 type DomainFormData = z.infer<typeof domainSchema>;
 
 export default function SettingsPage() {
+  const router = useRouter();
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
+  const { hasPermission, isLoading: permsLoading } = usePermissions();
   const [domainOpen, setDomainOpen] = useState(false);
   const [newDomain, setNewDomain] = useState("");
+
+  if (permsLoading) return <div className="flex flex-1 items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>;
+  if (!hasPermission("settings:*:manage")) { router.replace("/admin"); return null; }
 
   const { data: tenant } = useQuery({
     queryKey: ["admin-tenant"],

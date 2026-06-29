@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAuthStore } from "@/lib/auth-store";
 import { Loader2, Palette, RotateCcw } from "lucide-react";
 import api from "@/lib/api";
 import type { ThemeResponse } from "@/types/api";
@@ -37,7 +39,12 @@ const DEFAULT_COMPONENTS: Record<string, string | boolean> = {
 };
 
 export default function ThemingPage() {
+  const router = useRouter();
+  const { user, isLoading: authLoading } = useAuthStore();
   const queryClient = useQueryClient();
+
+  if (authLoading) return <div className="flex flex-1 items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>;
+  if (user?.user_type !== "admin") { router.replace("/admin"); return null; }
 
   const { data: theme, isLoading } = useQuery({
     queryKey: ["admin-theme"],

@@ -92,6 +92,7 @@ const STATIC_NAV_CONFIG: Record<string, SubNavSection> = {
 
 function useResourceTypesNav(): SubNavSection | null {
   const setOpen = useCreateTypeSheetStore((s) => s.setOpen);
+  const { hasPermission } = usePermissions();
   const { data: types } = useQuery({
     queryKey: ["resource-types"],
     queryFn: async () => {
@@ -101,12 +102,16 @@ function useResourceTypesNav(): SubNavSection | null {
     staleTime: 30_000,
   });
 
-  if (!types) return { title: "Resources", items: [], action: { label: "+ Add Type", onClick: () => setOpen(true) } };
+  const action = hasPermission("resource_types:*:manage")
+    ? { label: "+ Add Type", onClick: () => setOpen(true) }
+    : undefined;
+
+  if (!types) return { title: "Resources", items: [], action };
 
   return {
     title: "Resources",
     items: types.map((t) => ({ href: `/admin/resources/${t.slug}`, label: t.name })),
-    action: { label: "+ Add Type", onClick: () => setOpen(true) },
+    action,
   };
 }
 

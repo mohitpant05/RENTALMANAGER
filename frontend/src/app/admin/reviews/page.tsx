@@ -6,6 +6,7 @@ import { Check, X, Loader2 } from "lucide-react";
 import api from "@/lib/api";
 import type { ReviewResponse, ReviewModerateRequest } from "@/types/api";
 import { useReviews } from "@/hooks/use-reviews";
+import { usePermissions } from "@/hooks/use-permissions";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -28,6 +29,7 @@ const STATUS_VARIANT: Record<string, "muted" | "success" | "destructive" | "warn
 export default function ReviewsPage() {
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const { hasPermission } = usePermissions();
   const [rejectionReason, setRejectionReason] = useState<Record<string, string>>({});
   const [editingId, setEditingId] = useState<string | null>(null);
 
@@ -111,7 +113,7 @@ export default function ReviewsPage() {
                   </p>
                 </div>
 
-                {review.status === "pending" && editingId === review.id && (
+                {hasPermission("reviews:*:moderate") && review.status === "pending" && editingId === review.id && (
                   <div className="space-y-2 min-w-[200px]">
                     <Textarea
                       placeholder="Rejection reason (optional)"
@@ -152,7 +154,7 @@ export default function ReviewsPage() {
                   </div>
                 )}
 
-                {review.status === "pending" && editingId !== review.id && (
+                {hasPermission("reviews:*:moderate") && review.status === "pending" && editingId !== review.id && (
                   <Button size="sm" variant="outline" onClick={() => setEditingId(review.id)}>
                     Moderate
                   </Button>

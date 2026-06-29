@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { usePermissions } from "@/hooks/use-permissions";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2, RotateCcw } from "lucide-react";
 import api from "@/lib/api";
@@ -21,8 +22,13 @@ import {
 import { toast } from "sonner";
 
 export default function RefundsPage() {
+  const router = useRouter();
+  const { hasPermission, isLoading: permsLoading } = usePermissions();
   const searchParams = useSearchParams();
   const tab = searchParams.get("tab") || "pending";
+
+  if (permsLoading) return <div className="flex flex-1 items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>;
+  if (!hasPermission("settings:*:manage")) { router.replace("/admin"); return null; }
 
   return (
     <div className="flex-1 space-y-6">

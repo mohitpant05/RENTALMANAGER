@@ -18,12 +18,14 @@ import {
 } from "@/components/ui/select";
 import { CreateResourceSheet } from "@/components/resources/create-resource-sheet";
 import { BookResourceSheet } from "@/components/bookings/book-resource-sheet";
+import { usePermissions } from "@/hooks/use-permissions";
 import { toast } from "sonner";
 
 export default function ResourceDetailPage() {
   const { typeSlug, resourceId } = useParams<{ typeSlug: string; resourceId: string }>();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { hasPermission } = usePermissions();
   const [editOpen, setEditOpen] = useState(false);
   const [bookOpen, setBookOpen] = useState(false);
 
@@ -106,17 +108,21 @@ export default function ResourceDetailPage() {
             <CalendarDays className="mr-2 h-4 w-4" />
             Book
           </Button>
-          <Button variant="outline" onClick={() => setEditOpen(true)}>
-            <Pencil className="mr-2 h-4 w-4" />
-            Edit
-          </Button>
-          <Button
-            variant="destructive"
-            onClick={() => deleteMutation.mutate()}
-          >
-            <Trash2 className="mr-2 h-4 w-4" />
-            Delete
-          </Button>
+          {hasPermission("resources:*:manage") && (
+            <Button variant="outline" onClick={() => setEditOpen(true)}>
+              <Pencil className="mr-2 h-4 w-4" />
+              Edit
+            </Button>
+          )}
+          {hasPermission("resources:*:delete") && (
+            <Button
+              variant="destructive"
+              onClick={() => deleteMutation.mutate()}
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete
+            </Button>
+          )}
         </div>
       </div>
 

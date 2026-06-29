@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { usePermissions } from "@/hooks/use-permissions";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2, CheckCircle } from "lucide-react";
 import api from "@/lib/api";
@@ -22,8 +23,12 @@ import { toast } from "sonner";
 
 export default function PayoutsPage() {
   const router = useRouter();
+  const { hasPermission, isLoading: permsLoading } = usePermissions();
   const searchParams = useSearchParams();
   const tab = searchParams.get("tab") || "balances";
+
+  if (permsLoading) return <div className="flex flex-1 items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>;
+  if (!hasPermission("settings:*:manage")) { router.replace("/admin"); return null; }
 
   return (
     <div className="flex-1 space-y-6 p-6">
