@@ -284,7 +284,7 @@ export default function StaffPage() {
               </div>
 
               <DropdownMenu>
-                <DropdownMenuTrigger asChild>
+                <DropdownMenuTrigger>
                   <Button size="icon" variant="ghost" className="h-8 w-8">
                     <MoreVertical className="h-4 w-4" />
                   </Button>
