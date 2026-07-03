@@ -31,6 +31,13 @@ export default function LoginPage() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<LoginForm>({
+    resolver: zodResolver(loginSchema),
+  });
 
   useEffect(() => {
     initAuth();
@@ -46,14 +53,6 @@ export default function LoginPage() {
   if (isLoading || isAuthenticated) {
     return null;
   }
-
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<LoginForm>({
-    resolver: zodResolver(loginSchema),
-  });
 
   async function onSubmit(data: LoginForm) {
     setIsSubmitting(true);

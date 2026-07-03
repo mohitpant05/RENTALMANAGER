@@ -3,6 +3,7 @@ Seed development environment with platform user, tenant, and admin user.
 Run: docker compose exec backend python scripts/seed_dev.py
 """
 import asyncio
+import os
 from uuid import uuid4
 
 import bcrypt
@@ -15,7 +16,10 @@ from app.core.auth.models import PlatformUser, Role, User, UserRole
 from app.core.tenancy.models import Tenant
 from app.core.tenancy.provisioning import provision_tenant_schema
 
-DB_URL = "postgresql+asyncpg://rentmanager:rentmanager_dev@postgres:5432/rentmanager"
+DB_URL = os.environ.get(
+    "DATABASE_URL",
+    "postgresql+asyncpg://rentmanager:rentmanager_dev@postgres:5432/rentmanager",
+)
 
 PLATFORM_EMAIL = "platform@rentmanager.dev"
 PLATFORM_PASSWORD = "platform123"
