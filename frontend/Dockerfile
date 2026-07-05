@@ -12,13 +12,13 @@ CMD ["npm", "run", "dev"]
 # Production target
 FROM base AS deps
 COPY package.json package-lock.json* ./
-RUN --mount=type=cache,target=/root/.npm npm ci --only=production
+RUN npm ci --only=production
 
 FROM base AS builder
 ARG NEXT_PUBLIC_API_URL=http://localhost/api
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 COPY package.json package-lock.json* ./
-RUN --mount=type=cache,target=/root/.npm npm ci
+RUN npm ci
 COPY . .
 RUN npm run build
 
