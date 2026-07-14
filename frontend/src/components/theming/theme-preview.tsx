@@ -1,12 +1,13 @@
 "use client";
 
 interface ThemePreviewProps {
+  brand: Record<string, string>;
   colors: Record<string, string>;
   typography: Record<string, string | number>;
   components: Record<string, string | boolean>;
 }
 
-export function ThemePreview({ colors, typography, components }: ThemePreviewProps) {
+export function ThemePreview({ brand, colors, typography, components }: ThemePreviewProps) {
   const radius = `${typography.border_radius ?? 8}px`;
   const font = (typography.font_family as string) || "Inter";
   const headingFont = (typography.heading_font as string) || font;
@@ -18,6 +19,10 @@ export function ThemePreview({ colors, typography, components }: ThemePreviewPro
       : components.button_style === "square"
         ? "0px"
         : radius;
+
+  const businessName = brand.business_name || "Your Brand";
+  const headline = brand.headline || "Find & Book";
+  const tagline = brand.tagline || "Your marketplace headline";
 
   return (
     <div
@@ -33,12 +38,21 @@ export function ThemePreview({ colors, typography, components }: ThemePreviewPro
         className="flex items-center justify-between px-4 py-3"
         style={{ backgroundColor: colors.surface || "#ffffff" }}
       >
-        <span
-          className="text-sm font-bold"
-          style={{ color: colors.text_primary || "#111", fontFamily: headingFont }}
-        >
-          Your Brand
-        </span>
+        <div className="flex items-center gap-2">
+          {brand.logo_url ? (
+            <img
+              src={brand.logo_url}
+              alt="Logo"
+              className="h-6 w-auto max-w-[80px] object-contain"
+            />
+          ) : null}
+          <span
+            className="text-sm font-bold"
+            style={{ color: colors.text_primary || "#111", fontFamily: headingFont }}
+          >
+            {businessName}
+          </span>
+        </div>
         <div className="flex gap-2">
           <div
             className="h-2 w-8 rounded-full"
@@ -60,10 +74,10 @@ export function ThemePreview({ colors, typography, components }: ThemePreviewPro
           className="text-lg font-bold"
           style={{ color: "#ffffff", fontFamily: headingFont }}
         >
-          Find & Book
+          {headline}
         </p>
         <p className="mt-1 text-xs" style={{ color: "rgba(255,255,255,0.8)" }}>
-          Your marketplace headline
+          {tagline}
         </p>
         <div
           className="mx-auto mt-3 h-8 w-32"

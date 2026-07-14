@@ -5,6 +5,7 @@ import { ThemeProvider } from "next-themes";
 import { Toaster } from "sonner";
 import { useEffect, useState } from "react";
 import { TenantInitializer } from "@/components/tenant-initializer";
+import { TenantThemeProvider } from "@/components/tenant-theme-provider";
 import { useAuthStore } from "@/lib/auth-store";
 import api from "@/lib/api";
 import type { TokenResponse, UserResponse } from "@/types/api";
@@ -60,6 +61,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <Toaster richColors position="top-right" />
         <AuthInitializer />
         <TenantInitializer />
+        <TenantThemeProvider />
       </ThemeProvider>
     </QueryClientProvider>
   );

@@ -124,9 +124,16 @@ export function IconRail() {
             </TooltipTrigger>
             <TooltipContent side="right">Logout</TooltipContent>
           </Tooltip>
-          <Avatar className="h-8 w-8">
-            <AvatarFallback className="text-xs">{initials}</AvatarFallback>
-          </Avatar>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Link href="/admin/profile">
+                <Avatar className="h-8 w-8 cursor-pointer hover:ring-2 hover:ring-primary transition-all">
+                  <AvatarFallback className="text-xs">{initials}</AvatarFallback>
+                </Avatar>
+              </Link>
+            </TooltipTrigger>
+            <TooltipContent side="right">Profile</TooltipContent>
+          </Tooltip>
         </div>
       </div>
     </TooltipProvider>

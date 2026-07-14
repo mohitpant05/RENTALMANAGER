@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Loader2, Shield, MoreVertical, Trash2, UserCog, Power, KeyRound } from "lucide-react";
@@ -55,9 +55,6 @@ export default function StaffPage() {
   const currentUser = useAuthStore((s) => s.user);
   const { hasPermission, isLoading: permsLoading } = usePermissions();
   const isAdmin = currentUser?.user_type === "admin";
-
-  if (permsLoading) return <div className="flex flex-1 items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>;
-  if (!hasPermission("staff:*:manage") && !hasPermission("staff:*:invite")) { router.replace("/admin"); return null; }
   const [sheetOpen, setSheetOpen] = useState(false);
   const [selectedRoleSlugs, setSelectedRoleSlugs] = useState<string[]>([]);
   const [editRolesUserId, setEditRolesUserId] = useState<string | null>(null);
@@ -230,7 +227,10 @@ export default function StaffPage() {
     );
   }
 
-  if (isLoading) {
+  const staffDenied = !permsLoading && !hasPermission("staff:*:manage") && !hasPermission("staff:*:invite");
+  useEffect(() => { if (staffDenied) router.replace("/admin"); }, [staffDenied, router]);
+
+  if (permsLoading || isLoading || staffDenied) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
@@ -247,10 +247,12 @@ export default function StaffPage() {
             Manage team members and roles
           </p>
         </div>
-        <Button onClick={() => setSheetOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Invite Staff
-        </Button>
+        {hasPermission("staff:*:invite") && (
+          <Button onClick={() => setSheetOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Invite Staff
+          </Button>
+        )}
       </div>
 
       <div className="space-y-3">
@@ -290,47 +292,51 @@ export default function StaffPage() {
                 )}
               </div>
 
-              <DropdownMenu>
-                <DropdownMenuTrigger>
-                  <Button size="icon" variant="ghost" className="h-8 w-8">
-                    <MoreVertical className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  {s.user_type !== "admin" && (
-                    <DropdownMenuItem onClick={() => openEditRoles(s)}>
-                      <UserCog className="mr-2 h-4 w-4" />
-                      Manage Roles
-                    </DropdownMenuItem>
-                  )}
-                  <DropdownMenuItem onClick={() => setResetPasswordUserId(s.id)}>
-                    <KeyRound className="mr-2 h-4 w-4" />
-                    Reset Password
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  {s.is_active ? (
-                    <DropdownMenuItem
-                      onClick={() => deactivateMutation.mutate(s.id)}
-                      className="text-orange-600"
-                    >
-                      <Power className="mr-2 h-4 w-4" />
-                      Deactivate
-                    </DropdownMenuItem>
-                  ) : (
-                    <DropdownMenuItem onClick={() => activateMutation.mutate(s.id)}>
-                      <Power className="mr-2 h-4 w-4" />
-                      Activate
-                    </DropdownMenuItem>
-                  )}
-                  <DropdownMenuItem
-                    onClick={() => setDeleteConfirmId(s.id)}
-                    className="text-destructive"
+              {hasPermission("staff:*:manage") && s.id !== currentUser?.id && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    render={
+                      <Button variant="ghost" size="icon" className="h-8 w-8" />
+                    }
                   >
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Delete
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                    <MoreVertical className="h-4 w-4" />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    {s.user_type !== "admin" && (
+                      <DropdownMenuItem onClick={() => openEditRoles(s)}>
+                        <UserCog className="mr-2 h-4 w-4" />
+                        Manage Roles
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuItem onClick={() => setResetPasswordUserId(s.id)}>
+                      <KeyRound className="mr-2 h-4 w-4" />
+                      Reset Password
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    {s.is_active ? (
+                      <DropdownMenuItem
+                        onClick={() => deactivateMutation.mutate(s.id)}
+                        className="text-orange-600"
+                      >
+                        <Power className="mr-2 h-4 w-4" />
+                        Deactivate
+                      </DropdownMenuItem>
+                    ) : (
+                      <DropdownMenuItem onClick={() => activateMutation.mutate(s.id)}>
+                        <Power className="mr-2 h-4 w-4" />
+                        Activate
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuItem
+                      onClick={() => setDeleteConfirmId(s.id)}
+                      className="text-destructive"
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Delete
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
             </CardContent>
           </Card>
         ))}

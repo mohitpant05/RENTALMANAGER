@@ -14,6 +14,8 @@ from app.core.admin.platform_auth import (
     get_current_platform_user,
 )
 from app.core.admin.schemas import (
+    BootstrapAdminRequest,
+    BootstrapAdminResponse,
     DashboardStatsResponse,
     DomainCreate,
     DomainResponse,
@@ -357,3 +359,78 @@ async def update_tenant_theme(
     await session.commit()
     await session.refresh(theme)
     return ThemeResponse.model_validate(theme)
+
+
+@router.post("/bootstrap-admin", response_model=BootstrapAdminResponse, status_code=201)
+async def bootstrap_admin(
+    data: BootstrapAdminRequest,
+    session: AsyncSession = Depends(get_session),
+    platform_user: PlatformUser = Depends(get_current_platform_user),
+):
+    result = await session.exec(select(Tenant).where(Tenant.id == data.tenant_id))
+    tenant = result.first()
+    if tenant is None:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    schema = tenant.schema_name
+
+    # Ensure domain is mapped to this tenant
+    result = await session.exec(
+        select(TenantDomain).where(TenantDomain.domain == data.domain)
+    )
+    existing_domain = result.first()
+    if existing_domain is None:
+        domain_record = TenantDomain(
+            tenant_id=tenant.id,
+            domain=data.domain,
+            is_primary=True,
+            is_verified=True,
+        )
+        session.add(domain_record)
+        await session.flush()
+    elif existing_domain.tenant_id != tenant.id:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Domain '{data.domain}' belongs to a different tenant",
+        )
+
+    validate_schema_name(schema)
+    try:
+        await session.execute(text(f"SET search_path TO {schema}, public"))
+
+        result = await session.exec(select(User).where(User.email == data.email))
+        if result.first() is not None:
+            raise HTTPException(status_code=409, detail="Email already registered in this tenant")
+
+        user = User(
+            email=data.email,
+            password_hash=hash_password(data.password),
+            full_name=data.full_name,
+            user_type="admin",
+            is_active=True,
+            is_verified=True,
+        )
+        session.add(user)
+        await session.flush()
+
+        result = await session.exec(select(Role).where(Role.slug == "admin"))
+        admin_role = result.first()
+        if admin_role is None:
+            raise HTTPException(status_code=500, detail="Admin role not found — run tenant provisioning first")
+
+        user_role = UserRole(user_id=user.id, role_id=admin_role.id)
+        session.add(user_role)
+
+        await session.commit()
+    finally:
+        await session.execute(text("SET search_path TO public"))
+
+    return BootstrapAdminResponse(
+        user_id=user.id,
+        email=user.email,
+        full_name=user.full_name,
+        tenant_id=tenant.id,
+        tenant_name=tenant.name,
+        domain=data.domain,
+        roles=["admin"],
+    )

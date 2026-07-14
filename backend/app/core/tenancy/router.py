@@ -2,6 +2,9 @@ from fastapi import APIRouter, Query
 from sqlmodel import select
 
 from app import database as db_module
+from app.core.admin.models import TenantTheme
+from app.core.admin.schemas import ThemeResponse
+from app.core.tenancy.context import get_current_tenant
 from app.core.tenancy.models import Tenant, TenantDomain
 
 router = APIRouter(prefix="/api/tenancy", tags=["tenancy"])
@@ -28,3 +31,19 @@ async def resolve_tenant(domain: str = Query(...)):
             "schema_name": tenant.schema_name,
             "name": tenant.name,
         }
+
+
+@router.get("/theme", response_model=ThemeResponse)
+async def get_public_theme():
+    ctx = get_current_tenant()
+    async with db_module.async_session_factory() as session:
+        result = await session.exec(
+            select(TenantTheme).where(TenantTheme.tenant_id == ctx.tenant.id)
+        )
+        theme = result.first()
+        if theme is None:
+            theme = TenantTheme(tenant_id=ctx.tenant.id)
+            session.add(theme)
+            await session.commit()
+            await session.refresh(theme)
+        return ThemeResponse.model_validate(theme)

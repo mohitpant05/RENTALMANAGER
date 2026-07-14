@@ -56,6 +56,19 @@ Best regards,
 The RentManager Team"""
 
 
+def email_change_otp_email(full_name: str, otp: str) -> str:
+    return f"""Hi {full_name},
+
+You requested to change your email address. Use the code below to verify:
+
+{otp}
+
+This code expires in 10 minutes. If you did not request this, you can safely ignore this email.
+
+Best regards,
+The RentManager Team"""
+
+
 def invite_email(full_name: str, invite_url: str) -> str:
     return f"""Hi {full_name},
 

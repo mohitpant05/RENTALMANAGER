@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -27,8 +27,10 @@ export default function RefundsPage() {
   const searchParams = useSearchParams();
   const tab = searchParams.get("tab") || "pending";
 
-  if (permsLoading) return <div className="flex flex-1 items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>;
-  if (!hasPermission("settings:*:manage")) { router.replace("/admin"); return null; }
+  const denied = !permsLoading && !hasPermission("settings:*:manage");
+  useEffect(() => { if (denied) router.replace("/admin"); }, [denied, router]);
+
+  if (permsLoading || denied) return <div className="flex flex-1 items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>;
 
   return (
     <div className="flex-1 space-y-6">

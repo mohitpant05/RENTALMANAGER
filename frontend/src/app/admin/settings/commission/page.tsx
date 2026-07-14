@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Pencil } from "lucide-react";
@@ -27,8 +27,6 @@ import { toast } from "sonner";
 export default function CommissionSettingsPage() {
   const router = useRouter();
   const { hasPermission, isLoading: permsLoading } = usePermissions();
-  if (permsLoading) return <div className="flex flex-1 items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>;
-  if (!hasPermission("settings:*:manage")) { router.replace("/admin"); return null; }
   const queryClient = useQueryClient();
   const [editingType, setEditingType] = useState<ResourceTypeResponse | null>(null);
 
@@ -39,6 +37,13 @@ export default function CommissionSettingsPage() {
       return data;
     },
   });
+
+  const denied = !permsLoading && !hasPermission("settings:*:manage");
+  useEffect(() => { if (denied) router.replace("/admin"); }, [denied, router]);
+
+  if (permsLoading || denied) {
+    return <div className="flex flex-1 items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>;
+  }
 
   return (
     <div className="flex-1 space-y-6 p-6">

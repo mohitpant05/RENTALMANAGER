@@ -17,9 +17,11 @@ from app.core.auth.schemas import (
     ProfileUpdateRequest,
     RefreshRequest,
     RegisterRequest,
+    RequestEmailChangeRequest,
     ResetPasswordRequest,
     TokenResponse,
     UserResponse,
+    VerifyEmailChangeRequest,
     VerifyInviteResponse,
 )
 from app.core.auth.service import (
@@ -173,6 +175,83 @@ async def change_password_endpoint(
 ):
     await change_password(session, user, data.current_password, data.new_password)
     return {"detail": "Password changed"}
+
+
+@router.post("/request-email-change")
+@limiter.limit("5/minute")
+async def request_email_change(
+    request: Request,
+    data: RequestEmailChangeRequest,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+):
+    import secrets
+
+    from app.core.auth.password import verify_password
+    from app.core.email.send import send_email
+    from app.core.email.templates import email_change_otp_email
+    from app.redis_client import get_redis
+
+    if not verify_password(data.password, user.password_hash):
+        raise HTTPException(status_code=400, detail="Incorrect password")
+
+    existing = await session.exec(
+        select(User).where(User.email == data.new_email, User.id != user.id)
+    )
+    if existing.first():
+        raise HTTPException(status_code=400, detail="Email already in use")
+
+    otp = "".join(secrets.choice("0123456789") for _ in range(6))
+    r = get_redis()
+    key = f"email_change:{user.id}"
+    await r.setex(key, 600, f"{data.new_email}:{otp}")
+
+    send_email(
+        data.new_email,
+        "Verify your new email address",
+        email_change_otp_email(user.full_name, otp),
+    )
+    return {"detail": "Verification code sent to new email"}
+
+
+@router.post("/verify-email-change", response_model=UserResponse)
+async def verify_email_change(
+    data: VerifyEmailChangeRequest,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+):
+    from app.core.auth.dependencies import get_user_permissions
+
+    from app.redis_client import get_redis
+
+    r = get_redis()
+    key = f"email_change:{user.id}"
+    stored = await r.get(key)
+    if not stored:
+        raise HTTPException(status_code=400, detail="No pending email change or code expired")
+
+    new_email, stored_otp = stored.rsplit(":", 1)
+    if data.otp != stored_otp:
+        raise HTTPException(status_code=400, detail="Invalid verification code")
+
+    existing = await session.exec(
+        select(User).where(User.email == new_email, User.id != user.id)
+    )
+    if existing.first():
+        raise HTTPException(status_code=400, detail="Email already in use")
+
+    user.email = new_email
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+    await r.delete(key)
+
+    roles = await get_user_roles(session, str(user.id))
+    if user.user_type == "admin":
+        perms = ["*:*:*"]
+    else:
+        perms = list(await get_user_permissions(session, user.id))
+    return build_user_response(user, roles, perms)
 
 
 @router.post("/forgot-password")

@@ -6,6 +6,7 @@ import { Check, X, Ban, AlertTriangle, Loader2 } from "lucide-react";
 import api from "@/lib/api";
 import type { BookingResponse } from "@/types/api";
 import type { PaymentResponse } from "@/types/payment";
+import { usePermissions } from "@/hooks/use-permissions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -37,12 +38,22 @@ interface BookingActionsProps {
   booking: BookingResponse;
 }
 
+const PERMISSION_MAP: Record<string, string> = {
+  confirmed: "bookings:*:confirm",
+  rejected: "bookings:*:reject",
+  cancelled: "bookings:*:cancel",
+  no_show: "bookings:*:no_show",
+};
+
 export function BookingActions({ booking }: BookingActionsProps) {
   const queryClient = useQueryClient();
+  const { hasPermission } = usePermissions();
   const [reasonSheetAction, setReasonSheetAction] = useState<string | null>(null);
   const [reason, setReason] = useState("");
 
-  const transitions = VALID_TRANSITIONS[booking.status];
+  const transitions = (VALID_TRANSITIONS[booking.status] ?? []).filter(
+    (t) => hasPermission(PERMISSION_MAP[t])
+  );
 
   const actionMutation = useMutation({
     mutationFn: async ({
