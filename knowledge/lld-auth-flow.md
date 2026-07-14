@@ -200,6 +200,86 @@ Axios interceptor handles 401 transparently:
 5. Queue concurrent requests while refreshing (failedQueue pattern)
 6. If refresh fails: clear auth, redirect to login
 
+## Admin Account Creation
+
+Two paths to create admin accounts:
+
+### 1. Platform-level Bootstrap (for initial seeding)
+
+Endpoint: `POST /api/platform/bootstrap-admin`
+Auth: Platform user JWT (Bearer token from `/api/platform/login`)
+
+Creates an admin user directly in a tenant schema with password set, no invite flow.
+
+```bash
+# Step 1: Get platform token
+TOKEN=$(curl -s http://localhost:8080/api/platform/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@rentmanager.com","password":"admin123"}' \
+  | jq -r '.access_token')
+
+# Step 2: Bootstrap admin
+curl -s http://localhost:8080/api/platform/bootstrap-admin \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{
+    "tenant_id": "<tenant-uuid>",
+    "email": "newadmin@example.com",
+    "password": "securepassword123",
+    "full_name": "Admin Name",
+    "domain": "rm.networkingbyte.com"
+  }'
+```
+
+Response:
+```json
+{
+  "user_id": "<uuid>",
+  "email": "newadmin@example.com",
+  "full_name": "Admin Name",
+  "tenant_id": "<tenant-uuid>",
+  "tenant_name": "Test Tenant",
+  "domain": "rm.networkingbyte.com",
+  "roles": ["admin"]
+}
+```
+
+Notes:
+- Domain defaults to `rm.networkingbyte.com` if omitted
+- Auto-creates TenantDomain mapping if domain not yet registered
+- Multiple admins per domain supported
+- 409 if email already exists in tenant or domain belongs to different tenant
+
+### 2. Tenant-level Admin Invite (admin creates admin)
+
+Endpoint: `POST /api/admin/staff`
+Auth: Tenant admin JWT + `X-Tenant-ID` header (or domain-based resolution)
+
+Existing admin invites another user as admin via the staff invite flow.
+
+```bash
+# Step 1: Login as existing tenant admin
+TOKEN=$(curl -s http://localhost:8080/api/auth/login \
+  -H "Content-Type: application/json" \
+  -H "X-Tenant-ID: test-4a771ff5" \
+  -d '{"email":"mohit@test.com","password":"password123"}' \
+  | jq -r '.access_token')
+
+# Step 2: Invite new admin
+curl -s http://localhost:8080/api/admin/staff \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Tenant-ID: test-4a771ff5" \
+  -d '{
+    "email": "newadmin@example.com",
+    "full_name": "New Admin",
+    "user_type": "staff",
+    "role_slugs": ["admin"]
+  }'
+```
+
+This sends an invite email. Invitee accepts via `/auth/accept-invite` to set password.
+
 ## Security Notes
 
 - Password: bcrypt hashing (`passlib`)

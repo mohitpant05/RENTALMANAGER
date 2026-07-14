@@ -48,6 +48,102 @@ BACKEND_INTERNAL_URL=http://localhost:8080 npm run dev -- -p 3001
 - After merging to live, sync both dev and prod deployments
 - When starting frontend locally, always set `BACKEND_INTERNAL_URL=http://localhost:8080`
 
+# Frontend Dev Rules
+
+## React Hooks — Never Violate Call Order
+
+**Rule**: ALL hooks (`useState`, `useEffect`, `useQuery`, `useMutation`, `useForm`, `usePermissions`, etc.) MUST be called before ANY conditional return. No exceptions.
+
+**Why**: React tracks hooks by call index. An early return that skips hooks causes "Rendered fewer hooks than expected" hydration crash.
+
+```tsx
+// BAD — hooks after early return
+function Page() {
+  const { hasPermission, isLoading } = usePermissions();
+  if (isLoading) return <Spinner />;           // early return
+  if (!hasPermission("x")) return null;        // early return
+  const [open, setOpen] = useState(false);     // CRASH — skipped on some renders
+  const { data } = useQuery({ ... });          // CRASH
+}
+
+// GOOD — all hooks first, guards after
+function Page() {
+  const { hasPermission, isLoading } = usePermissions();
+  const [open, setOpen] = useState(false);
+  const { data } = useQuery({ ... });
+
+  if (isLoading) return <Spinner />;
+  if (!hasPermission("x")) { router.replace("/admin"); return null; }
+
+  return <div>...</div>;
+}
+```
+
+**Past incidents**: 6 admin pages had this bug (staff, roles, settings, payments, email, commission).
+
+## HTML Nesting — No `<button>` Inside `<button>`
+
+**Rule**: Never wrap `<Button>` inside `<DropdownMenuTrigger>` or any component that renders a `<button>`. Use the `render` prop instead.
+
+```tsx
+// BAD — nested buttons, hydration error
+<DropdownMenuTrigger>
+  <Button variant="ghost"><MoreVertical /></Button>
+</DropdownMenuTrigger>
+
+// GOOD — render prop avoids nesting
+<DropdownMenuTrigger render={<Button variant="ghost" size="icon" />}>
+  <MoreVertical />
+</DropdownMenuTrigger>
+```
+
+## ACL Permission Gating on UI
+
+**Rule**: Action buttons (create, edit, delete, status change) must be wrapped in `hasPermission()` checks. Navigation is filtered by `canAccessNav()` in the icon rail — but action buttons within pages need explicit gating.
+
+**Pattern**:
+```tsx
+const { hasPermission } = usePermissions();
+
+{hasPermission("bookings:*:confirm") && (
+  <Button onClick={handleConfirm}>Confirm</Button>
+)}
+```
+
+Backend enforces permissions too, but hiding buttons prevents confusing 403 errors for users.
+
+## Admin/Staff Route Protection
+
+**Rule**: Admin and staff users must never land on public-facing pages (`/browse`, `/profile`). Redirect them to `/admin`. Customer-facing pages should check `user.user_type` and redirect accordingly.
+
+**Rule**: When redirecting based on auth state, never put the early return before hooks that run later in the component. Use the pattern above (hooks first, redirect guard after).
+
+## No `router.replace()` During Render
+
+**Rule**: Never call `router.replace()` or `router.push()` directly in the render body. It triggers React's "Cannot update component while rendering" error. Always wrap in `useEffect`.
+
+```tsx
+// BAD — setState during render
+if (!hasPermission("x")) { router.replace("/admin"); return null; }
+
+// GOOD — redirect in useEffect, return spinner inline
+const denied = !permsLoading && !hasPermission("x");
+useEffect(() => { if (denied) router.replace("/admin"); }, [denied, router]);
+if (permsLoading || denied) return <Spinner />;
+```
+
+## Permission Bypass — Admin Only
+
+**Rule**: Only `user_type === "admin"` bypasses permission checks. Staff must always be checked against their actual permissions. Never use `isAdmin()` from auth-store for permission bypass — it returns true for both admin AND staff.
+
+**Past incident**: `usePermissions` hook used `isAdmin()` which returned true for staff, giving staff god-mode access to all pages and actions.
+
+## Theme CSS Injection
+
+**Rule**: Never use `document.documentElement.style.setProperty()` for theme variables. It creates inline styles with highest specificity that override `.dark` class rules, breaking dark/light toggle.
+
+**Correct approach**: Inject a `<style>` tag with `:root {}` and `.dark {}` blocks. This respects CSS cascade and allows dark mode toggle to work.
+
 # MCP Tools — Code Intelligence
 
 This project uses **RM MCP** — a purpose-built MCP server for this codebase.

@@ -82,6 +82,7 @@ services:
     ports:
       - "80:80"
       - "8080:8080"
+      - "8090:8090"
       - "8181:8181"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
@@ -94,6 +95,10 @@ services:
       backend-dev:
         condition: service_started
       frontend-dev:
+        condition: service_started
+      backend-staging:
+        condition: service_started
+      frontend-staging:
         condition: service_started
     networks:
       - rentmanager
@@ -198,6 +203,63 @@ services:
       - "traefik.http.routers.frontend-prod.entrypoints=web"
       - "traefik.http.routers.frontend-prod.priority=1"
       - "traefik.http.services.frontend-prod.loadbalancer.server.port=3000"
+    networks:
+      - rentmanager
+
+  # ─── rm-staging (port 8090) — prod build, local testing ─────────────
+
+  backend-staging:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: prod
+    container_name: rm-backend-staging
+    environment:
+      DATABASE_URL: "postgresql+asyncpg://${POSTGRES_USER:-rentmanager}:${POSTGRES_PASSWORD:-rentmanager_dev}@postgres:5432/${POSTGRES_DB:-rentmanager}"
+      DATABASE_URL_SYNC: "postgresql://${POSTGRES_USER:-rentmanager}:${POSTGRES_PASSWORD:-rentmanager_dev}@postgres:5432/${POSTGRES_DB:-rentmanager}"
+      REDIS_URL: "redis://redis:6379/0"
+      MEILI_URL: "http://meilisearch:7700"
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-masterkey_dev}
+      MINIO_ENDPOINT: "minio:9000"
+      MINIO_PUBLIC_ENDPOINT: "http://localhost:9000"
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin_dev}
+      SECRET_KEY: ${SECRET_KEY:-dev-secret-key-change-in-production}
+      SUPERADMIN_SECRET_KEY: ${SUPERADMIN_SECRET_KEY:-change-me-in-production-min-32-chars!!}
+      ALLOWED_SUPERADMIN_IPS: ${ALLOWED_SUPERADMIN_IPS:-}
+      PYTHONUNBUFFERED: "1"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      meilisearch:
+        condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.backend-staging.rule=PathPrefix(`/api`) || PathPrefix(`/superadmin`)"
+      - "traefik.http.routers.backend-staging.entrypoints=staging"
+      - "traefik.http.services.backend-staging.loadbalancer.server.port=8000"
+    networks:
+      - rentmanager
+
+  frontend-staging:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: prod
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL_STAGING:-http://localhost:8090/api}
+    container_name: rm-frontend-staging
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL_STAGING:-http://localhost:8090/api}
+      BACKEND_INTERNAL_URL: http://backend-staging:8000
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.frontend-staging.rule=PathPrefix(`/`)"
+      - "traefik.http.routers.frontend-staging.entrypoints=staging"
+      - "traefik.http.routers.frontend-staging.priority=1"
+      - "traefik.http.services.frontend-staging.loadbalancer.server.port=3000"
     networks:
       - rentmanager
 
