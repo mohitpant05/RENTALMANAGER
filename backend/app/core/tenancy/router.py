@@ -2,13 +2,14 @@ from fastapi import APIRouter, Query
 from sqlmodel import select
 
 from app import database as db_module
-from app import logging
 from app.core.admin.models import TenantTheme
 from app.core.admin.schemas import ThemeResponse
+from app.core.logging import get_logger
 from app.core.tenancy.context import get_current_tenant
 from app.core.tenancy.models import Tenant, TenantDomain
 
 router = APIRouter(prefix="/api/tenancy", tags=["tenancy"])
+logger = get_logger("tenancy")
 
 
 @router.get("/resolve")
@@ -35,7 +36,7 @@ async def resolve_tenant(domain: str = Query(...)):
                 "landing_page": (tenant.config or {}).get("landing_page", "browse"),
             }
     except Exception as error:
-        logging.log("resolve_tenant", {"EVENT": "resolve_tenant_error", "ERROR": error})
+        logger.error("resolve_tenant_error", error=str(error))
         return None
 
 
