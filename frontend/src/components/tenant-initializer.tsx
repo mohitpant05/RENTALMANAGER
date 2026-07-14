@@ -20,7 +20,7 @@ export function TenantInitializer() {
     async function init() {
       const resolved = await resolveTenantByDomain(host);
       if (resolved?.slug) {
-        setSlug(resolved.slug);
+        setSlug(resolved.slug, resolved.landing_page || "browse");
         return;
       }
 

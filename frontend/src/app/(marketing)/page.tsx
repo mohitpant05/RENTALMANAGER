@@ -15,14 +15,17 @@ export default function MarketingPage() {
   const router = useRouter();
   const resolved = useTenantStore((s) => s.resolved);
   const slug = useTenantStore((s) => s.slug);
+  const landingPage = useTenantStore((s) => s.landingPage);
+
+  const shouldRedirect = resolved && !!slug && landingPage === "browse";
 
   useEffect(() => {
-    if (resolved && slug) {
+    if (shouldRedirect) {
       router.replace("/browse");
     }
-  }, [resolved, slug, router]);
+  }, [shouldRedirect, router]);
 
-  if (resolved && slug) return null;
+  if (!resolved || shouldRedirect) return null;
 
   return (
     <main>

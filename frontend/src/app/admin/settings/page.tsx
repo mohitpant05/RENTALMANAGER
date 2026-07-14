@@ -230,6 +230,35 @@ export default function SettingsPage() {
         </Card>
       )}
 
+      {/* Landing Page */}
+      {tenant && user?.user_type === "admin" && (
+        <Card>
+          <CardContent className="p-6">
+            <h3 className="text-lg font-semibold">Default Landing Page</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Choose what visitors see when they first arrive at your site
+            </p>
+            <div className="mt-4 flex items-center gap-3">
+              <select
+                className="rounded-md border px-3 py-2 text-sm"
+                value={(tenant.config?.landing_page as string) ?? "browse"}
+                onChange={(e) => {
+                  updateTenant.mutate({
+                    config: {
+                      ...tenant.config,
+                      landing_page: e.target.value,
+                    },
+                  });
+                }}
+              >
+                <option value="browse">Browse — show resource listings immediately</option>
+                <option value="marketing">Marketing — show landing page with hero & CTA</option>
+              </select>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {domainOpen && (
         <Card className="border-primary/20">
           <CardHeader>
