@@ -6,6 +6,7 @@ from sqlalchemy import text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app import logging
 from app.config import get_settings as _get_settings
 from app.core.admin.models import TenantTheme
 from app.core.admin.platform_auth import (
@@ -136,6 +137,33 @@ async def activate_tenant(
     await session.commit()
     await session.refresh(tenant)
     return TenantResponse.model_validate(tenant)
+
+
+@router.patch("/tenants/{tenant_id}/config", response_model=TenantResponse)
+async def update_tenant_config_platform(
+    tenant_id: uuid.UUID,
+    payload: dict,
+    session: AsyncSession = Depends(get_session),
+    platform_user: PlatformUser = Depends(get_current_platform_user),
+):
+    try:
+        result = await session.exec(select(Tenant).where(Tenant.id == tenant_id))
+        tenant = result.first()
+        if tenant is None:
+            raise HTTPException(status_code=404, detail="Tenant not found")
+        existing = dict(tenant.config) if tenant.config else {}
+        existing.update(payload)
+        tenant.config = existing
+        tenant.updated_at = datetime.now(UTC)
+        session.add(tenant)
+        await session.commit()
+        await session.refresh(tenant)
+        return TenantResponse.model_validate(tenant)
+    except HTTPException:
+        raise
+    except Exception as error:
+        logging.log("update_tenant_config_platform", {"EVENT": "update_tenant_config_error", "ERROR": error})
+        raise HTTPException(status_code=500, detail="Failed to update tenant config")
 
 
 @router.get("/tenants/{tenant_id}/domains", response_model=list[DomainResponse])
