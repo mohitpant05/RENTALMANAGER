@@ -96,11 +96,9 @@ services:
     container_name: rm-traefik
     ports:
       - "80:80"
-      - "443:443"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./traefik/traefik.prod.yml:/etc/traefik/traefik.yml:ro
-      - traefik_certs:/letsencrypt
     depends_on:
       backend:
         condition: service_started
@@ -146,8 +144,7 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.backend.rule=PathPrefix(`/api`)"
-      - "traefik.http.routers.backend.entrypoints=websecure"
-      - "traefik.http.routers.backend.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.backend.entrypoints=web"
       - "traefik.http.services.backend.loadbalancer.server.port=8000"
     restart: unless-stopped
     logging:
@@ -239,8 +236,7 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.frontend.rule=PathPrefix(`/`)"
-      - "traefik.http.routers.frontend.entrypoints=websecure"
-      - "traefik.http.routers.frontend.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.frontend.entrypoints=web"
       - "traefik.http.routers.frontend.priority=1"
       - "traefik.http.services.frontend.loadbalancer.server.port=3000"
     restart: unless-stopped
@@ -265,8 +261,6 @@ volumes:
     name: rm_meilisearch_data
   minio_data:
     name: rm_minio_data
-  traefik_certs:
-    name: rm_traefik_certs
 
 networks:
   rentmanager:
