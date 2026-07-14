@@ -6,8 +6,8 @@ from sqlalchemy import text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app import logging
 from app.config import get_settings as _get_settings
+from app.core.logging import get_logger
 from app.core.admin.models import TenantTheme
 from app.core.admin.platform_auth import (
     authenticate_platform_user,
@@ -40,6 +40,7 @@ from app.database import engine, get_session
 from app.rate_limiter import limiter
 
 router = APIRouter(prefix="/api/platform", tags=["platform"])
+logger = get_logger("platform")
 
 
 @router.post("/login", response_model=PlatformTokenResponse)
@@ -162,7 +163,7 @@ async def update_tenant_config_platform(
     except HTTPException:
         raise
     except Exception as error:
-        logging.log("update_tenant_config_platform", {"EVENT": "update_tenant_config_error", "ERROR": error})
+        logger.error("update_tenant_config_error", error=str(error))
         raise HTTPException(status_code=500, detail="Failed to update tenant config")
 
 
