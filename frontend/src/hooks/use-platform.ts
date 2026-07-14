@@ -202,3 +202,14 @@ export function useDeleteTenantDomain(tenantId: string) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["platform", "tenants", tenantId, "domains"] }),
   });
 }
+
+export function useUpdateTenantConfig(tenantId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (config: Record<string, unknown>) => {
+      const res = await platformApi().patch(`/tenants/${tenantId}/config`, config);
+      return res.data as TenantResponse;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["platform", "tenants", tenantId] }),
+  });
+}

@@ -9,6 +9,7 @@ import {
   useTenantDomains,
   useAddTenantDomain,
   useDeleteTenantDomain,
+  useUpdateTenantConfig,
   type DomainResponse,
 } from "@/hooks/use-platform";
 import { Badge } from "@/components/ui/badge";
@@ -40,6 +41,7 @@ export default function TenantDetailPage() {
   const params = useParams<{ secretKey: string; id: string }>();
   const { data: tenant, isLoading } = useTenant(params.id);
   const toggle = useToggleTenant();
+  const updateConfig = useUpdateTenantConfig(params.id);
 
   if (isLoading || !tenant) {
     return (
@@ -86,12 +88,28 @@ export default function TenantDetailPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm">Config (JSON)</CardTitle>
+            <CardTitle className="text-sm">Tenant Settings</CardTitle>
           </CardHeader>
-          <CardContent>
-            <pre className="max-h-48 overflow-auto rounded bg-muted p-3 text-xs">
-              {JSON.stringify(tenant.config, null, 2) || "null"}
-            </pre>
+          <CardContent className="flex flex-col gap-4">
+            <div>
+              <label className="text-xs font-medium text-muted-foreground">Default Landing Page</label>
+              <select
+                className="mt-1 block w-full rounded-md border px-3 py-2 text-sm"
+                value={(tenant.config?.landing_page as string) ?? "browse"}
+                onChange={(e) => {
+                  updateConfig.mutate({ landing_page: e.target.value });
+                }}
+              >
+                <option value="browse">Browse — resource listings</option>
+                <option value="marketing">Marketing — landing page</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground">Raw Config</label>
+              <pre className="mt-1 max-h-48 overflow-auto rounded bg-muted p-3 text-xs">
+                {JSON.stringify(tenant.config, null, 2) || "null"}
+              </pre>
+            </div>
           </CardContent>
         </Card>
       </div>
