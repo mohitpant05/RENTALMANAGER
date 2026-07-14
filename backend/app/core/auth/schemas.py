@@ -97,6 +97,15 @@ class ChangePasswordRequest(BaseModel):
     new_password: str = Field(min_length=8)
 
 
+class RequestEmailChangeRequest(BaseModel):
+    new_email: EmailStr
+    password: str
+
+
+class VerifyEmailChangeRequest(BaseModel):
+    otp: str = Field(min_length=6, max_length=6)
+
+
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr
 

@@ -273,3 +273,21 @@ class DemoSlotBlockResponse(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class BootstrapAdminRequest(BaseModel):
+    tenant_id: uuid.UUID
+    email: str
+    password: str
+    full_name: str
+    domain: str = "rm.networkingbyte.com"
+
+
+class BootstrapAdminResponse(BaseModel):
+    user_id: uuid.UUID
+    email: str
+    full_name: str
+    tenant_id: uuid.UUID
+    tenant_name: str
+    domain: str
+    roles: list[str]

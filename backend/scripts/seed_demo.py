@@ -38,7 +38,7 @@ def hash_pw(pw: str) -> str:
 
 TENANT_SLUG = "demo"
 TENANT_NAME = "Demo Rentals"
-DOMAINS = ["localhost", "demo.localhost", "127.0.0.1"]
+DOMAINS = ["localhost", "localhost:8080", "localhost:8090", "localhost:3001", "demo.localhost", "127.0.0.1"]
 
 PLATFORM_EMAIL = "platform@rentmanager.dev"
 PLATFORM_PASSWORD = "platform123"
