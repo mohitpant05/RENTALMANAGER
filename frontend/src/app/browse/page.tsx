@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { MapPin, Search, Star, SlidersHorizontal } from "lucide-react";
 import api from "@/lib/api";
 import { useAuthStore } from "@/lib/auth-store";
 import { useTenantStore } from "@/lib/tenant-store";
+import { useThemeStore } from "@/lib/theme-store";
 import { useSearch } from "@/hooks/use-search";
 import type { ResourceTypeResponse, SearchHit, SearchRequest } from "@/types/api";
 import { useAttachments } from "@/hooks/use-storage";
@@ -31,8 +33,10 @@ import {
 type SortOption = "relevance" | "price_asc" | "price_desc" | "rating";
 
 export default function PublicHomePage() {
+  const router = useRouter();
   const { user, isAuthenticated } = useAuthStore();
   const tenantResolved = useTenantStore((s) => s.resolved);
+  const brand = useThemeStore((s) => s.theme?.brand);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedType, setSelectedType] = useState<string>("all");
   const [sortBy, setSortBy] = useState<SortOption>("relevance");
@@ -40,10 +44,24 @@ export default function PublicHomePage() {
   const { displayCurrency, setDisplayCurrency } = useCurrencyStore();
   const { data: rates } = useRates();
 
+  const isAdminOrStaff = isAuthenticated && user && (user.user_type === "admin" || user.user_type === "staff");
+
+  useEffect(() => {
+    if (isAdminOrStaff) {
+      router.replace("/admin");
+    }
+  }, [isAdminOrStaff, router]);
+
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedQuery(searchQuery), 300);
     return () => clearTimeout(timer);
   }, [searchQuery]);
+
+  if (isAdminOrStaff) return null;
+
+  const businessName = brand?.business_name || "RentManager";
+  const headline = brand?.headline || "Find your next rental";
+  const tagline = brand?.tagline || "Browse available resources and book instantly";
 
   const { data: resourceTypes } = useQuery({
     queryKey: ["resource-types"],
@@ -86,26 +104,44 @@ export default function PublicHomePage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b">
+      <header className="border-b bg-card">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-3 py-3 sm:px-4 sm:py-4">
-          <Link href="/browse" className="text-lg font-bold sm:text-xl">
-            RentManager
+          <Link href="/browse" className="flex items-center gap-2 text-lg font-bold sm:text-xl">
+            {brand?.logo_url ? (
+              <img
+                src={brand.logo_url}
+                alt={businessName}
+                className="h-7 w-auto max-w-[120px] object-contain sm:h-8"
+              />
+            ) : null}
+            <span>{businessName}</span>
           </Link>
           <nav className="flex items-center gap-2 sm:gap-4">
             {isAuthenticated ? (
               <>
-                <Link
-                  href="/bookings"
-                  className="text-xs sm:text-sm text-muted-foreground hover:text-foreground"
-                >
-                  Bookings
-                </Link>
-                <Link
-                  href="/profile"
-                  className="text-xs sm:text-sm text-muted-foreground hover:text-foreground"
-                >
-                  Profile
-                </Link>
+                {user?.user_type === "admin" || user?.user_type === "staff" ? (
+                  <Link
+                    href="/admin"
+                    className="text-xs sm:text-sm font-medium text-primary hover:underline"
+                  >
+                    Dashboard
+                  </Link>
+                ) : (
+                  <>
+                    <Link
+                      href="/bookings"
+                      className="text-xs sm:text-sm text-muted-foreground hover:text-foreground"
+                    >
+                      Bookings
+                    </Link>
+                    <Link
+                      href="/profile"
+                      className="text-xs sm:text-sm text-muted-foreground hover:text-foreground"
+                    >
+                      Profile
+                    </Link>
+                  </>
+                )}
                 <span className="hidden sm:inline text-sm text-muted-foreground">
                   {user?.full_name}
                 </span>
@@ -128,10 +164,10 @@ export default function PublicHomePage() {
         <section className="bg-muted/40 py-4 sm:py-16">
           <div className="mx-auto max-w-6xl px-3 sm:px-4 sm:text-center">
             <h1 className="hidden sm:block text-4xl font-bold tracking-tight sm:text-5xl">
-              Find your next rental
+              {headline}
             </h1>
             <p className="hidden sm:block mt-4 text-lg text-muted-foreground">
-              Browse available resources and book instantly
+              {tagline}
             </p>
 
             <div className="mx-auto sm:mt-8 flex max-w-3xl flex-col gap-2 sm:gap-3 sm:flex-row">

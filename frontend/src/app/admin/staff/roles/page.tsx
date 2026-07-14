@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useAuthStore } from "@/lib/auth-store";
+import { usePermissions } from "@/hooks/use-permissions";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -43,10 +44,9 @@ export default function RolesPage() {
   const router = useRouter();
   const { user, isLoading: authLoading } = useAuthStore();
   const qc = useQueryClient();
+  const { hasPermission } = usePermissions();
+  const canManageStaff = hasPermission("staff:*:manage");
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
-
-  if (authLoading) return <div className="flex flex-1 items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>;
-  if (user?.user_type !== "admin") { router.replace("/admin"); return null; }
   const [sheetOpen, setSheetOpen] = useState(false);
 
   const { data: roles = [] } = useQuery({
@@ -55,6 +55,7 @@ export default function RolesPage() {
       const { data } = await api.get<RoleResponse[]>("/admin/roles");
       return data;
     },
+    enabled: !authLoading && user?.user_type === "admin",
   });
 
   const { data: permissionGroups = [] } = useQuery({
@@ -63,12 +64,8 @@ export default function RolesPage() {
       const { data } = await api.get<PermissionGroup[]>("/admin/permissions");
       return data;
     },
+    enabled: !authLoading && user?.user_type === "admin",
   });
-
-  const selectedRole = roles.find((r) => r.id === selectedRoleId) ?? null;
-  const selectedPermIds = new Set(
-    selectedRole?.permissions.map((p) => p.id) ?? []
-  );
 
   const form = useForm<RoleFormValues>({
     resolver: zodResolver(roleSchema),
@@ -132,6 +129,31 @@ export default function RolesPage() {
     },
   });
 
+  const nameValue = form.watch("name");
+  const autoSlug = nameValue
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+
+  useEffect(() => {
+    if (!authLoading && user?.user_type !== "admin") {
+      router.replace("/admin");
+    }
+  }, [authLoading, user, router]);
+
+  if (authLoading || user?.user_type !== "admin") {
+    return (
+      <div className="flex flex-1 items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+
+  const selectedRole = roles.find((r) => r.id === selectedRoleId) ?? null;
+  const selectedPermIds = new Set(
+    selectedRole?.permissions.map((p) => p.id) ?? []
+  );
+
   function togglePermission(permId: string) {
     if (!selectedRole) return;
     const current = new Set(selectedRole.permissions.map((p) => p.id));
@@ -166,21 +188,17 @@ export default function RolesPage() {
     createMutation.mutate(values);
   }
 
-  const nameValue = form.watch("name");
-  const autoSlug = nameValue
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
-
   return (
     <div className="flex h-full">
       {/* Role list */}
       <div className="w-[280px] border-r flex flex-col">
         <div className="p-4 border-b flex items-center justify-between">
           <h2 className="font-semibold text-sm">Roles</h2>
-          <Button size="sm" variant="outline" onClick={() => setSheetOpen(true)}>
-            <Plus className="h-4 w-4 mr-1" /> New
-          </Button>
+          {canManageStaff && (
+            <Button size="sm" variant="outline" onClick={() => setSheetOpen(true)}>
+              <Plus className="h-4 w-4 mr-1" /> New
+            </Button>
+          )}
         </div>
         <div className="flex-1 overflow-y-auto">
           {roles.map((role) => (
@@ -228,7 +246,7 @@ export default function RolesPage() {
                   </p>
                 )}
               </div>
-              {!selectedRole.is_system && (
+              {!selectedRole.is_system && canManageStaff && (
                 <Button
                   variant="destructive"
                   size="sm"
@@ -245,7 +263,7 @@ export default function RolesPage() {
               selectedPermIds={selectedPermIds}
               onToggle={togglePermission}
               onBulkToggle={bulkTogglePermissions}
-              disabled={permMutation.isPending}
+              disabled={permMutation.isPending || !canManageStaff}
             />
           </div>
         ) : (

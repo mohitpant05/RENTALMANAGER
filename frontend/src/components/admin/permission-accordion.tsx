@@ -105,9 +105,6 @@ export function PermissionAccordion({
                         <p className="text-sm font-medium">
                           {perm.description || perm.codename}
                         </p>
-                        <p className="text-xs text-muted-foreground font-mono">
-                          {perm.codename}
-                        </p>
                       </div>
                       <Switch
                         checked={checked}

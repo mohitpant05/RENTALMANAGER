@@ -33,23 +33,23 @@ function matchesPermissionWithSupersets(
 export function usePermissions() {
   const user = useAuthStore((s) => s.user);
   const isLoading = useAuthStore((s) => s.isLoading);
-  const isAdmin = useAuthStore((s) => s.isAdmin);
+  const isTenantAdmin = user?.user_type === "admin";
 
   const permissions = user?.permissions ?? [];
   const permSet = new Set(permissions);
 
   function hasPermission(codename: string): boolean {
-    if (isAdmin()) return true;
+    if (isTenantAdmin) return true;
     return matchesPermissionWithSupersets(codename, permSet);
   }
 
   function hasAnyPermission(...codenames: string[]): boolean {
-    if (isAdmin()) return true;
+    if (isTenantAdmin) return true;
     return codenames.some((c) => matchesPermissionWithSupersets(c, permSet));
   }
 
   function canAccessNav(route: string): boolean {
-    if (isAdmin()) return true;
+    if (isTenantAdmin) return true;
     return canAccessRoute(route, permissions);
   }
 

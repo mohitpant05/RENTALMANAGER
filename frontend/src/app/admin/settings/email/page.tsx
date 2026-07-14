@@ -37,8 +37,6 @@ function maskKey(key: string): string {
 export default function EmailSettingsPage() {
   const router = useRouter();
   const { hasPermission, isLoading: permsLoading } = usePermissions();
-  if (permsLoading) return <div className="flex flex-1 items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>;
-  if (!hasPermission("settings:*:manage")) { router.replace("/admin"); return null; }
   const queryClient = useQueryClient();
 
   const { data: tenant } = useQuery({
@@ -121,6 +119,13 @@ export default function EmailSettingsPage() {
       toast.error(msg);
     },
   });
+
+  const denied = !permsLoading && !hasPermission("settings:*:manage");
+  useEffect(() => { if (denied) router.replace("/admin"); }, [denied, router]);
+
+  if (permsLoading || denied) {
+    return <div className="flex flex-1 items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>;
+  }
 
   return (
     <div className="flex-1 space-y-6 p-6">

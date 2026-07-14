@@ -32,9 +32,6 @@ export default function SettingsPage() {
   const [domainOpen, setDomainOpen] = useState(false);
   const [newDomain, setNewDomain] = useState("");
 
-  if (permsLoading) return <div className="flex flex-1 items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>;
-  if (!hasPermission("settings:*:manage")) { router.replace("/admin"); return null; }
-
   const { data: tenant } = useQuery({
     queryKey: ["admin-tenant"],
     queryFn: async () => {
@@ -107,6 +104,11 @@ export default function SettingsPage() {
   function onSubmit(data: DomainFormData) {
     addDomainMutation.mutate({ domain: data.domain });
   }
+
+  const denied = !permsLoading && !hasPermission("settings:*:manage");
+  useEffect(() => { if (denied) router.replace("/admin"); }, [denied, router]);
+
+  if (permsLoading || denied) return <div className="flex flex-1 items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>;
 
   return (
     <div className="flex-1 space-y-6 p-6">
