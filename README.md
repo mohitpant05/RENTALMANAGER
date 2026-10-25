@@ -15,6 +15,7 @@ A modular monolith for managing rentals — resources, bookings, payments, revie
 | Reverse Proxy | Traefik v3 (dev), NGINX Ingress (k8s prod) |
 | Container Runtime | Docker Compose (dev), k3s (prod) |
 | CI/CD | GitHub Actions → AWS ECR → k3s rolling deploy |
+| IaC | Terraform (AWS: EKS, RDS, ElastiCache, S3, ECR; Cloudflare DNS) |
 | Email | Pluggable: Console (dev), Gmail SMTP, Mandrill API |
 
 ## Architecture

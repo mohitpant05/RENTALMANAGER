@@ -1,0 +1,42 @@
+variable "aws_region" {
+  description = "AWS region"
+  type        = string
+}
+
+variable "environment" {
+  description = "Environment name"
+  type        = string
+}
+
+variable "vpc_cidr" {
+  description = "VPC CIDR block"
+  type        = string
+}
+
+variable "availability_zones" {
+  description = "AZs to use"
+  type        = list(string)
+}
+
+variable "alert_email" {
+  description = "Email for CloudWatch alarm notifications"
+  type        = string
+  default     = ""
+}
+
+variable "domain_name" {
+  description = "Root domain name managed in Cloudflare"
+  type        = string
+}
+
+variable "subdomain" {
+  description = "Subdomain prefix (e.g. rm-prod)"
+  type        = string
+  default     = "rm-prod"
+}
+
+variable "cloudflare_api_token" {
+  description = "Cloudflare API token (DNS edit permissions)"
+  type        = string
+  sensitive   = true
+}
