@@ -1,12 +1,13 @@
 # RentManager Terraform Infrastructure
 
-Provisions RentManager on AWS: EKS, RDS (Postgres 17), ElastiCache (Redis 7), S3, ECR, CI/CD (GitHub OIDC), Route53 DNS, CloudWatch observability.
+Provisions RentManager on AWS: EKS, RDS (Postgres 17), ElastiCache (Redis 7), S3, ECR, CI/CD (GitHub OIDC), Cloudflare DNS, CloudWatch observability.
 
 ## Prerequisites
 
 - Terraform >= 1.5
 - AWS CLI configured (`aws configure`)
 - AWS account with admin access
+- Cloudflare API token (for DNS management)
 
 ## Deploy Sequence
 
@@ -43,6 +44,7 @@ terraform apply
 ```bash
 cd terraform/environments/dev   # or prod
 # Edit terraform.tfvars — set domain_name, alert_email
+export TF_VAR_cloudflare_api_token="your-cloudflare-api-token"
 terraform init
 terraform plan
 terraform apply
@@ -86,7 +88,7 @@ terraform destroy
 │  └─────────────┘  └──────┬──────┘  │ ElastiCache    │  │
 │                          │         │ S3 uploads     │  │
 │                          │         │ CI/CD role     │  │
-│                   remote_state     │ Route53 DNS    │  │
+│                   remote_state     │ Cloudflare DNS │  │
 │                          │         │ CloudWatch     │  │
 │                          └────────►│                │  │
 │                                    └────────────────┘  │
@@ -105,7 +107,7 @@ terraform destroy
 | `s3` | App uploads bucket (replaces MinIO) | dev, prod |
 | `ecr` | Container registries for backend + frontend | shared |
 | `cicd` | GitHub Actions deploy IAM role (per-env) | dev, prod |
-| `dns` | Route53 hosted zone + subdomain records | dev, prod |
+| `dns` | Cloudflare DNS subdomain records | dev, prod |
 | `observability` | CloudWatch log groups, metric alarms, SNS alerts | dev, prod |
 
 ## Why "shared"?
@@ -142,7 +144,7 @@ terraform/
 │   ├── s3/                 # Upload bucket
 │   ├── ecr/                # Container registries
 │   ├── cicd/               # GitHub deploy role
-│   ├── dns/                # Route53
+│   ├── dns/                # Cloudflare DNS
 │   └── observability/      # CloudWatch, SNS
 └── environments/
     ├── shared/             # Account-wide: ECR + OIDC
@@ -160,8 +162,8 @@ terraform/
 | ElastiCache | ~$12 | ~$25 |
 | NAT Gateway | ~$32 | ~$96 |
 | S3/ECR | ~$2 | ~$5 |
-| Route53 | ~$0.50 | ~$0.50 |
-| **Total** | **~$165** | **~$370** |
+| Cloudflare DNS | $0 (free tier) | $0 (free tier) |
+| **Total** | **~$164** | **~$369** |
 
 ## Configuration
 
@@ -173,6 +175,7 @@ Edit `terraform.tfvars` in each environment before applying:
 | `environment` | Environment name | `dev` or `prod` |
 | `vpc_cidr` | VPC CIDR block | `10.0.0.0/16` |
 | `availability_zones` | AZs to use | `["ap-south-1a", "ap-south-1b", "ap-south-1c"]` |
-| `domain_name` | Root domain for Route53 | `mepant.com` |
+| `domain_name` | Root domain on Cloudflare | `mepant.com` |
 | `subdomain` | Subdomain prefix | `rm-dev` |
 | `alert_email` | CloudWatch alarm email | `you@example.com` |
+| `cloudflare_api_token` | Cloudflare API token (via `TF_VAR_`) | `export TF_VAR_cloudflare_api_token=...` |

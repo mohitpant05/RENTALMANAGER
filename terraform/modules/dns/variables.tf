@@ -4,7 +4,7 @@ variable "environment" {
 }
 
 variable "domain_name" {
-  description = "Root domain name (e.g. yourdomain.com)"
+  description = "Root domain name (e.g. mepant.com)"
   type        = string
 }
 
@@ -13,26 +13,26 @@ variable "subdomain" {
   type        = string
 }
 
-variable "alb_dns_name" {
-  description = "ALB DNS name to point the subdomain at"
+variable "target_address" {
+  description = "IP or CNAME target for the subdomain (ALB DNS name or IP)"
   type        = string
   default     = ""
 }
 
-variable "alb_zone_id" {
-  description = "ALB hosted zone ID for alias record"
+variable "record_type" {
+  description = "DNS record type (A for IP, CNAME for ALB DNS name)"
   type        = string
-  default     = ""
+  default     = "CNAME"
 }
 
-variable "create_hosted_zone" {
-  description = "Create a new hosted zone (false to use existing)"
+variable "proxied" {
+  description = "Enable Cloudflare proxy (orange cloud)"
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "tags" {
-  description = "Common tags"
+  description = "Common tags (not used by Cloudflare but kept for interface consistency)"
   type        = map(string)
   default     = {}
 }

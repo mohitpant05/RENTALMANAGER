@@ -101,9 +101,9 @@ module "observability" {
 module "dns" {
   source = "../../modules/dns"
 
-  environment        = var.environment
-  domain_name        = var.domain_name
-  subdomain          = var.subdomain
-  create_hosted_zone = true
-  tags               = local.common_tags
+  environment = var.environment
+  domain_name = var.domain_name
+  subdomain   = var.subdomain
+  proxied     = true
+  tags        = local.common_tags
 }

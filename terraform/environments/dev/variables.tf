@@ -25,13 +25,18 @@ variable "alert_email" {
 }
 
 variable "domain_name" {
-  description = "Root domain name for Route53"
+  description = "Root domain name managed in Cloudflare"
   type        = string
-  default     = ""
 }
 
 variable "subdomain" {
   description = "Subdomain prefix (e.g. rm-dev)"
   type        = string
   default     = "rm-dev"
+}
+
+variable "cloudflare_api_token" {
+  description = "Cloudflare API token (DNS edit permissions)"
+  type        = string
+  sensitive   = true
 }

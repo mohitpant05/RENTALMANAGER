@@ -1,47 +1,38 @@
+terraform {
+  required_providers {
+    cloudflare = {
+      source  = "cloudflare/cloudflare"
+      version = "~> 5.0"
+    }
+  }
+}
+
 locals {
   fqdn = "${var.subdomain}.${var.domain_name}"
 }
 
-data "aws_route53_zone" "existing" {
-  count = var.create_hosted_zone ? 0 : 1
-  name  = var.domain_name
-}
-
-resource "aws_route53_zone" "new" {
-  count = var.create_hosted_zone ? 1 : 0
-  name  = var.domain_name
-
-  tags = merge(var.tags, {
-    Name = var.domain_name
-  })
-}
-
-locals {
-  zone_id = var.create_hosted_zone ? aws_route53_zone.new[0].zone_id : data.aws_route53_zone.existing[0].zone_id
-}
-
-resource "aws_route53_record" "app" {
-  count   = var.alb_dns_name != "" ? 1 : 0
-  zone_id = local.zone_id
-  name    = local.fqdn
-  type    = "A"
-
-  alias {
-    name                   = var.alb_dns_name
-    zone_id                = var.alb_zone_id
-    evaluate_target_health = true
+data "cloudflare_zone" "main" {
+  filter = {
+    name = var.domain_name
   }
 }
 
-resource "aws_route53_record" "app_wildcard" {
-  count   = var.alb_dns_name != "" ? 1 : 0
-  zone_id = local.zone_id
-  name    = "*.${local.fqdn}"
-  type    = "A"
+resource "cloudflare_dns_record" "app" {
+  count   = var.target_address != "" ? 1 : 0
+  zone_id = data.cloudflare_zone.main.zone_id
+  name    = var.subdomain
+  content = var.target_address
+  type    = var.record_type
+  proxied = var.proxied
+  ttl     = var.proxied ? 1 : 300
+}
 
-  alias {
-    name                   = var.alb_dns_name
-    zone_id                = var.alb_zone_id
-    evaluate_target_health = true
-  }
+resource "cloudflare_dns_record" "app_wildcard" {
+  count   = var.target_address != "" ? 1 : 0
+  zone_id = data.cloudflare_zone.main.zone_id
+  name    = "*.${var.subdomain}"
+  content = var.target_address
+  type    = var.record_type
+  proxied = var.proxied
+  ttl     = var.proxied ? 1 : 300
 }
